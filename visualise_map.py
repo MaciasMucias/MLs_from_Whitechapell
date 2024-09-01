@@ -1,8 +1,9 @@
 import pygame
 from collections import deque
+from read_svg import all_nodes
 
 
-highlighted_node = deque([*jack_nodes, *cops_nodes, *path_nodes])
+highlighted_node = deque(all_nodes)
 curr_id = 700
 highlighted_node.rotate(-curr_id+1)
 

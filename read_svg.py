@@ -1,6 +1,7 @@
 from xml.dom import minidom
 from tqdm import tqdm
 import numpy as np
+import pygame
 
 
 class Node:
@@ -210,3 +211,5 @@ for node in cops_nodes:
 for node in jack_nodes:
     for connected in node.connected_cops:
         neighbour_matrix[node.id - 1, connected.id - 196] = 1
+
+a=0

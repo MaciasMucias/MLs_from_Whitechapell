@@ -87,7 +87,8 @@ for node in cops_nodes:
     cops_edges[len(node.edges)].append(node)
 
 
-for i in sorted(node_edges.items(), key=lambda x: x[0]):
+
+for i in sorted(jack_edges.items(), key=lambda x: x[0]):
     print(f"{i[0]}: {len(i[1])}")
     average += len(i[1])*i[0]
 
@@ -95,8 +96,8 @@ average = round(average/JACK_NODES_NUMBER, 2)
 print(f"Average edges per node: {average}")
 
 
-# with open("jack.map", "wb") as f:
-#     pickle.dump(jack_nodes, f)
-#
-# with open("cops.map", "wb") as f:
-#     pickle.dump(cops_nodes, f)
+with open("jack.map", "wb") as f:
+    pickle.dump(jack_nodes, f)
+
+with open("cops.map", "wb") as f:
+    pickle.dump(cops_nodes, f)

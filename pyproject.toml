@@ -5,3 +5,12 @@ description = ""
 readme = "DESIGN_REQUIREMENTS.md"
 requires-python = ">=3.13"
 dependencies = []
+
+[project.optional-dependencies]
+server = [
+    "fastapi>=0.135.3",
+    "uvicorn[standard]>=0.43.0",
+]
+dev = [
+    "pytest>=9.0.2",
+]

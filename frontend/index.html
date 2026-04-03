@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Letters from Whitechapel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #888;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #board-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: #b0b0b0;
+      padding: 2%;
+    }
+
+    #board {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+    }
+
+    #sidebar {
+      width: 260px;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+      gap: 10px;
+      overflow: hidden;
+      border-left: 1px solid #333;
+    }
+
+    #sidebar h2 {
+      margin: 0;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #7eb3e8;
+    }
+
+    #status {
+      font-size: 13px;
+      line-height: 1.5;
+      background: #12122a;
+      padding: 8px;
+      border-radius: 4px;
+    }
+
+    #legend {
+      font-size: 11px;
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      gap: 4px 8px;
+      align-items: center;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid #555;
+    }
+
+    .swatch.square { border-radius: 2px; }
+
+    #log {
+      flex: 1;
+      overflow-y: auto;
+      font-size: 11px;
+      background: #0d0d1f;
+      padding: 8px;
+      border-radius: 4px;
+      line-height: 1.5;
+    }
+
+    #log p { margin: 2px 0; color: #bbb; }
+    #log p.event-jack { color: #81c784; }
+    #log p.event-cop { color: #90caf9; }
+    #log p.event-result { color: #fff176; font-weight: bold; }
+
+    button {
+      padding: 9px;
+      background: #2a6099;
+      border: none;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    button:hover { background: #357abd; }
+    button:disabled { background: #444; cursor: default; }
+  </style>
+</head>
+<body>
+  <div id="board-wrapper">
+    <svg
+      id="board"
+      viewBox="0 0 1434.5061 965.09717"
+      xmlns="http://www.w3.org/2000/svg"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+    >
+      <image href="/api/map-svg" x="0" y="0" width="1434.5061" height="965.09717"/>
+    </svg>
+  </div>
+
+  <div id="sidebar">
+    <h2>Whitechapel</h2>
+    <button id="new-game-btn">New Game</button>
+
+    <div id="status">No game in progress.</div>
+
+    <h2>Legend</h2>
+    <div id="legend">
+      <div class="swatch" style="background:transparent; border-color:#2e7d32; border-width:3px"></div><span>Jack</span>
+      <div class="swatch" style="background:transparent; border-color:#f9a825; border-width:3px"></div><span>Hideout</span>
+      <div class="swatch" style="background:transparent; border-color:#ff6d00; border-width:3px"></div><span>Legal move</span>
+      <div class="swatch" style="background:transparent; border-color:#1565c0; border-width:3px"></div><span>Cop-visited</span>
+      <div class="swatch square" style="background:#d32f2f"></div><span>Cop</span>
+      <div class="swatch square" style="background:rgba(40,40,40,0.4); border-color:#777"></div><span>Cop node</span>
+    </div>
+
+    <h2>Event Log</h2>
+    <div id="log"><p>Start a new game.</p></div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="board.js"></script>
+</body>
+</html>

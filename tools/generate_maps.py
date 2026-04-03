@@ -24,8 +24,6 @@ from engine.graph import CopNode, JackEdge, JackNode
 # ---------------------------------------------------------------------------
 # Whitechapel full-map configuration
 # ---------------------------------------------------------------------------
-JACK_STARTS = [1]           # possible Jack starting node IDs
-COP_STARTS  = [1, 2, 3, 4, 5]  # TODO: replace with actual spawn nodes from SVG
 HIDEOUT_MIN_DISTANCE = 4
 NUM_COPS = 5
 TURN_LIMIT = 15
@@ -121,13 +119,14 @@ def _parse_svg(svg_path):
         jack_types[node_id] = "jack_kill" if "fill:#ff0000" in e.getAttribute("style") else "jack"
 
     # --- Cop nodes (<rect> elements, 1-indexed by order) ---
-    cop_coords, cop_point = {}, {}
+    cop_coords, cop_point, cop_types = {}, {}, {}
     for idx, rect in enumerate(doc.getElementsByTagName("rect")):
         cid = idx + 1
         cx = round(float(rect.getAttribute("x")) + float(rect.getAttribute("width")) / 2, 2)
         cy = round(float(rect.getAttribute("y")) + float(rect.getAttribute("height")) / 2, 2)
         cop_coords[cid] = (cx, cy)
         cop_point[cid] = [[cx, cy]]
+        cop_types[cid] = "cops_spawn" if "stroke:#ffff00" in rect.getAttribute("style") else "cops"
 
     # --- Path segments ---
     path_coords = []
@@ -233,7 +232,7 @@ def _parse_svg(svg_path):
             cop_cop_adj[cid].add(other)
             cop_cop_adj[other].add(cid)
 
-    return jack_coords, jack_types, cop_coords, jack_cop_adj, cop_cop_adj, cop_jack_adj
+    return jack_coords, jack_types, cop_coords, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +241,7 @@ def _parse_svg(svg_path):
 
 def build_map():
     print("Parsing SVG...", flush=True)
-    jack_coords, jack_types, cop_coords, jack_cop_adj, cop_cop_adj, cop_jack_adj = _parse_svg(SVG_PATH)
+    jack_coords, jack_types, cop_coords, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj = _parse_svg(SVG_PATH)
 
     # --- Build node objects ---
     cop_by_id = {cid: CopNode(id=cid, x=x, y=y) for cid, (x, y) in cop_coords.items()}
@@ -328,14 +327,18 @@ def build_map():
         print(f"\nDebug mode: only processed routes for jack node {DEBUG_ROUTES_FOR_NODE}. Not saving.", flush=True)
         return
 
+    # --- Derive start node lists from SVG types ---
+    jack_starts = sorted(jid for jid, t in jack_types.items() if t == "jack_kill")
+    cop_starts  = sorted(cid for cid, t in cop_types.items()  if t == "cops_spawn")
+
     # --- Serialise to JSON ---
     jack_nodes = [jack_by_id[jid] for jid in sorted(jack_by_id)]
     cop_nodes  = [cop_by_id[cid]  for cid  in sorted(cop_by_id)]
 
     data = {
+        "jack_starts": jack_starts,
+        "cop_starts": cop_starts,
         "config": {
-            "jack_starts": JACK_STARTS,
-            "cop_starts": COP_STARTS,
             "hideout_min_distance": HIDEOUT_MIN_DISTANCE,
             "num_cops": NUM_COPS,
             "turn_limit": TURN_LIMIT,
@@ -345,7 +348,6 @@ def build_map():
                 "id": jn.id,
                 "x": jn.x,
                 "y": jn.y,
-                "type": jn.node_type,
                 "edges": [
                     {"destination": e.destination.id, "via": [c.id for c in e.via]}
                     for e in jn.edges

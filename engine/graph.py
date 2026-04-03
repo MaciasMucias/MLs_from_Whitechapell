@@ -43,6 +43,9 @@ def load_map(path: str | Path) -> Map:
         data = json.load(f)
 
     cfg = data["config"]
+    jack_starts: list[int] = data["jack_starts"]
+    cop_starts: list[int] = data["cop_starts"]
+    jack_starts_set = set(jack_starts)
 
     # Pass 1: create stub nodes (no edges yet)
     cop_by_id: dict[int, CopNode] = {}
@@ -52,7 +55,8 @@ def load_map(path: str | Path) -> Map:
 
     jack_by_id: dict[int, JackNode] = {}
     for jn in data["jack_nodes"]:
-        node = JackNode(id=jn["id"], x=jn["x"], y=jn["y"], node_type=jn["type"])
+        node_type = "jack_kill" if jn["id"] in jack_starts_set else "jack"
+        node = JackNode(id=jn["id"], x=jn["x"], y=jn["y"], node_type=node_type)
         jack_by_id[node.id] = node
 
     # Pass 2: wire edges
@@ -74,8 +78,8 @@ def load_map(path: str | Path) -> Map:
     return Map(
         jack_nodes=[jack_by_id[i] for i in sorted(jack_by_id)],
         cop_nodes=[cop_by_id[i] for i in sorted(cop_by_id)],
-        jack_starts=cfg["jack_starts"],
-        cop_starts=cfg["cop_starts"],
+        jack_starts=jack_starts,
+        cop_starts=cop_starts,
         num_cops=cfg["num_cops"],
         turn_limit=cfg["turn_limit"],
         hideout_min_distance=cfg["hideout_min_distance"],

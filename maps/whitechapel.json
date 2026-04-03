@@ -1,0 +1,6 @@
+{
+  "jack_start": 1,
+  "hideout_min_distance": 4,
+  "num_cops": 5,
+  "turn_limit": 15
+}

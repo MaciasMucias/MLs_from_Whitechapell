@@ -1,4 +1,4 @@
-# MLs_from_Whitechapell
+# MLs_from_Whitechapel
 ## Cel pracy
 
 Stworzenie środowiska reprezentującego asymetryczną grę planszową z pojedynczym uciekinierem posiadającym pełną wiedzę i wieloma poszukiwaczami nieznającymi pozycji uciekiniera, ale mogącymi przeszukiwać planszę w celu znajdywania jego śladów. Następnie zaprojektowanie i wytrenowanie agenta grającego w roli uciekiniera wykorzystując techniki uczenia ze wzmocnieniem.

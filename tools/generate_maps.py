@@ -14,6 +14,7 @@ Run from the project root:
 import json
 import sys
 from pathlib import Path
+from typing import Any
 from xml.dom import minidom
 
 ROOT = Path(__file__).parent.parent
@@ -40,10 +41,10 @@ DEBUG_ROUTES_FOR_NODE = None
 # SVG path coordinate parser
 # ---------------------------------------------------------------------------
 
-def _parse_path_coords(path_elem):
+def _parse_path_coordinates(path_elem):
     d = path_elem.getAttribute("d")
     args = d.split(" ")
-    coords = None
+    coordinates = None
     mode = ""
     n = 1
     for arg in args:
@@ -54,34 +55,34 @@ def _parse_path_coords(path_elem):
             val = float(arg)
         else:
             val = list(map(float, arg.split(",")))
-        if coords is None:
-            coords = [val if isinstance(val, list) else [val, 0.0]]
+        if coordinates is None:
+            coordinates = [val if isinstance(val, list) else [val, 0.0]]
             continue
-        prev = coords[n - 1]
+        prev = coordinates[n - 1]
         if mode in ("M", "L"):
-            coords.append(val)
+            coordinates.append(val)
         elif mode in ("m", "l"):
-            coords.append([round(prev[0] + val[0], 8), round(prev[1] + val[1], 8)])
+            coordinates.append([round(prev[0] + val[0], 8), round(prev[1] + val[1], 8)])
         elif mode == "H":
-            coords.append([val, prev[1]])
+            coordinates.append([val, prev[1]])
         elif mode == "h":
-            coords.append([round(prev[0] + val, 8), prev[1]])
+            coordinates.append([round(prev[0] + val, 8), prev[1]])
         elif mode == "V":
-            coords.append([prev[0], val])
+            coordinates.append([prev[0], val])
         elif mode == "v":
-            coords.append([prev[0], round(prev[1] + val, 8)])
+            coordinates.append([prev[0], round(prev[1] + val, 8)])
         else:
             raise RuntimeError(f"Unexpected SVG path mode: {mode!r}")
         n += 1
-    return [[round(c, 2) for c in pt] for pt in coords]
+    return [[round(c, 2) for c in pt] for pt in coordinates]
 
 
 def _dist(p1, p2):
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 
 
-def _is_connected(coords_a, coords_b, threshold=5.0):
-    return any(_dist(a, b) < threshold for a in coords_a for b in coords_b)
+def _is_connected(coordinates_a, coordinates_b, threshold=5.0):
+    return any(_dist(a, b) < threshold for a in coordinates_a for b in coordinates_b)
 
 
 # ---------------------------------------------------------------------------
@@ -91,9 +92,9 @@ def _is_connected(coords_a, coords_b, threshold=5.0):
 def _parse_svg(svg_path):
     """
     Returns:
-      jack_coords  : {jack_id: (x, y)}
+      jack_coordinates  : {jack_id: (x, y)}
       jack_types   : {jack_id: 'jack' | 'jack_kill'}
-      cop_coords   : {cop_id: (x, y)}
+      cop_coordinates   : {cop_id: (x, y)}
       jack_cop_adj : {jack_id: set of cop_ids}  — direct adjacency
       cop_cop_adj  : {cop_id: set of cop_ids}   — direct adjacency
       cop_jack_adj : {cop_id: set of jack_ids}  — inverse of jack_cop_adj
@@ -102,7 +103,7 @@ def _parse_svg(svg_path):
 
     # --- Jack nodes ---
     scale, dx, dy = 0.26458333, 9.26376, -28.409268
-    jack_coords, jack_types, jack_point = {}, {}, {}
+    jack_coordinates, jack_types, jack_point = {}, {}, {}
     for g in doc.getElementsByTagName("g"):
         if "layer" in g.getAttribute("id"):
             continue
@@ -114,31 +115,31 @@ def _parse_svg(svg_path):
         node_id = int(tspans[0].firstChild.nodeValue)
         x = round(float(e.getAttribute("cx")) * scale + dx, 2)
         y = round(float(e.getAttribute("cy")) * scale + dy, 2)
-        jack_coords[node_id] = (x, y)
+        jack_coordinates[node_id] = (x, y)
         jack_point[node_id] = [[x, y]]
         jack_types[node_id] = "jack_kill" if "fill:#ff0000" in e.getAttribute("style") else "jack"
 
     # --- Cop nodes (<rect> elements, 1-indexed by order) ---
-    cop_coords, cop_point, cop_types = {}, {}, {}
+    cop_coordinates, cop_point, cop_types = {}, {}, {}
     for idx, rect in enumerate(doc.getElementsByTagName("rect")):
         cid = idx + 1
         cx = round(float(rect.getAttribute("x")) + float(rect.getAttribute("width")) / 2, 2)
         cy = round(float(rect.getAttribute("y")) + float(rect.getAttribute("height")) / 2, 2)
-        cop_coords[cid] = (cx, cy)
+        cop_coordinates[cid] = (cx, cy)
         cop_point[cid] = [[cx, cy]]
         cop_types[cid] = "cops_spawn" if "stroke:#ffff00" in rect.getAttribute("style") else "cops"
 
     # --- Path segments ---
-    path_coords = []
+    path_coordinates = []
     for p in doc.getElementsByTagName("path"):
         try:
-            path_coords.append(_parse_path_coords(p))
-        except Exception:
+            path_coordinates.append(_parse_path_coordinates(p))
+        except RuntimeError:
             pass
 
-    n_paths = len(path_coords)
-    n_jack = len(jack_coords)
-    n_cop = len(cop_coords)
+    n_paths = len(path_coordinates)
+    n_jack = len(jack_coordinates)
+    n_cop = len(cop_coordinates)
     print(f"  {n_jack} jack nodes, {n_cop} cop nodes, {n_paths} path segments", flush=True)
 
     # --- Pre-compute path-path adjacency (once) ---
@@ -146,7 +147,7 @@ def _parse_svg(svg_path):
     path_adj = [[] for _ in range(n_paths)]
     for i in range(n_paths):
         for j in range(i + 1, n_paths):
-            if _is_connected(path_coords[i], path_coords[j]):
+            if _is_connected(path_coordinates[i], path_coordinates[j]):
                 path_adj[i].append(j)
                 path_adj[j].append(i)
 
@@ -155,7 +156,7 @@ def _parse_svg(svg_path):
     path_cop  = [set() for _ in range(n_paths)]  # path_index -> set of cop IDs
     path_jack = [set() for _ in range(n_paths)]  # path_index -> set of jack IDs
 
-    for i, pc in enumerate(path_coords):
+    for i, pc in enumerate(path_coordinates):
         for cid, cc in cop_point.items():
             if _is_connected(pc, cc):
                 path_cop[i].add(cid)
@@ -164,8 +165,8 @@ def _parse_svg(svg_path):
                 path_jack[i].add(jid)
 
     # Build reverse lookups: node -> touching path indices
-    jack_paths = {jid: [] for jid in jack_coords}
-    cop_paths  = {cid: [] for cid in cop_coords}
+    jack_paths = {jid: [] for jid in jack_coordinates}
+    cop_paths  = {cid: [] for cid in cop_coordinates}
     for i in range(n_paths):
         for jid in path_jack[i]:
             jack_paths[jid].append(i)
@@ -200,8 +201,8 @@ def _parse_svg(svg_path):
     # --- Jack-cop direct adjacency ---
     print("  Computing jack-cop adjacency...", flush=True)
     jack_cop_adj = {}
-    cop_jack_adj = {cid: set() for cid in cop_coords}
-    for jid in jack_coords:
+    cop_jack_adj = {cid: set() for cid in cop_coordinates}
+    for jid in jack_coordinates:
         cops = find_adjacent_cops(jack_paths[jid], exclude_jack_id=jid)
         jack_cop_adj[jid] = cops
         for cid in cops:
@@ -209,30 +210,30 @@ def _parse_svg(svg_path):
 
     # --- Cop-cop direct adjacency ---
     print("  Computing cop-cop adjacency...", flush=True)
-    cop_cop_adj = {cid: set() for cid in cop_coords}
-    for cid in cop_coords:
+    cop_cop_adj = {cid: set() for cid in cop_coordinates}
+    for cid in cop_coordinates:
         # BFS from this cop's paths; looking for adjacent cops.
         # Stop at first cop (other than self), don't cross jack nodes.
-        visited = set(cop_paths[cid])
-        queue = list(cop_paths[cid])
-        found = set()
-        while queue:
-            pi = queue.pop()
-            touching_other_cops = path_cop[pi] - {cid}
+        seen = set(cop_paths[cid])
+        frontier = list(cop_paths[cid])
+        adj_cops: set[int] = set()
+        while frontier:
+            path_idx = frontier.pop()
+            touching_other_cops = path_cop[path_idx] - {cid}
             if touching_other_cops:
-                found.update(touching_other_cops)
+                adj_cops.update(touching_other_cops)
                 continue  # stop at cop
-            if path_jack[pi]:
+            if path_jack[path_idx]:
                 continue  # stop at jack
-            for npi in path_adj[pi]:
-                if npi not in visited:
-                    visited.add(npi)
-                    queue.append(npi)
-        for other in found:
+            for next_path in path_adj[path_idx]:
+                if next_path not in seen:
+                    seen.add(next_path)
+                    frontier.append(next_path)
+        for other in adj_cops:
             cop_cop_adj[cid].add(other)
             cop_cop_adj[other].add(cid)
 
-    return jack_coords, jack_types, cop_coords, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj
+    return jack_coordinates, jack_types, cop_coordinates, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj
 
 
 # ---------------------------------------------------------------------------
@@ -241,12 +242,12 @@ def _parse_svg(svg_path):
 
 def build_map():
     print("Parsing SVG...", flush=True)
-    jack_coords, jack_types, cop_coords, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj = _parse_svg(SVG_PATH)
+    jack_coordinates, jack_types, cop_coordinates, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj = _parse_svg(SVG_PATH)
 
     # --- Build node objects ---
-    cop_by_id = {cid: CopNode(id=cid, x=x, y=y) for cid, (x, y) in cop_coords.items()}
+    cop_by_id = {cid: CopNode(id=cid, x=x, y=y) for cid, (x, y) in cop_coordinates.items()}
     jack_by_id = {jid: JackNode(id=jid, x=x, y=y, node_type=jack_types[jid])
-                  for jid, (x, y) in jack_coords.items()}
+                  for jid, (x, y) in jack_coordinates.items()}
 
     # Cop-cop movement edges
     cop_edges_seen = set()
@@ -265,8 +266,8 @@ def build_map():
 
     # --- Derive jack-jack adjacency by BFS through cop graph ---
     print("Deriving jack-jack adjacency...", flush=True)
-    jack_jack_adj: dict[int, set[int]] = {jid: set() for jid in jack_coords}
-    for jid in jack_coords:
+    jack_jack_adj: dict[int, set[int]] = {jid: set() for jid in jack_coordinates}
+    for jid in jack_coordinates:
         visited_cops = set()
         queue = list(jack_cop_adj[jid])
         visited_cops.update(queue)
@@ -283,23 +284,23 @@ def build_map():
     # --- Find traversal routes for each jack-jack edge ---
     def find_routes(jack_a: int, jack_b: int) -> list[tuple[int, ...]]:
         b_cops = jack_cop_adj[jack_b]
-        routes = []
+        result: list[tuple[int, ...]] = []
         for start_cop in jack_cop_adj[jack_a]:
-            stack = [(start_cop, (start_cop,), {start_cop})]
+            stack: list[tuple[Any, tuple[Any, ...], set]] = [(start_cop, (start_cop,), {start_cop})]
             while stack:
-                current, path, visited = stack.pop()
+                current, route, route_visited = stack.pop()
                 if current in b_cops:
-                    routes.append(path)
+                    result.append(route)
                 for next_cop in cop_cop_adj[current]:
-                    if next_cop not in visited:
-                        stack.append((next_cop, path + (next_cop,), visited | {next_cop}))
-        return routes
+                    if next_cop not in route_visited:
+                        stack.append((next_cop, route + (next_cop,), route_visited | {next_cop}))
+        return result
 
     print("Finding traversal routes...", flush=True)
     jack_edges_seen = set()
     missing = []
 
-    nodes_to_process = {1} if DEBUG_ROUTES_FOR_NODE is not None else set(jack_coords)
+    nodes_to_process = {1} if DEBUG_ROUTES_FOR_NODE is not None else set(jack_coordinates)
 
     for node_id in nodes_to_process:
         neighbours = jack_jack_adj[node_id]

@@ -3,6 +3,6 @@ revision = 3
 requires-python = ">=3.13"
 
 [[package]]
-name = "mls-from-whitechapell"
+name = "mls-from-whitechapel"
 version = "0.1.0"
 source = { virtual = "." }

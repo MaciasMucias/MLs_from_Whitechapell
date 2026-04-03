@@ -28,25 +28,25 @@ class CopTurn:
 # ---------------------------------------------------------------------------
 
 def make_initial_state(
-    map: Map,
+    game_map: Map,
     rng: random.Random | None = None,
 ) -> GameState:
     """
     Create a starting GameState for a new game.
 
-    Jack's starting node is chosen randomly from map.jack_starts.
-    Cop starting nodes are sampled (without replacement) from map.cop_starts.
+    Jack's starting node is chosen randomly from game_map.jack_starts.
+    Cop starting nodes are sampled (without replacement) from game_map.cop_starts.
     Hideout is chosen randomly from jack nodes at least
-    map.hideout_min_distance hops from Jack's starting node.
+    game_map.hideout_min_distance hops from Jack's starting node.
 
     Args:
-        map: Loaded Map (graph + config).
+        game_map: Loaded Map (graph + config).
         rng: Optional seeded Random instance for reproducibility.
     """
     if rng is None:
         rng = random.Random()
 
-    start = rng.choice(map.jack_starts)
+    start = rng.choice(game_map.jack_starts)
 
     # BFS from start to find distances in the jack graph
     distances: dict[int, int] = {start: 0}
@@ -54,17 +54,17 @@ def make_initial_state(
     while queue:
         node_id = queue.pop(0)
         seen: set[int] = set()
-        for edge in map.jack_nodes[node_id - 1].edges:
+        for edge in game_map.jack_nodes[node_id - 1].edges:
             nb_id = edge.destination.id
             if nb_id not in distances and nb_id not in seen:
                 seen.add(nb_id)
                 distances[nb_id] = distances[node_id] + 1
                 queue.append(nb_id)
 
-    candidates = [jid for jid, d in distances.items() if d >= map.hideout_min_distance]
+    candidates = [jid for jid, d in distances.items() if d >= game_map.hideout_min_distance]
     hideout = rng.choice(candidates)
 
-    cop_positions = tuple(rng.sample(map.cop_starts, map.num_cops))
+    cop_positions = tuple(rng.sample(game_map.cop_starts, game_map.num_cops))
 
     return GameState(
         jack_pos=start,
@@ -82,7 +82,7 @@ def make_initial_state(
 
 def legal_jack_edges(
     state: GameState,
-    map: Map,
+    game_map: Map,
     blocking: bool = False,
 ) -> list[JackEdge]:
     """
@@ -91,21 +91,21 @@ def legal_jack_edges(
     When blocking is enabled, edges where any traversal cop node is currently
     occupied are excluded.
     """
-    jack_node = map.jack_nodes[state.jack_pos - 1]
+    jack_node = game_map.jack_nodes[state.jack_pos - 1]
     if not blocking:
         return list(jack_node.edges)
     occupied = set(state.cop_positions)
     return [e for e in jack_node.edges if not any(c.id in occupied for c in e.via)]
 
 
-def reachable_cop_nodes(cop_id: int, map: Map, max_steps: int = 2) -> set[int]:
+def reachable_cop_nodes(cop_id: int, game_map: Map, max_steps: int = 2) -> set[int]:
     """BFS: all cop node IDs reachable from cop_id within max_steps moves."""
     reachable = {cop_id}
     frontier = {cop_id}
     for _ in range(max_steps):
         next_frontier: set[int] = set()
         for cid in frontier:
-            for nb in map.cop_nodes[cid - 1].edges:
+            for nb in game_map.cop_nodes[cid - 1].edges:
                 if nb.id not in reachable:
                     reachable.add(nb.id)
                     next_frontier.add(nb.id)
@@ -120,8 +120,6 @@ def reachable_cop_nodes(cop_id: int, map: Map, max_steps: int = 2) -> set[int]:
 def step_jack(
     state: GameState,
     jack_edge: JackEdge,
-    map: Map,
-    blocking: bool = False,
 ) -> tuple[GameState, bool, str | None]:
     """
     Apply Jack's move for this round.
@@ -149,7 +147,7 @@ def step_jack(
 def step_cop(
     state: GameState,
     cop_turn: CopTurn,
-    map: Map,
+    game_map: Map,
 ) -> tuple[GameState, bool, str | None]:
     """
     Apply one cop's turn: move, then search or arrest.
@@ -163,7 +161,7 @@ def step_cop(
     """
     cop_positions = list(state.cop_positions)
     cop_positions[cop_turn.cop_idx] = cop_turn.destination
-    cop_node = map.cop_nodes[cop_turn.destination - 1]
+    cop_node = game_map.cop_nodes[cop_turn.destination - 1]
 
     visited = set(state.cop_knowledge.visited)
     never_visited = set(state.cop_knowledge.never_visited)
@@ -204,7 +202,7 @@ def step_cop(
 
 def end_of_round(
     state: GameState,
-    map: Map,
+    game_map: Map,
     blocking: bool = False,
 ) -> tuple[GameState, bool, str | None]:
     """
@@ -224,9 +222,9 @@ def end_of_round(
         jack_trace=state.jack_trace,
         cop_knowledge=state.cop_knowledge,
     )
-    if new_state.turn >= map.turn_limit:
+    if new_state.turn >= game_map.turn_limit:
         return new_state, True, "cops"
-    if blocking and not legal_jack_edges(new_state, map, blocking=True):
+    if blocking and not legal_jack_edges(new_state, game_map, blocking=True):
         return new_state, True, "cops"
     return new_state, False, None
 

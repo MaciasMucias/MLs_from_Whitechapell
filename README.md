@@ -1,2 +1,11 @@
 # MLs_from_Whitechapell
-A project to write Machine Learning agents that can play the boardgame "Letters form Whitechapell"
+## Cel pracy
+
+Stworzenie środowiska reprezentującego asymetryczną grę planszową z pojedynczym uciekinierem posiadającym pełną wiedzę i wieloma poszukiwaczami nieznającymi pozycji uciekiniera, ale mogącymi przeszukiwać planszę w celu znajdywania jego śladów. Następnie zaprojektowanie i wytrenowanie agenta grającego w roli uciekiniera wykorzystując techniki uczenia ze wzmocnieniem.
+
+## Tematyka zgłaszanej pracy
+
+Asymetryczne gry planszowe, gdzie gracze mają różne role, cele i mechaniki (np. Root, Netrunner), stanowią doskonały „poligon testowy” dla algorytmów AI i modeli wieloagentowych, wymagając specjalizacji strategii dla każdego "agenta" oraz modelowania złożonych interakcji asymetrycznych. W przypadku tej pracy będzie rozpatrywana gra, w której mamy jednego uciekiniera i wielu poszukiwaczy. Rola uciekiniera wymaga poruszania się w sposób wymijający poszukiwaczy i wprowadzający ich w błąd. Z kolei rola poszukiwaczy wymaga systematycznego eliminowania potencjalnych ruchów uciekiniera by zawęzić przestrzeń pól na których może się znajdować, oraz wyciąganie wniosków z odnalezionych śladów by próbować przewidzieć cel lub obecną lokalizację uciekiniera.
+W ramach realizacji treningu agenta stworzeni zostaną heurystyczni poszukiwacze z wspierającym systemem dynamicznie balansującym poziom trudności podczas rozgrywek by agent mógł uczyć się w sprzyjających warunkach. Eksperymenty zostaną przeprowadzone na planszach o różnych rozmiarach, a skuteczność systemu curriculum learning zostanie zweryfikowana poprzez studia ablacyjne porównujące proces uczenia z tym systemem i bez niego.
+Ewaluacja wytrenowanego agenta obejmie analizę skuteczności na podstawie takich metryk jak procent wygranych gier oraz średni czas przetrwania, a także porównanie z wynikami graczy ludzkich o różnym poziomie umiejętności, co pozwoli ocenić jakość wyuczonych strategii.
+Podsumowując, głównym celem pracy będzie wytrenowanie agenta wykorzystującego przewagę informacyjną w asymetrycznej grze planszowej przy użyciu wskazanych metod oraz analiza efektywności wyuczonych strategii w kontekście adaptacji do różnych warunków środowiska i przeciwników.

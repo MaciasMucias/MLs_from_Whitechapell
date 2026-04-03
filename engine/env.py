@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import random
 
-from engine.graph import JackEdge, MapBundle, MapConfig
+from engine.graph import JackEdge, Map
 from engine.state import CopKnowledge, GameState
 
 
@@ -28,50 +28,47 @@ class CopTurn:
 # ---------------------------------------------------------------------------
 
 def make_initial_state(
-    bundle: MapBundle,
-    config: MapConfig,
-    cop_starts: tuple[int, ...] | None = None,
+    map: Map,
     rng: random.Random | None = None,
 ) -> GameState:
     """
     Create a starting GameState for a new game.
 
-    Hideout is chosen randomly from all jack nodes at least
-    config.hideout_min_distance hops from config.jack_start.
+    Jack's starting node is chosen randomly from map.jack_starts.
+    Cop starting nodes are sampled (without replacement) from map.cop_starts.
+    Hideout is chosen randomly from jack nodes at least
+    map.hideout_min_distance hops from Jack's starting node.
 
     Args:
-        bundle:      Loaded map bundle.
-        config:      Map configuration (start, distance threshold, etc.).
-        cop_starts:  Initial cop node IDs. Defaults to nodes 1..num_cops.
-        rng:         Optional seeded Random instance for reproducibility.
+        map: Loaded Map (graph + config).
+        rng: Optional seeded Random instance for reproducibility.
     """
     if rng is None:
         rng = random.Random()
 
-    # BFS from jack_start to find reachable distances
-    start = config.jack_start
+    start = rng.choice(map.jack_starts)
+
+    # BFS from start to find distances in the jack graph
     distances: dict[int, int] = {start: 0}
     queue = [start]
     while queue:
         node_id = queue.pop(0)
-        seen_destinations: set[int] = set()
-        for edge in bundle.jack_nodes[node_id - 1].edges:
+        seen: set[int] = set()
+        for edge in map.jack_nodes[node_id - 1].edges:
             nb_id = edge.destination.id
-            if nb_id not in distances and nb_id not in seen_destinations:
-                seen_destinations.add(nb_id)
+            if nb_id not in distances and nb_id not in seen:
+                seen.add(nb_id)
                 distances[nb_id] = distances[node_id] + 1
                 queue.append(nb_id)
 
-    candidates = [jid for jid, d in distances.items() if d >= config.hideout_min_distance]
+    candidates = [jid for jid, d in distances.items() if d >= map.hideout_min_distance]
     hideout = rng.choice(candidates)
 
-    if cop_starts is None:
-        # TODO: derive spawn positions from map data (cops_spawn nodes in SVG)
-        cop_starts = tuple(range(1, config.num_cops + 1))
+    cop_positions = tuple(rng.sample(map.cop_starts, map.num_cops))
 
     return GameState(
         jack_pos=start,
-        cop_positions=cop_starts,
+        cop_positions=cop_positions,
         hideout=hideout,
         turn=0,
         jack_trace=frozenset({start}),
@@ -85,7 +82,7 @@ def make_initial_state(
 
 def legal_jack_edges(
     state: GameState,
-    bundle: MapBundle,
+    map: Map,
     blocking: bool = False,
 ) -> list[JackEdge]:
     """
@@ -94,21 +91,21 @@ def legal_jack_edges(
     When blocking is enabled, edges where any traversal cop node is currently
     occupied are excluded.
     """
-    jack_node = bundle.jack_nodes[state.jack_pos - 1]
+    jack_node = map.jack_nodes[state.jack_pos - 1]
     if not blocking:
         return list(jack_node.edges)
     occupied = set(state.cop_positions)
     return [e for e in jack_node.edges if not any(c.id in occupied for c in e.via)]
 
 
-def reachable_cop_nodes(cop_id: int, bundle: MapBundle, max_steps: int = 2) -> set[int]:
+def reachable_cop_nodes(cop_id: int, map: Map, max_steps: int = 2) -> set[int]:
     """BFS: all cop node IDs reachable from cop_id within max_steps moves."""
     reachable = {cop_id}
     frontier = {cop_id}
     for _ in range(max_steps):
         next_frontier: set[int] = set()
         for cid in frontier:
-            for nb in bundle.cop_nodes[cid - 1].edges:
+            for nb in map.cop_nodes[cid - 1].edges:
                 if nb.id not in reachable:
                     reachable.add(nb.id)
                     next_frontier.add(nb.id)
@@ -123,7 +120,7 @@ def reachable_cop_nodes(cop_id: int, bundle: MapBundle, max_steps: int = 2) -> s
 def step_jack(
     state: GameState,
     jack_edge: JackEdge,
-    bundle: MapBundle,
+    map: Map,
     blocking: bool = False,
 ) -> tuple[GameState, bool, str | None]:
     """
@@ -152,7 +149,7 @@ def step_jack(
 def step_cop(
     state: GameState,
     cop_turn: CopTurn,
-    bundle: MapBundle,
+    map: Map,
 ) -> tuple[GameState, bool, str | None]:
     """
     Apply one cop's turn: move, then search or arrest.
@@ -166,7 +163,7 @@ def step_cop(
     """
     cop_positions = list(state.cop_positions)
     cop_positions[cop_turn.cop_idx] = cop_turn.destination
-    cop_node = bundle.cop_nodes[cop_turn.destination - 1]
+    cop_node = map.cop_nodes[cop_turn.destination - 1]
 
     visited = set(state.cop_knowledge.visited)
     never_visited = set(state.cop_knowledge.never_visited)
@@ -207,8 +204,7 @@ def step_cop(
 
 def end_of_round(
     state: GameState,
-    config: MapConfig,
-    bundle: MapBundle,
+    map: Map,
     blocking: bool = False,
 ) -> tuple[GameState, bool, str | None]:
     """
@@ -228,9 +224,9 @@ def end_of_round(
         jack_trace=state.jack_trace,
         cop_knowledge=state.cop_knowledge,
     )
-    if new_state.turn >= config.turn_limit:
+    if new_state.turn >= map.turn_limit:
         return new_state, True, "cops"
-    if blocking and not legal_jack_edges(new_state, bundle, blocking=True):
+    if blocking and not legal_jack_edges(new_state, map, blocking=True):
         return new_state, True, "cops"
     return new_state, False, None
 

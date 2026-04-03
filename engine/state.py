@@ -16,12 +16,16 @@ class CopKnowledge:
                          Director can suppress real finds or inject false ones.
         never_visited:   Jack nodes confirmed NOT in Jack's trace (from search
                          results returning false). Always ground truth.
+        search_misses:   (jack_node_id, turn) pairs where Jack was confirmed
+                         not present at, or before, that specific moment.
+                         Point-in-time fact.
         arrest_misses:   (jack_node_id, turn) pairs where Jack was confirmed
                          absent at that specific moment. Point-in-time fact.
     """
     jack_start: int
     visited: frozenset[int] = frozenset()
     never_visited: frozenset[int] = frozenset()
+    search_misses: tuple[tuple[int, int], ...] = ()
     arrest_misses: tuple[tuple[int, int], ...] = ()
 
 

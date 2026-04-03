@@ -12,7 +12,6 @@ Run from the project root:
 """
 
 import json
-import pickle
 import sys
 from pathlib import Path
 from xml.dom import minidom
@@ -20,19 +19,19 @@ from xml.dom import minidom
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
-from engine.graph import CopNode, JackEdge, JackNode, MapBundle
+from engine.graph import CopNode, JackEdge, JackNode
 
 # ---------------------------------------------------------------------------
 # Whitechapel full-map configuration
 # ---------------------------------------------------------------------------
-JACK_START = 1
+JACK_STARTS = [1]           # possible Jack starting node IDs
+COP_STARTS  = [1, 2, 3, 4, 5]  # TODO: replace with actual spawn nodes from SVG
 HIDEOUT_MIN_DISTANCE = 4
 NUM_COPS = 5
 TURN_LIMIT = 15
 
 SVG_PATH = ROOT / "Mapa_v5.svg"
-MAP_OUTPUT_PATH = ROOT / "maps" / "whitechapel.map"
-CONFIG_OUTPUT_PATH = ROOT / "maps" / "whitechapel.json"
+OUTPUT_PATH = ROOT / "maps" / "whitechapel.json"
 
 # Set to a jack node ID to only compute routes for that node (for debugging).
 # Set to None to compute routes for all nodes.
@@ -326,29 +325,51 @@ def build_map():
         print(f"  {len(missing)} edges had no route and were skipped", flush=True)
 
     if DEBUG_ROUTES_FOR_NODE is not None:
-        print(f"\nDebug mode: only processed routes for jack node {DEBUG_ROUTES_FOR_NODE}. Not saving map.", flush=True)
+        print(f"\nDebug mode: only processed routes for jack node {DEBUG_ROUTES_FOR_NODE}. Not saving.", flush=True)
         return
 
-    # --- Assemble and save ---
+    # --- Serialise to JSON ---
     jack_nodes = [jack_by_id[jid] for jid in sorted(jack_by_id)]
-    cop_nodes = [cop_by_id[cid] for cid in sorted(cop_by_id)]
-    bundle = MapBundle(jack_nodes=jack_nodes, cop_nodes=cop_nodes)
+    cop_nodes  = [cop_by_id[cid]  for cid  in sorted(cop_by_id)]
 
-    MAP_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(MAP_OUTPUT_PATH, "wb") as f:
-        pickle.dump(bundle, f)
-
-    config = {
-        "jack_start": JACK_START,
-        "hideout_min_distance": HIDEOUT_MIN_DISTANCE,
-        "num_cops": NUM_COPS,
-        "turn_limit": TURN_LIMIT,
+    data = {
+        "config": {
+            "jack_starts": JACK_STARTS,
+            "cop_starts": COP_STARTS,
+            "hideout_min_distance": HIDEOUT_MIN_DISTANCE,
+            "num_cops": NUM_COPS,
+            "turn_limit": TURN_LIMIT,
+        },
+        "jack_nodes": [
+            {
+                "id": jn.id,
+                "x": jn.x,
+                "y": jn.y,
+                "type": jn.node_type,
+                "edges": [
+                    {"destination": e.destination.id, "via": [c.id for c in e.via]}
+                    for e in jn.edges
+                ],
+            }
+            for jn in jack_nodes
+        ],
+        "cop_nodes": [
+            {
+                "id": cn.id,
+                "x": cn.x,
+                "y": cn.y,
+                "edges": [nb.id for nb in cn.edges],
+                "jack_neighbours": [jn.id for jn in cn.jack_neighbours],
+            }
+            for cn in cop_nodes
+        ],
     }
-    with open(CONFIG_OUTPUT_PATH, "w") as f:
-        json.dump(config, f, indent=2)
 
-    print(f"\nSaved map    : {MAP_OUTPUT_PATH}")
-    print(f"Saved config : {CONFIG_OUTPUT_PATH}")
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+
+    print(f"\nSaved to {OUTPUT_PATH}")
     print(f"  Jack nodes : {len(jack_nodes)}")
     print(f"  Cop nodes  : {len(cop_nodes)}")
     total_edges = sum(len(jn.edges) for jn in jack_nodes) // 2

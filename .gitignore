@@ -184,8 +184,6 @@ cython_debug/
 # PyCharm / JetBrains
 .idea/
 
-# Generated binary map files (regenerate with tools/generate_maps.py)
-maps/*.map
 
 # Abstra
 #   Abstra is an AI-powered process automation framework.

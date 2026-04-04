@@ -14,41 +14,13 @@ from engine.env import (
 )
 from engine.graph import Map
 from engine.state import GameState
-from server.session import GameSession, get_session, new_session
+from server.session import GameSession, get_session, new_session, state_view
 
 router = APIRouter()
 
 
 class JackMoveRequest(BaseModel):
     destination: int
-
-
-def _state_view(session: GameSession) -> dict:
-    state = session.state
-    game_map = session.game_map
-
-    legal: list[int] = []
-    if not session.terminated:
-        seen: set[int] = set()
-        for e in legal_jack_edges(state, game_map):
-            d = e.destination.id
-            if d not in seen:
-                seen.add(d)
-                legal.append(d)
-
-    return {
-        "game_id": session.game_id,
-        "jack_pos": state.jack_pos,
-        "cop_positions": list(state.cop_positions),
-        "hideout": state.hideout,
-        "turn": state.turn,
-        "turn_limit": game_map.turn_limit,
-        "legal_moves": legal,
-        "visited": sorted(state.cop_knowledge.visited),
-        "never_visited": sorted(state.cop_knowledge.never_visited),
-        "terminated": session.terminated,
-        "winner": session.winner,
-    }
 
 
 def _random_cop_turn(
@@ -62,7 +34,7 @@ def _random_cop_turn(
 @router.post("/game/new")
 async def new_game(request: Request):
     session = new_session(request.app.state.game_map)
-    return _state_view(session)
+    return state_view(session)
 
 
 @router.get("/game/{game_id}")
@@ -70,7 +42,7 @@ async def get_game(game_id: str):
     session = get_session(game_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Game not found")
-    return _state_view(session)
+    return state_view(session)
 
 
 @router.post("/game/{game_id}/jack-move")
@@ -81,7 +53,7 @@ async def jack_move(game_id: str, body: JackMoveRequest):
     if session.terminated:
         raise HTTPException(status_code=400, detail="Game already over")
 
-    edges = legal_jack_edges(session.state, session.game_map)
+    edges = legal_jack_edges(session.state, session.game_map, blocking=session.blocking)
     edge = next((e for e in edges if e.destination.id == body.destination), None)
     if edge is None:
         raise HTTPException(status_code=400, detail="Illegal move")
@@ -104,13 +76,17 @@ async def jack_move(game_id: str, body: JackMoveRequest):
                 break
 
         if not terminated:
-            state, terminated, winner = end_of_round(state, session.game_map)
+            state, terminated, winner = end_of_round(
+                state, session.game_map,
+                blocking=session.blocking,
+                turn_limit=session.turn_limit,
+            )
 
     session.state = state
     session.terminated = terminated
     session.winner = winner
 
-    view = _state_view(session)
+    view = state_view(session)
     view["events"] = events
     return view
 
@@ -120,11 +96,23 @@ async def get_map(request: Request):
     gm: Map = request.app.state.game_map
     return {
         "jack_nodes": [
-            {"id": n.id, "x": n.x, "y": n.y, "node_type": n.node_type}
+            {
+                "id": n.id,
+                "x": n.x,
+                "y": n.y,
+                "node_type": n.node_type,
+                "edges": list(dict.fromkeys(e.destination.id for e in n.edges)),
+            }
             for n in gm.jack_nodes
         ],
         "cop_nodes": [
-            {"id": n.id, "x": n.x, "y": n.y}
+            {
+                "id": n.id,
+                "x": n.x,
+                "y": n.y,
+                "edges": [nb.id for nb in n.edges],
+                "jack_neighbours": [jn.id for jn in n.jack_neighbours],
+            }
             for n in gm.cop_nodes
         ],
     }

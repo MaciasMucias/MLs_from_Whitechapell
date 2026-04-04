@@ -1,13 +1,69 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+const COP_COLORS = ["#ffeb3b", "#00bcd4", "#8bc34a", "#ff9800", "#e91e63", "#9c27b0"];
+window.COP_COLORS = COP_COLORS;
+
 let mapData = null;
 let gameId = null;
 let busy = false;
+let lastState = null;
+
+// Pick mode: set by admin.js
+// { type: 'jack'|'cop', nodes: Set<int>|null, label: string, cb: function(id) }
+window.adminPickMode = null;
 
 async function init() {
   mapData = await fetchMap();
+  window.mapData = mapData;
   document.getElementById("new-game-btn").addEventListener("click", startNewGame);
+  document.getElementById("mode-cancel-btn").addEventListener("click", cancelPickMode);
 }
+
+// --- Public interface for admin.js ---
+
+window.refreshBoard = function(state) {
+  render(state);
+};
+
+window.rerenderBoard = function() {
+  if (lastState) render(lastState);
+};
+
+window.setPickMode = function(type, nodeIds, label, cb) {
+  window.adminPickMode = {
+    type,
+    nodes: nodeIds ? new Set(nodeIds) : null,
+    label,
+    cb,
+  };
+  updateBanner();
+  renderPickLayer();
+};
+
+window.clearPickMode = function() {
+  cancelPickMode();
+};
+
+// --- Banner ---
+
+function updateBanner() {
+  const banner = document.getElementById("mode-banner");
+  const text   = document.getElementById("mode-banner-text");
+  if (window.adminPickMode) {
+    text.textContent = window.adminPickMode.label;
+    banner.classList.add("active");
+  } else {
+    banner.classList.remove("active");
+  }
+}
+
+function cancelPickMode() {
+  window.adminPickMode = null;
+  updateBanner();
+  renderPickLayer();
+}
+
+// --- Game flow ---
 
 async function startNewGame() {
   if (busy) return;
@@ -41,12 +97,11 @@ async function handleJackMove(destination) {
     if (state.events) {
       for (const ev of state.events) {
         const nb = ev.jack_neighbours.join(", ") || "none";
-        logEntry(`  Cop ${ev.cop} → cop-node ${ev.moved_to} (searched jack nodes: ${nb})`, "event-cop");
+        logEntry(`  Cop ${ev.cop} → cop-node ${ev.moved_to} (searched: ${nb})`, "event-cop");
       }
     }
     if (state.terminated) {
-      const msg = state.winner === "jack" ? "Jack escaped! Jack wins." : "Cops win!";
-      logEntry(msg, "event-result");
+      logEntry(state.winner === "jack" ? "Jack escaped! Jack wins." : "Cops win!", "event-result");
     }
   } catch (e) {
     logEntry(`Error: ${e.message}`, "event-result");
@@ -55,41 +110,53 @@ async function handleJackMove(destination) {
   }
 }
 
-function render(state) {
-  const svg = document.getElementById("board");
+// --- Rendering ---
 
+function render(state) {
+  lastState = state;
+  gameId = state.game_id;
+
+  const svg = document.getElementById("board");
   const old = svg.getElementById("overlay-group");
   if (old) old.remove();
 
   const g = document.createElementNS(SVG_NS, "g");
   g.setAttribute("id", "overlay-group");
 
-  const legalSet = new Set(state.legal_moves);
+  const legalSet   = new Set(state.legal_moves);
   const visitedSet = new Set(state.visited);
-  const copSet = new Set(state.cop_positions);
+  const copIndexMap = new Map();
+  for (let ci = 0; ci < state.cop_positions.length; ci++) {
+    copIndexMap.set(state.cop_positions[ci], ci);
+  }
 
-  // Cop nodes (drawn first so jack nodes appear on top)
+  // Cop nodes (drawn first so jack rings appear on top)
   for (const node of mapData.cop_nodes) {
     const rect = document.createElementNS(SVG_NS, "rect");
     rect.setAttribute("x", node.x - 4);
     rect.setAttribute("y", node.y - 4);
     rect.setAttribute("width", 8);
     rect.setAttribute("height", 8);
-
-    if (copSet.has(node.id)) {
+    const copIdx = copIndexMap.get(node.id);
+    if (copIdx !== undefined) {
       rect.setAttribute("fill", "#d32f2f");
       rect.setAttribute("stroke", "#ff6659");
       rect.setAttribute("stroke-width", 1.5);
+      g.appendChild(rect);
+      const dot = document.createElementNS(SVG_NS, "circle");
+      dot.setAttribute("cx", node.x);
+      dot.setAttribute("cy", node.y);
+      dot.setAttribute("r", 2.5);
+      dot.setAttribute("fill", COP_COLORS[copIdx % COP_COLORS.length]);
+      g.appendChild(dot);
     } else {
       rect.setAttribute("fill", "rgba(20,20,20,0.4)");
       rect.setAttribute("stroke", "none");
+      g.appendChild(rect);
     }
-
-    g.appendChild(rect);
   }
 
-  // Jack nodes — segmented rings for active states, nothing for plain nodes.
-  // Multiple active states produce N equal arc segments via stroke-dasharray.
+  // Jack nodes — segmented rings for active states only
   for (const node of mapData.jack_nodes) {
     const isJack    = node.id === state.jack_pos;
     const isHideout = node.id === state.hideout;
@@ -122,7 +189,6 @@ function render(state) {
       c.setAttribute("stroke", activeStates[i].stroke);
       c.setAttribute("stroke-width", sw);
       if (n > 1) {
-        // rotate(-90) moves path start from 3 o'clock to 12 o'clock
         c.setAttribute("transform", `rotate(-90, ${node.x}, ${node.y})`);
         c.setAttribute("stroke-dasharray", `${segLen} ${circumference - segLen}`);
         c.setAttribute("stroke-dashoffset", -(i * segLen));
@@ -132,7 +198,6 @@ function render(state) {
     }
 
     if (isLegal) {
-      // Transparent filled circle so the whole node area is clickable
       const hit = document.createElementNS(SVG_NS, "circle");
       hit.setAttribute("cx", node.x);
       hit.setAttribute("cy", node.y);
@@ -140,13 +205,12 @@ function render(state) {
       hit.setAttribute("fill", "transparent");
       hit.setAttribute("stroke", "none");
       hit.style.cursor = "pointer";
-      hit.addEventListener("click", () => handleJackMove(node.id));
-      hit.addEventListener("mouseenter", () => {
-        segCircles.forEach(c => c.setAttribute("stroke-width", sw + 2));
+      hit.addEventListener("click", () => {
+        if (window.adminPickMode) return; // admin pick layer handles it
+        handleJackMove(node.id);
       });
-      hit.addEventListener("mouseleave", () => {
-        segCircles.forEach(c => c.setAttribute("stroke-width", sw));
-      });
+      hit.addEventListener("mouseenter", () => segCircles.forEach(c => c.setAttribute("stroke-width", sw + 2)));
+      hit.addEventListener("mouseleave", () => segCircles.forEach(c => c.setAttribute("stroke-width", sw)));
       nodeGroup.appendChild(hit);
     }
 
@@ -154,8 +218,106 @@ function render(state) {
   }
 
   svg.appendChild(g);
+  renderPickLayer();
   updateStatus(state);
+
+  window.adminOnStateUpdate?.(state);
 }
+
+// --- Pick layer (admin mode) ---
+
+function renderPickLayer() {
+  const svg = document.getElementById("board");
+  const old = svg.getElementById("pick-layer");
+  if (old) old.remove();
+
+  const pm = window.adminPickMode;
+  if (!pm || !mapData) return;
+
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("id", "pick-layer");
+
+  const nodes = pm.type === "jack" ? mapData.jack_nodes : mapData.cop_nodes;
+
+  for (const node of nodes) {
+    if (pm.nodes && !pm.nodes.has(node.id)) continue;
+
+    if (pm.type === "jack") {
+      // Dashed ring indicator
+      const ring = document.createElementNS(SVG_NS, "circle");
+      ring.setAttribute("cx", node.x);
+      ring.setAttribute("cy", node.y);
+      ring.setAttribute("r", 9);
+      ring.setAttribute("fill", "none");
+      ring.setAttribute("stroke", "#e040fb");
+      ring.setAttribute("stroke-width", 3);
+      ring.setAttribute("stroke-dasharray", "5 3");
+      ring.setAttribute("pointer-events", "none");
+      const animJ = document.createElementNS(SVG_NS, "animate");
+      animJ.setAttribute("attributeName", "stroke-dashoffset");
+      animJ.setAttribute("from", "0");
+      animJ.setAttribute("to", "8");
+      animJ.setAttribute("dur", "0.4s");
+      animJ.setAttribute("repeatCount", "indefinite");
+      ring.appendChild(animJ);
+      g.appendChild(ring);
+
+      // Transparent hit circle
+      const hit = document.createElementNS(SVG_NS, "circle");
+      hit.setAttribute("cx", node.x);
+      hit.setAttribute("cy", node.y);
+      hit.setAttribute("r", 11);
+      hit.setAttribute("fill", "transparent");
+      hit.setAttribute("stroke", "none");
+      hit.style.cursor = "crosshair";
+      hit.addEventListener("click", () => pickNode(node.id));
+      g.appendChild(hit);
+    } else {
+      // Cop node: dashed rect outline
+      const ring = document.createElementNS(SVG_NS, "rect");
+      ring.setAttribute("x", node.x - 6);
+      ring.setAttribute("y", node.y - 6);
+      ring.setAttribute("width", 12);
+      ring.setAttribute("height", 12);
+      ring.setAttribute("fill", "none");
+      ring.setAttribute("stroke", "#e040fb");
+      ring.setAttribute("stroke-width", 3);
+      ring.setAttribute("stroke-dasharray", "4 2");
+      ring.setAttribute("pointer-events", "none");
+      const animC = document.createElementNS(SVG_NS, "animate");
+      animC.setAttribute("attributeName", "stroke-dashoffset");
+      animC.setAttribute("from", "0");
+      animC.setAttribute("to", "6");
+      animC.setAttribute("dur", "0.4s");
+      animC.setAttribute("repeatCount", "indefinite");
+      ring.appendChild(animC);
+      g.appendChild(ring);
+
+      const hit = document.createElementNS(SVG_NS, "rect");
+      hit.setAttribute("x", node.x - 8);
+      hit.setAttribute("y", node.y - 8);
+      hit.setAttribute("width", 16);
+      hit.setAttribute("height", 16);
+      hit.setAttribute("fill", "transparent");
+      hit.setAttribute("stroke", "none");
+      hit.style.cursor = "crosshair";
+      hit.addEventListener("click", () => pickNode(node.id));
+      g.appendChild(hit);
+    }
+  }
+
+  svg.appendChild(g);
+}
+
+function pickNode(id) {
+  const cb = window.adminPickMode?.cb;
+  window.adminPickMode = null;
+  updateBanner();
+  renderPickLayer();
+  if (cb) cb(id);
+}
+
+// --- UI helpers ---
 
 function updateStatus(state) {
   const el = document.getElementById("status");
@@ -168,7 +330,7 @@ function updateStatus(state) {
       `Jack: node <strong>${state.jack_pos}</strong><br>` +
       `Hideout: node <strong>${state.hideout}</strong><br>` +
       `Legal moves: <strong>${state.legal_moves.length}</strong><br>` +
-      `Cop-visited nodes: <strong>${state.visited.length}</strong>`;
+      `Cop-visited: <strong>${state.visited.length}</strong>`;
   }
 }
 

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from engine.graph import load_map
+from server.admin_routes import admin_router
 from server.routes import router
 
 
@@ -16,4 +17,5 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(router, prefix="/api")
+app.include_router(admin_router, prefix="/api/admin")
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

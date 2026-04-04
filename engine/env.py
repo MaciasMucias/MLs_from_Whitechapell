@@ -204,12 +204,16 @@ def end_of_round(
     state: GameState,
     game_map: Map,
     blocking: bool = False,
+    turn_limit: int | None = None,
 ) -> tuple[GameState, bool, str | None]:
     """
     Advance the turn counter and check end-of-round terminal conditions.
 
     Call this after all cops have acted. Checks turn limit and, if blocking
     is enabled, whether Jack has any legal moves next round.
+
+    Args:
+        turn_limit: Optional override for game_map.turn_limit.
 
     Returns:
         (new_state, terminated, winner)
@@ -222,7 +226,8 @@ def end_of_round(
         jack_trace=state.jack_trace,
         cop_knowledge=state.cop_knowledge,
     )
-    if new_state.turn >= game_map.turn_limit:
+    effective_limit = turn_limit if turn_limit is not None else game_map.turn_limit
+    if new_state.turn >= effective_limit:
         return new_state, True, "cops"
     if blocking and not legal_jack_edges(new_state, game_map, blocking=True):
         return new_state, True, "cops"

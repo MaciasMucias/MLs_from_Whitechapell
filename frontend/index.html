@@ -14,6 +14,7 @@
       overflow: hidden;
     }
 
+    /* ── Board ─────────────────────────────────────────── */
     #board-wrapper {
       flex: 1;
       display: flex;
@@ -22,6 +23,7 @@
       overflow: hidden;
       background: #b0b0b0;
       padding: 2%;
+      position: relative;
     }
 
     #board {
@@ -30,19 +32,49 @@
       display: block;
     }
 
+    #mode-banner {
+      display: none;
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,10,30,0.88);
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      white-space: nowrap;
+      z-index: 10;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #mode-banner.active { display: flex; }
+
+    #mode-banner button {
+      padding: 3px 10px;
+      font-size: 11px;
+      background: #555;
+      border: none;
+      color: #eee;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────── */
     #sidebar {
-      width: 260px;
+      width: 270px;
       background: #1a1a2e;
       color: #e0e0e0;
       display: flex;
       flex-direction: column;
-      padding: 14px;
-      gap: 10px;
+      padding: 12px;
+      gap: 8px;
       overflow: hidden;
       border-left: 1px solid #333;
     }
 
-    #sidebar h2 {
+    #sidebar > h2 {
       margin: 0;
       font-size: 13px;
       text-transform: uppercase;
@@ -50,6 +82,41 @@
       color: #7eb3e8;
     }
 
+    #new-game-btn {
+      padding: 8px;
+      background: #2a6099;
+      border: none;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    #new-game-btn:hover { background: #357abd; }
+    #new-game-btn:disabled { background: #444; cursor: default; }
+
+    /* ── Tabs ───────────────────────────────────────────── */
+    #tab-bar {
+      display: flex;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 5px;
+      background: #22223a;
+      border: 1px solid #444;
+      color: #aaa;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .tab-btn.active { background: #2a6099; color: white; border-color: #2a6099; }
+
+    .tab-content { display: none; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; }
+    .tab-content.active { display: flex; }
+
+    /* ── Game tab ───────────────────────────────────────── */
     #status {
       font-size: 13px;
       line-height: 1.5;
@@ -72,7 +139,6 @@
       border-radius: 50%;
       border: 1px solid #555;
     }
-
     .swatch.square { border-radius: 2px; }
 
     #log {
@@ -84,28 +150,85 @@
       border-radius: 4px;
       line-height: 1.5;
     }
-
     #log p { margin: 2px 0; color: #bbb; }
     #log p.event-jack { color: #81c784; }
-    #log p.event-cop { color: #90caf9; }
+    #log p.event-cop  { color: #90caf9; }
     #log p.event-result { color: #fff176; font-weight: bold; }
 
-    button {
-      padding: 9px;
-      background: #2a6099;
-      border: none;
-      color: white;
+    /* ── Admin tab ──────────────────────────────────────── */
+    .adm-section {
+      background: #12122a;
       border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: bold;
+      overflow: hidden;
     }
 
-    button:hover { background: #357abd; }
-    button:disabled { background: #444; cursor: default; }
+    .adm-section summary {
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #7eb3e8;
+      cursor: pointer;
+      user-select: none;
+      background: #1a1a38;
+    }
+
+    .adm-body { padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+
+    .adm-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .adm-row label { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+
+    .adm-btn {
+      padding: 4px 8px;
+      background: #2a4a70;
+      border: none;
+      color: #ddd;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 11px;
+    }
+    .adm-btn:hover { background: #2a6099; }
+    .adm-btn:disabled { background: #333; color: #666; cursor: default; }
+    .adm-btn.danger { background: #6b2020; }
+    .adm-btn.danger:hover { background: #a03030; }
+    .adm-btn.warn { background: #5a4010; }
+    .adm-btn.warn:hover { background: #8a6010; }
+
+    .adm-num { width: 52px; background: #0d0d1f; border: 1px solid #444; color: #eee;
+               border-radius: 3px; padding: 3px 5px; font-size: 12px; }
+
+    .adm-cop-row { border-top: 1px solid #222; padding-top: 5px; margin-top: 3px; }
+    .adm-cop-pending { font-size: 11px; color: #90caf9; font-style: italic; min-height: 14px; }
+    .adm-cop-sees { font-size: 10px; color: #888; }
+
+    .cop-color-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .adm-info { font-size: 11px; color: #aaa; }
+    .adm-val  { font-weight: bold; color: #e0e0e0; }
+
+    #adm-raw-knowledge {
+      width: 100%; font-size: 10px; background: #0d0d1f; color: #eee;
+      border: 1px solid #444; border-radius: 3px; padding: 4px;
+      resize: vertical; font-family: monospace;
+    }
   </style>
 </head>
 <body>
+  <!-- Board -->
   <div id="board-wrapper">
     <svg
       id="board"
@@ -115,29 +238,144 @@
     >
       <image href="/api/map-svg" x="0" y="0" width="1434.5061" height="965.09717"/>
     </svg>
+
+    <div id="mode-banner">
+      <span id="mode-banner-text"></span>
+      <button id="mode-cancel-btn">Cancel</button>
+    </div>
   </div>
 
+  <!-- Sidebar -->
   <div id="sidebar">
     <h2>Whitechapel</h2>
     <button id="new-game-btn">New Game</button>
 
-    <div id="status">No game in progress.</div>
-
-    <h2>Legend</h2>
-    <div id="legend">
-      <div class="swatch" style="background:transparent; border-color:#2e7d32; border-width:3px"></div><span>Jack</span>
-      <div class="swatch" style="background:transparent; border-color:#f9a825; border-width:3px"></div><span>Hideout</span>
-      <div class="swatch" style="background:transparent; border-color:#ff6d00; border-width:3px"></div><span>Legal move</span>
-      <div class="swatch" style="background:transparent; border-color:#1565c0; border-width:3px"></div><span>Cop-visited</span>
-      <div class="swatch square" style="background:#d32f2f"></div><span>Cop</span>
-      <div class="swatch square" style="background:rgba(40,40,40,0.4); border-color:#777"></div><span>Cop node</span>
+    <div id="tab-bar">
+      <button class="tab-btn active" data-tab="game">Game</button>
+      <button class="tab-btn" data-tab="admin">Admin</button>
     </div>
 
-    <h2>Event Log</h2>
-    <div id="log"><p>Start a new game.</p></div>
-  </div>
+    <!-- Game tab -->
+    <div id="tab-game" class="tab-content active">
+      <div id="status">No game in progress.</div>
+
+      <h2>Legend</h2>
+      <div id="legend">
+        <div class="swatch" style="background:transparent;border-color:#2e7d32;border-width:3px"></div><span>Jack</span>
+        <div class="swatch" style="background:transparent;border-color:#f9a825;border-width:3px"></div><span>Hideout</span>
+        <div class="swatch" style="background:transparent;border-color:#ff6d00;border-width:3px"></div><span>Legal move</span>
+        <div class="swatch" style="background:transparent;border-color:#1565c0;border-width:3px"></div><span>Cop-visited</span>
+        <div class="swatch square" style="background:#d32f2f"></div><span>Cop</span>
+        <div class="swatch square" style="background:rgba(40,40,40,0.4);border-color:#777"></div><span>Cop node</span>
+      </div>
+
+      <h2>Event Log</h2>
+      <div id="log"><p>Start a new game.</p></div>
+    </div>
+
+    <!-- Admin tab -->
+    <div id="tab-admin" class="tab-content">
+
+      <!-- Jack -->
+      <details class="adm-section" open>
+        <summary>Jack</summary>
+        <div class="adm-body">
+          <div class="adm-row">
+            Position: <span class="adm-val" id="adm-jack-pos">—</span>
+            &nbsp;Hideout: <span class="adm-val" id="adm-hideout">—</span>
+          </div>
+          <div class="adm-row">
+            <button class="adm-btn" id="adm-teleport-jack">Teleport Jack</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- Cops -->
+      <details class="adm-section" open>
+        <summary>Cops</summary>
+        <div class="adm-body">
+          <div id="adm-cops-list"></div>
+          <button class="adm-btn warn" id="adm-execute-all" disabled>Execute All Cops</button>
+        </div>
+      </details>
+
+      <!-- Knowledge -->
+      <details class="adm-section">
+        <summary>Knowledge (Director)</summary>
+        <div class="adm-body">
+          <div class="adm-row adm-info">
+            Visited: <span class="adm-val" id="adm-visited-count">0</span>
+            <button class="adm-btn" id="adm-inject-visited">+ Inject</button>
+            <button class="adm-btn" id="adm-remove-visited">− Remove</button>
+          </div>
+          <div class="adm-row adm-info">
+            Never-visited: <span class="adm-val" id="adm-never-visited-count">0</span>
+            <button class="adm-btn" id="adm-inject-never">+ Inject</button>
+            <button class="adm-btn" id="adm-remove-never">− Remove</button>
+          </div>
+          <div class="adm-row adm-info">
+            Search misses: <span class="adm-val" id="adm-search-misses-count">0</span>
+            &nbsp; Arrest misses: <span class="adm-val" id="adm-arrest-misses-count">0</span>
+          </div>
+          <div class="adm-row">
+            <button class="adm-btn danger" id="adm-clear-knowledge">Clear All</button>
+            <button class="adm-btn" id="adm-edit-raw">Edit Raw</button>
+          </div>
+          <div id="adm-raw-editor" style="display:none; flex-direction:column; gap:4px;">
+            <textarea id="adm-raw-knowledge" rows="8"></textarea>
+            <div class="adm-row">
+              <button class="adm-btn" id="adm-apply-raw">Apply</button>
+              <button class="adm-btn" id="adm-cancel-raw">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Game controls -->
+      <details class="adm-section">
+        <summary>Game Controls</summary>
+        <div class="adm-body">
+          <div class="adm-row">
+            Turn: <input class="adm-num" type="number" id="adm-turn" min="0">
+            <button class="adm-btn" id="adm-set-turn">Set</button>
+          </div>
+          <div class="adm-row">
+            Limit: <input class="adm-num" type="number" id="adm-turn-limit" min="1">
+            <button class="adm-btn" id="adm-set-turn-limit">Set</button>
+          </div>
+          <div class="adm-row">
+            <label><input type="checkbox" id="adm-blocking"> Blocking rule</label>
+          </div>
+          <div class="adm-row">
+            <button class="adm-btn" id="adm-undo" disabled>Undo</button>
+          </div>
+          <div class="adm-row">
+            <button class="adm-btn warn" id="adm-new-from-state" disabled>New from State</button>
+            <label><input type="checkbox" id="adm-same-hideout"> Same hideout</label>
+          </div>
+          <div class="adm-row">
+            <button class="adm-btn" id="adm-snapshot" disabled>Snapshot</button>
+            <button class="adm-btn" id="adm-restore" disabled>Restore</button>
+          </div>
+        </div>
+      </details>
+
+    </div><!-- /tab-admin -->
+  </div><!-- /sidebar -->
 
   <script src="api.js"></script>
   <script src="board.js"></script>
+  <script src="admin.js"></script>
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+      });
+    });
+  </script>
 </body>
 </html>

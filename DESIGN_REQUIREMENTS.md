@@ -12,9 +12,9 @@ A web interface allows human participants to play as Jack against heuristic cops
 
 ### 2.1 Players and Roles
 
-| Role | Count | Information | Controlled by |
-|------|-------|-------------|---------------|
-| Jack (fugitive) | 1 | Full — sees entire board state | RL agent |
+| Role            | Count                         | Information                               | Controlled by    |
+|-----------------|-------------------------------|-------------------------------------------|------------------|
+| Jack (fugitive) | 1                             | Full — sees entire board state            | RL agent         |
 | Cops (pursuers) | Defined per map configuration | Partial — see only discovered information | Heuristic agents |
 
 ### 2.2 Graph Structure
@@ -49,11 +49,11 @@ The game consists of a single night with a fixed number of rounds (defined in th
 
 The night ends when any of the following conditions are met:
 
-| Condition | Winner |
-|-----------|--------|
-| Jack moves onto the hideout node | Jack |
-| Turn limit expires | Cops |
-| Jack is successfully arrested | Cops |
+| Condition                                                | Winner               |
+|----------------------------------------------------------|----------------------|
+| Jack moves onto the hideout node                         | Jack                 |
+| Turn limit expires                                       | Cops                 |
+| Jack is successfully arrested                            | Cops                 |
 | Jack has no legal moves (all exit paths blocked by cops) | Cops — **togglable** |
 
 > **Blocking rule (togglable):** Jack cannot traverse an edge if the Cop node on that edge is currently occupied by a cop. If all edges from Jack's current node are blocked, Jack is surrounded and the cops win. This is disabled by default due to increased search complexity. Must be implementable as a config flag with no changes to the core game loop.
@@ -157,7 +157,7 @@ Each playable map is a configuration bundle (`maps/*.json`) containing:
 
 ### 4.3 Board Size Variants
 
-Smaller boards are **connected subgraphs of the full Whitechapel board**, preserving the traversal structure between Jack and Cop nodes within the subgraph.
+Smaller boards are **connected sub-graphs of the full Whitechapel board**, preserving the traversal structure between Jack and Cop nodes within the subgraph.
 
 **TBD:**
 - Subgraph selection method (hand-crafted contiguous regions preferred).

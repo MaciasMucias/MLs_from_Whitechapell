@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import random
 
 from engine.graph import JackEdge, Map
+from engine.graph_utils import jack_bfs_distances
 from engine.state import CopKnowledge, GameState
 
 
@@ -48,19 +49,7 @@ def make_initial_state(
 
     start = rng.choice(game_map.jack_starts)
 
-    # BFS from start to find distances in the jack graph
-    distances: dict[int, int] = {start: 0}
-    queue = [start]
-    while queue:
-        node_id = queue.pop(0)
-        seen: set[int] = set()
-        for edge in game_map.jack_nodes[node_id - 1].edges:
-            nb_id = edge.destination.id
-            if nb_id not in distances and nb_id not in seen:
-                seen.add(nb_id)
-                distances[nb_id] = distances[node_id] + 1
-                queue.append(nb_id)
-
+    distances = jack_bfs_distances(start, game_map)
     candidates = [jid for jid, d in distances.items() if d >= game_map.hideout_min_distance]
     hideout = rng.choice(candidates)
 
@@ -97,20 +86,6 @@ def legal_jack_edges(
     occupied = set(state.cop_positions)
     return [e for e in jack_node.edges if not any(c.id in occupied for c in e.via)]
 
-
-def reachable_cop_nodes(cop_id: int, game_map: Map, max_steps: int = 2) -> set[int]:
-    """BFS: all cop node IDs reachable from cop_id within max_steps moves."""
-    reachable = {cop_id}
-    frontier = {cop_id}
-    for _ in range(max_steps):
-        next_frontier: set[int] = set()
-        for cid in frontier:
-            for nb in game_map.cop_nodes[cid - 1].edges:
-                if nb.id not in reachable:
-                    reachable.add(nb.id)
-                    next_frontier.add(nb.id)
-        frontier = next_frontier
-    return reachable
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +185,9 @@ def end_of_round(
     is enabled, whether Jack has any legal moves next round.
 
     Args:
+        state:
+        game_map:
+        blocking:
         turn_limit: Optional override for game_map.turn_limit.
 
     Returns:

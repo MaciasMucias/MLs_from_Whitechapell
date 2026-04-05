@@ -1,7 +1,8 @@
 from __future__ import annotations
 import random
 
-from engine.env import CopTurn, reachable_cop_nodes
+from engine.env import CopTurn
+from engine.graph_utils import reachable_cop_nodes
 from engine.graph import Map
 from engine.state import GameState
 from agents.base import AgentOutput, CopAgent, Director, JackAgent

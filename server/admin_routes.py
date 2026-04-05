@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from engine.env import CopTurn, step_cop
+from engine.graph_utils import jack_bfs_distances, reachable_cop_nodes
 from engine.state import CopKnowledge, GameState
 from server.session import (
     GameSession,
@@ -52,8 +53,8 @@ class InjectNodeBody(BaseModel):
 class SetKnowledgeBody(BaseModel):
     jack_start: int
     visited: list[int] = []
-    search_misses: list[list[int]] = []
-    arrest_misses: list[list[int]] = []
+    search_misses: list[tuple[int, int]] = []
+    arrest_misses: list[tuple[int, int]] = []
 
 class SetTraceBody(BaseModel):
     nodes: list[int]
@@ -230,7 +231,6 @@ async def set_knowledge(game_id: str, body: SetKnowledgeBody):
         cop_knowledge=CopKnowledge(
             jack_start=body.jack_start,
             visited=frozenset(body.visited),
-
             search_misses=tuple(tuple(m) for m in body.search_misses),
             arrest_misses=tuple(tuple(m) for m in body.arrest_misses),
         ),
@@ -267,15 +267,7 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
     if body.same_hideout:
         hideout = state.hideout
     else:
-        distances: dict[int, int] = {jack_start: 0}
-        queue = [jack_start]
-        while queue:
-            node_id = queue.pop(0)
-            for edge in gm.jack_nodes[node_id - 1].edges:
-                nb_id = edge.destination.id
-                if nb_id not in distances:
-                    distances[nb_id] = distances[node_id] + 1
-                    queue.append(nb_id)
+        distances = jack_bfs_distances(jack_start, gm)
         candidates = [jid for jid, d in distances.items() if d >= gm.hideout_min_distance]
         hideout = session.rng.choice(candidates or list(distances.keys()))
 
@@ -308,17 +300,7 @@ async def node_info(game_id: str, body: NodeInfoBody):
     if body.cop_node < 1 or body.cop_node > len(gm.cop_nodes):
         raise HTTPException(status_code=400, detail="Invalid cop node")
     cop_node = gm.cop_nodes[body.cop_node - 1]
-    # BFS 2 steps
-    reachable: set[int] = {body.cop_node}
-    frontier = {body.cop_node}
-    for _ in range(2):
-        nxt: set[int] = set()
-        for cid in frontier:
-            for nb in gm.cop_nodes[cid - 1].edges:
-                if nb.id not in reachable:
-                    reachable.add(nb.id)
-                    nxt.add(nb.id)
-        frontier = nxt
+    reachable = reachable_cop_nodes(body.cop_node, gm)
     return {
         "cop_node": body.cop_node,
         "reachable": sorted(reachable),

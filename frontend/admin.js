@@ -5,6 +5,7 @@
 let adminGameId  = null;
 let adminState   = null;
 let copRowsBuilt = 0;  // number of cop rows currently in DOM
+let pmfEnabled   = false;
 
 // pendingActions[i] = { destination: int|null, search: bool, arrest_target: int|null } | null
 const pendingActions = [];
@@ -14,7 +15,20 @@ window.adminOnStateUpdate = function(state) {
   adminState  = state;
   adminGameId = state.game_id;
   renderAdmin();
+  if (pmfEnabled) refreshPmf();
 };
+
+async function refreshPmf() {
+  if (!adminGameId) return;
+  try {
+    const r = await fetch(`/api/admin/${adminGameId}/pmf`);
+    if (!r.ok) return;
+    const pmf = await r.json();
+    window.setPmfData(pmf);
+  } catch (e) {
+    console.error("PMF fetch failed:", e.message);
+  }
+}
 
 // ── API helpers ──────────────────────────────────────────────
 
@@ -398,6 +412,15 @@ function initAdmin() {
       await adminAction("set-turn", { turn: saved.turn });
     } catch (e) {
       console.error("Restore failed:", e.message);
+    }
+  });
+
+  document.getElementById("adm-show-pmf").addEventListener("change", async (e) => {
+    pmfEnabled = e.target.checked;
+    if (pmfEnabled) {
+      await refreshPmf();
+    } else {
+      window.clearPmfData();
     }
   });
 }

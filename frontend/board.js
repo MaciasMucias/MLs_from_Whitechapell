@@ -218,10 +218,63 @@ function render(state) {
   }
 
   svg.appendChild(g);
+  renderPmfLayer();
   renderPickLayer();
   updateStatus(state);
 
   window.adminOnStateUpdate?.(state);
+}
+
+// --- PMF overlay ---
+
+let _currentPmf = null;  // dict { nodeId(string): probability } or null
+
+window.setPmfData = function(pmf) {
+  _currentPmf = pmf;
+  renderPmfLayer();
+};
+
+window.clearPmfData = function() {
+  _currentPmf = null;
+  renderPmfLayer();
+};
+
+function renderPmfLayer() {
+  const svg = document.getElementById("board");
+  const old = svg.getElementById("pmf-layer");
+  if (old) old.remove();
+  if (!_currentPmf || !mapData) return;
+
+  const entries = Object.entries(_currentPmf);
+  if (entries.length === 0) return;
+
+  const maxProb = Math.max(...entries.map(([, p]) => p));
+  if (maxProb === 0) return;
+
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("id", "pmf-layer");
+
+  for (const [nodeIdStr, prob] of entries) {
+    const nodeId = parseInt(nodeIdStr);
+    const node = mapData.jack_nodes[nodeId - 1];
+    if (!node) continue;
+
+    // Scale so the highest-probability node is fully opaque;
+    // use sqrt to make low-probability nodes more visible.
+    const alpha = Math.sqrt(prob / maxProb) * 0.75;
+
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", node.x);
+    circle.setAttribute("cy", node.y);
+    circle.setAttribute("r", 7);
+    circle.setAttribute("fill", `rgba(220, 50, 50, ${alpha.toFixed(3)})`);
+    circle.setAttribute("pointer-events", "none");
+    g.appendChild(circle);
+  }
+
+  // Insert before overlay-group so PMF sits under game markers
+  const overlay = svg.getElementById("overlay-group");
+  svg.insertBefore(g, overlay);
 }
 
 // --- Pick layer (admin mode) ---

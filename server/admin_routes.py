@@ -4,6 +4,7 @@ from dataclasses import replace
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from agents.heuristic_cops import HeuristicCops
 from engine.env import CopTurn, step_cop
 from engine.graph_utils import jack_bfs_distances, reachable_cop_nodes
 from engine.state import CopKnowledge, GameState
@@ -291,6 +292,13 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
     )
     register_session(new_sess)
     return state_view(new_sess)
+
+
+@admin_router.get("/{game_id}/pmf")
+async def get_pmf(game_id: str):
+    session = _get_or_404(game_id)
+    pmf = HeuristicCops()._compute_pmf(session.state, session.game_map)
+    return pmf
 
 
 @admin_router.post("/{game_id}/node-info")

@@ -23,16 +23,59 @@ def jack_bfs_distances(start_id: int, game_map: Map) -> dict[int, int]:
     return distances
 
 
+def jack_predecessors(game_map: Map) -> dict[int, list[int]]:
+    """For each Jack node v, return the list of Jack node IDs with an edge to v."""
+    preds: dict[int, list[int]] = {n.id: [] for n in game_map.jack_nodes}
+    for node in game_map.jack_nodes:
+        for edge in node.edges:
+            preds[edge.destination.id].append(node.id)
+    return preds
+
+
+def jack_reachable_within(start_id: int, max_hops: int, game_map: Map) -> set[int]:
+    """Set of Jack node IDs reachable from start_id in at most max_hops moves."""
+    reachable = {start_id}
+    frontier = {start_id}
+    for _ in range(max_hops):
+        next_frontier: set[int] = set()
+        for nid in frontier:
+            for edge in game_map.jack_nodes[nid - 1].edges:
+                nb = edge.destination.id
+                if nb not in reachable:
+                    reachable.add(nb)
+                    next_frontier.add(nb)
+        frontier = next_frontier
+    return reachable
+
+
 def reachable_cop_nodes(cop_id: int, game_map: Map, max_steps: int = 2) -> set[int]:
-    """BFS: all cop node IDs reachable from cop_id within max_steps moves."""
+    """BFS: all cop node IDs reachable from cop_id within max_steps moves.
+
+    One move = a direct cop-to-cop edge OR passing through a shared jack
+    neighbour (two cop nodes are one step apart if they both border the same
+    jack circle). The latter is the dominant movement type on this map — many
+    cop nodes have no direct cop edges but are connected through jack circles.
+    """
+    # Precompute jack_id -> list of cop_ids that share it (for jack-mediated hops)
+    jack_to_cops: dict[int, list[int]] = {}
+    for cn in game_map.cop_nodes:
+        for jn in cn.jack_neighbours:
+            jack_to_cops.setdefault(jn.id, []).append(cn.id)
+
     reachable = {cop_id}
     frontier = {cop_id}
     for _ in range(max_steps):
         next_frontier: set[int] = set()
         for cid in frontier:
-            for nb in game_map.cop_nodes[cid - 1].edges:
+            cn = game_map.cop_nodes[cid - 1]
+            for nb in cn.edges:
                 if nb.id not in reachable:
                     reachable.add(nb.id)
                     next_frontier.add(nb.id)
+            for jn in cn.jack_neighbours:
+                for nb_id in jack_to_cops.get(jn.id, []):
+                    if nb_id not in reachable:
+                        reachable.add(nb_id)
+                        next_frontier.add(nb_id)
         frontier = next_frontier
     return reachable

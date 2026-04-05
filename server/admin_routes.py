@@ -52,7 +52,6 @@ class InjectNodeBody(BaseModel):
 class SetKnowledgeBody(BaseModel):
     jack_start: int
     visited: list[int] = []
-    never_visited: list[int] = []
     search_misses: list[list[int]] = []
     arrest_misses: list[list[int]] = []
 
@@ -197,10 +196,7 @@ async def inject_visited(game_id: str, body: InjectNodeBody):
     session = _get_or_404(game_id)
     push_history(session)
     k = session.state.cop_knowledge
-    _mutate_knowledge(session,
-        visited=k.visited | {body.node},
-        never_visited=k.never_visited - {body.node},
-    )
+    _mutate_knowledge(session, visited=k.visited | {body.node})
     return state_view(session)
 
 
@@ -212,26 +208,6 @@ async def remove_visited(game_id: str, body: InjectNodeBody):
     _mutate_knowledge(session, visited=k.visited - {body.node})
     return state_view(session)
 
-
-@admin_router.post("/{game_id}/inject-never-visited")
-async def inject_never_visited(game_id: str, body: InjectNodeBody):
-    session = _get_or_404(game_id)
-    push_history(session)
-    k = session.state.cop_knowledge
-    _mutate_knowledge(session,
-        never_visited=k.never_visited | {body.node},
-        visited=k.visited - {body.node},
-    )
-    return state_view(session)
-
-
-@admin_router.post("/{game_id}/remove-never-visited")
-async def remove_never_visited(game_id: str, body: InjectNodeBody):
-    session = _get_or_404(game_id)
-    push_history(session)
-    k = session.state.cop_knowledge
-    _mutate_knowledge(session, never_visited=k.never_visited - {body.node})
-    return state_view(session)
 
 
 @admin_router.post("/{game_id}/clear-knowledge")
@@ -254,7 +230,7 @@ async def set_knowledge(game_id: str, body: SetKnowledgeBody):
         cop_knowledge=CopKnowledge(
             jack_start=body.jack_start,
             visited=frozenset(body.visited),
-            never_visited=frozenset(body.never_visited),
+
             search_misses=tuple(tuple(m) for m in body.search_misses),
             arrest_misses=tuple(tuple(m) for m in body.arrest_misses),
         ),

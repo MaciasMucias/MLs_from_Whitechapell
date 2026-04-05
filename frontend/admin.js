@@ -232,7 +232,6 @@ function renderAdmin() {
 
   // Knowledge section
   setText("adm-visited-count",      s.visited.length);
-  setText("adm-never-visited-count", s.never_visited.length);
   setText("adm-search-misses-count", s.search_misses.length);
   setText("adm-arrest-misses-count", s.arrest_misses.length);
 
@@ -314,19 +313,6 @@ function initAdmin() {
     });
   });
 
-  document.getElementById("adm-inject-never").addEventListener("click", () => {
-    window.setPickMode("jack", null, "Inject never-visited — click a jack node", async (nodeId) => {
-      await adminAction("inject-never-visited", { node: nodeId });
-    });
-  });
-
-  document.getElementById("adm-remove-never").addEventListener("click", () => {
-    if (!adminState?.never_visited.length) return;
-    window.setPickMode("jack", new Set(adminState.never_visited), "Remove never-visited — click a node", async (nodeId) => {
-      await adminAction("remove-never-visited", { node: nodeId });
-    });
-  });
-
   document.getElementById("adm-clear-knowledge").addEventListener("click", async () => {
     await adminAction("clear-knowledge");
   });
@@ -336,7 +322,6 @@ function initAdmin() {
     document.getElementById("adm-raw-knowledge").value = JSON.stringify({
       jack_start:    adminState.jack_pos,
       visited:       adminState.visited,
-      never_visited: adminState.never_visited,
       search_misses: adminState.search_misses,
       arrest_misses: adminState.arrest_misses,
     }, null, 2);
@@ -407,7 +392,6 @@ function initAdmin() {
       await adminAction("set-knowledge", {
         jack_start:    saved.jack_pos,
         visited:       saved.visited,
-        never_visited: saved.never_visited,
         search_misses: saved.search_misses,
         arrest_misses: saved.arrest_misses,
       });

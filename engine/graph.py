@@ -23,7 +23,7 @@ class JackNode:
     id: int
     x: float
     y: float
-    node_type: str  # 'jack' or 'jack_kill'
+    node_type: str  # 'jack' or 'jack_start'
     edges: list[JackEdge] = field(default_factory=list, repr=False)
 
 
@@ -55,7 +55,7 @@ def load_map(path: str | Path) -> Map:
 
     jack_by_id: dict[int, JackNode] = {}
     for jn in data["jack_nodes"]:
-        node_type = "jack_kill" if jn["id"] in jack_starts_set else "jack"
+        node_type = "jack_start" if jn["id"] in jack_starts_set else "jack"
         node = JackNode(id=jn["id"], x=jn["x"], y=jn["y"], node_type=node_type)
         jack_by_id[node.id] = node
 

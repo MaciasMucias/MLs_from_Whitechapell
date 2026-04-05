@@ -85,7 +85,7 @@ class Node:
     def purify_paths(self):
         for node in self.connected_paths.copy():
             if node.type != "path":
-                if node.type in ["jack", "jack_kill"]:
+                if node.type in ["jack", "jack_start"]:
                     self.connected_jack.append(node)
                 if node.type in ["cops", "cops_spawn"]:
                     self.connected_cops.append(node)
@@ -105,14 +105,14 @@ class Node:
         dy = -28.409268
         ellipse = jack_spot.getElementsByTagName('ellipse')[0]
         text = jack_spot.getElementsByTagName('tspan')[0]
-        node_type = "jack_kill" if ellipse.getAttribute("style").find("fill:#ff0000") != -1 else "jack"
+        node_type = "jack_start" if ellipse.getAttribute("style").find("fill:#ff0000") != -1 else "jack"
         x = round(float(ellipse.getAttribute('cx')) * scale + dx, 2)
         y = round(float(ellipse.getAttribute('cy')) * scale + dy, 2)
         jack_number = int(text.firstChild.nodeValue)
         return cls(node_type, [[x, y]], node_id=jack_number)
 
     def draw(self, screen, set_color=None):
-        if self.type in ["jack", "jack_kill"]:
+        if self.type in ["jack", "jack_start"]:
             color = (0, 0, 0) if self.type == "jack" else (255, 0, 0)
             color = color if set_color is None else set_color
             pygame.draw.circle(screen, color, self.coordinates[0], 4)
@@ -131,7 +131,7 @@ class Node:
                 if node.type in ["cops", "cops_spawn"]:
                     self.connected_cops.append(node)
                     return
-                elif node.type in ["jack", "jack_kill"]:
+                elif node.type in ["jack", "jack_start"]:
                     if self.type in ["cops", "cops_spawn"]:
                         continue
                     return
@@ -145,11 +145,11 @@ class Node:
     def find_jack(self, searched):
         for node in searched.connected_paths:
             if node is not self and (searched is self or node not in self.connected_paths):
-                if node.type in ["jack", "jack_kill"]:
+                if node.type in ["jack", "jack_start"]:
                     self.connected_jack.append(node)
                     return
                 elif node.type in ["cops", "cops_spawn"]:
-                    if self.type in ["jack", "jack_kill"]:
+                    if self.type in ["jack", "jack_start"]:
                         continue
                     return
                 else:

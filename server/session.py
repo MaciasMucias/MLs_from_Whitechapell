@@ -78,7 +78,6 @@ def state_view(session: GameSession) -> dict:
         "turn_limit": effective_limit,
         "legal_moves": legal,
         "visited": sorted(s.cop_knowledge.visited),
-        "never_visited": sorted(s.cop_knowledge.never_visited),
         "search_misses": [list(m) for m in s.cop_knowledge.search_misses],
         "arrest_misses": [list(m) for m in s.cop_knowledge.arrest_misses],
         "jack_trace": sorted(s.jack_trace),

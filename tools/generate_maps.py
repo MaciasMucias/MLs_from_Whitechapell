@@ -93,7 +93,7 @@ def _parse_svg(svg_path):
     """
     Returns:
       jack_coordinates  : {jack_id: (x, y)}
-      jack_types   : {jack_id: 'jack' | 'jack_kill'}
+      jack_types   : {jack_id: 'jack' | 'jack_start'}
       cop_coordinates   : {cop_id: (x, y)}
       jack_cop_adj : {jack_id: set of cop_ids}  — direct adjacency
       cop_cop_adj  : {cop_id: set of cop_ids}   — direct adjacency
@@ -117,7 +117,7 @@ def _parse_svg(svg_path):
         y = round(float(e.getAttribute("cy")) * scale + dy, 2)
         jack_coordinates[node_id] = (x, y)
         jack_point[node_id] = [[x, y]]
-        jack_types[node_id] = "jack_kill" if "fill:#ff0000" in e.getAttribute("style") else "jack"
+        jack_types[node_id] = "jack_start" if "fill:#ff0000" in e.getAttribute("style") else "jack"
 
     # --- Cop nodes (<rect> elements, 1-indexed by order) ---
     cop_coordinates, cop_point, cop_types = {}, {}, {}
@@ -329,7 +329,7 @@ def build_map():
         return
 
     # --- Derive start node lists from SVG types ---
-    jack_starts = sorted(jid for jid, t in jack_types.items() if t == "jack_kill")
+    jack_starts = sorted(jid for jid, t in jack_types.items() if t == "jack_start")
     cop_starts  = sorted(cid for cid, t in cop_types.items()  if t == "cops_spawn")
 
     # --- Serialise to JSON ---

@@ -22,17 +22,21 @@ A web interface allows human participants to play as Jack against heuristic cops
 The Jack and Cop graphs are **meshed together**, not merely adjacent. The board alternates between Jack nodes (circles) and Cop nodes (squares):
 
 ```
-Jack_A ──[via Cop_X]── Jack_B
+Jack_A ──[via Cop_X … Cop_Y]── Jack_B
 ```
 
-Every edge in the Jack graph has exactly one **associated Cop node** that Jack must pass through to traverse it. Cops sit on these connecting squares. This means:
+Every edge in the Jack graph has an **ordered sequence of one or more associated Cop nodes** that Jack passes through to traverse it. Cops sit on these connecting squares. This means:
 
 - Jack is always *at* a Jack node (circle) between moves.
-- To move from Jack node A to Jack node B, Jack passes through a specific Cop node X.
-- The `neighbour_matrix` encodes this traversal structure: for each Jack–Jack edge, which Cop node connects them.
-- A cop occupying Cop node X blocks **all Jack edges that route through X**.
+- To move from Jack node A to Jack node B, Jack traverses a specific sequence of Cop nodes stored in the edge's `via` field.
+- A cop occupying any Cop node in an edge's `via` sequence blocks that edge (when blocking is enabled).
 
 This structure also explains the search and arrest mechanics: cops on Cop nodes are positioned on the connectors between Jack positions, giving them natural visibility into adjacent Jack nodes.
+
+**Jack node types:**
+
+- `jack` — a standard Jack position.
+- `jack_start` — a crime scene; the only valid starting positions for Jack. One is chosen randomly at the start of each game from the map's `jack_starts` list.
 
 ### 2.3 Turn Structure
 
@@ -58,7 +62,7 @@ The night ends when any of the following conditions are met:
 
 - **Jack:** Moves from his current Jack node to an adjacent Jack node by traversing the connecting Cop node. One move per round. If blocking is enabled, edges through occupied Cop nodes are illegal.
 - **Cops:** Move 0, 1, or 2 steps along the Cops graph per round, choosing any reachable destination within that range.
-- Both graphs loaded from `jack.map` and `cops.map`.
+- Both graphs loaded from a map config bundle (`maps/whitechapel.json` for the full board).
 - **No special moves (carriages, alleys) initially.** The action space must be structured to accommodate these later without rearchitecting the core environment.
 
 ### 2.5 Cop Actions
@@ -74,11 +78,12 @@ All search results and arrest outcomes are added to the **global shared knowledg
 
 ### 2.6 Information Model
 
-**Cops know:**
+**Cops know (shared `CopKnowledge`):**
 - Jack's starting position (revealed at the start of the night).
 - All cop positions.
-- Every Jack node confirmed visited this game (via searches).
-- Every Jack node confirmed not currently occupied at the time of a failed arrest.
+- `visited` — Jack nodes confirmed to be in his trace this game (from searches). Director-manipulable.
+- `search_misses` — `(node, turn)` pairs: Jack's trace did not include this node at or before this turn. Does **not** permanently exclude the node — Jack can visit it in a later turn.
+- `arrest_misses` — `(node, turn)` pairs: Jack was confirmed absent from this node at this exact moment.
 
 **Jack knows:**
 - His current position.
@@ -93,7 +98,7 @@ Jack does **not** see Director manipulations. If the Director suppressed a real 
 
 At the start of each game, Jack is assigned a single hideout node. The assignment is semi-random, subject to constraints:
 
-- Jack's **starting position is fixed per map**.
+- Jack's **starting position is chosen randomly** from the map's `jack_starts` list at the beginning of each game.
 - The hideout must be at least a minimum graph distance from the start (threshold defined per map).
 - Candidates should be positioned such that natural cop patrol routes lie between the start and the hideout — i.e., reaching it requires evasion rather than a straight run.
 
@@ -135,19 +140,20 @@ The Director adjusts its intervention level based on Jack's rolling performance:
 
 ### 4.1 Full Board
 
-- **Jack graph:** 195 nodes, loaded from `jack.map`. Edges carry a reference to the Cop node they traverse through.
-- **Cops graph:** 234 nodes, loaded from `cops.map`.
-- **Traversal structure:** for each Jack–Jack edge, the associated Cop node (derived from `jack.map` and the neighbour relation). This is what enables the blocking rule and defines search/arrest reach.
+- **Jack graph:** 195 nodes. Each `JackEdge` carries an ordered `via` sequence of one or more Cop nodes traversed — this is what enables the blocking rule and defines search/arrest reach.
+- **Cops graph:** 234 nodes.
+- Both graphs plus the traversal structure are stored in `maps/whitechapel.json` (or another map config bundle).
 
 ### 4.2 Map Configuration Object
 
-Each playable map is a configuration bundle containing:
-- Jack subgraph (nodes + edges with traversal Cop nodes)
-- Cops subgraph (nodes + edges)
+Each playable map is a configuration bundle (`maps/*.json`) containing:
+- Jack nodes (id, coordinates, edges with `via` sequences)
+- Cop nodes (id, coordinates, movement edges, jack neighbours)
+- `jack_starts` — valid Jack starting node IDs
+- `cop_starts` — pool of cop spawn node IDs
 - Number of cops
 - Turn limit
-- Jack's fixed starting position
-- Set of valid hideout candidates (pre-filtered by distance and optionally scored)
+- Minimum hideout distance (`hideout_min_distance`)
 
 ### 4.3 Board Size Variants
 
@@ -169,12 +175,13 @@ Smaller boards are **connected subgraphs of the full Whitechapel board**, preser
 - Which nodes cops searched each round and the true results (was Jack there or not)
 - If blocking enabled: set of currently blocked Jack edges (derivable from cop positions and the traversal structure, so not hidden information)
 
-### 5.2 Cops' Observation (Shared)
+### 5.2 Cops' Observation (Shared `CopKnowledge`)
 
 - All cop positions
 - Jack's starting position
-- Confirmed-visited Jack nodes (via search)
-- Confirmed-empty Jack nodes (via failed arrests)
+- `visited` — Jack nodes confirmed in his trace (Director-manipulable)
+- `search_misses` — `(node, turn)` pairs: Jack's trace did not include this node at or before that turn
+- `arrest_misses` — `(node, turn)` pairs: Jack was confirmed absent from this node at that exact moment
 
 ### 5.3 Action Spaces
 
@@ -207,12 +214,14 @@ count[0][start] = 1
 count[0][v]     = 0  for all v ≠ start
 
 count[t+1][v]   = sum of count[t][u] for all u adjacent to v
-                = 0  if v is forbidden (searched and found empty at any point this game)
+
+count[t][v]     = 0  if (v, T) in search_misses  and  t <= T
+                  0  if (v, T) in arrest_misses   and  t == T
 
 P(Jack at v | turn t) ∝ count[t][v]
 ```
 
-The reachable set `{v : count[t][v] > 0}` is derived for free from the count array. When a new forbidden node is discovered, counts are recomputed from scratch excluding it: O(T × E), negligible for these graph sizes. Positive finds (trace confirmed at X) are treated as confirmation only — no backward inference in the initial implementation.
+A search miss `(v, T)` means Jack's path had not visited `v` by turn T, so `count[t][v] = 0` for all `t ≤ T`. For turns `t > T` the node is reachable again — Jack may visit it later. An arrest miss `(v, T)` only zeroes out turn T specifically. When new constraints are added, counts are recomputed from scratch: O(T × E), negligible for these graph sizes. Positive finds (`visited`) are treated as confirmation only — no backward inference in the initial implementation.
 
 **Cop coordination — PMF-guided ACO:**
 

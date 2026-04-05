@@ -7,24 +7,22 @@ class CopKnowledge:
     The shared knowledge state that all cops act on.
 
     This is the Director's surface: `visited` may be suppressed or injected
-    relative to ground truth. `never_visited` and `arrest_misses` are always
+    relative to ground truth. `search_misses` and `arrest_misses` are always
     accurate — the Director only manipulates positive sightings.
 
     Attributes:
         jack_start:      Jack's starting node (revealed at game start).
         visited:         Jack nodes cops believe Jack has visited this game.
                          Director can suppress real finds or inject false ones.
-        never_visited:   Jack nodes confirmed NOT in Jack's trace (from search
-                         results returning false). Always ground truth.
-        search_misses:   (jack_node_id, turn) pairs where Jack was confirmed
-                         not present at, or before, that specific moment.
-                         Point-in-time fact.
-        arrest_misses:   (jack_node_id, turn) pairs where Jack was confirmed
-                         absent at that specific moment. Point-in-time fact.
+        search_misses:   (jack_node_id, turn) pairs: Jack's trace did not
+                         include this node at or before this turn. Constrains
+                         count[t][v] = 0 for t <= turn in the PMF.
+        arrest_misses:   (jack_node_id, turn) pairs: Jack was confirmed absent
+                         from this node at this exact turn. Constrains
+                         count[turn][v] = 0 in the PMF.
     """
     jack_start: int
     visited: frozenset[int] = frozenset()
-    never_visited: frozenset[int] = frozenset()
     search_misses: tuple[tuple[int, int], ...] = ()
     arrest_misses: tuple[tuple[int, int], ...] = ()
 

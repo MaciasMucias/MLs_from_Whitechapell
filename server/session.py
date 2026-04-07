@@ -17,7 +17,8 @@ class GameSession:
     rng: random.Random
     blocking: bool = False
     turn_limit: int | None = None   # overrides game_map.turn_limit when set
-    history: list = field(default_factory=list)  # list[GameState], capped at 50
+    history: list = field(default_factory=list)        # list[GameState], capped at 50
+    round_history: list = field(default_factory=list)  # list[RoundRecord], full game
 
 
 _sessions: dict[str, GameSession] = {}

@@ -58,6 +58,11 @@ async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
     session.state = ctx.state
     session.terminated = ctx.terminated
     session.winner = ctx.winner
+    session.round_history.extend(ctx.history)
+
+    if terminated:
+        from server.replay import build_and_save_replay
+        build_and_save_replay(session)
 
     view = state_view(session)
     view["events"] = events

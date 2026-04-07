@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from agents import HeuristicCops, NoOpDirector
 from engine.graph import load_map
 from server.admin_routes import admin_router
+from server.replay_routes import replay_router
 from server.routes import router
 
 
@@ -21,4 +22,5 @@ async def lifespan(app: FastAPI):
 whitechapel_ui = FastAPI(lifespan=lifespan)
 whitechapel_ui.include_router(router, prefix="/api")
 whitechapel_ui.include_router(admin_router, prefix="/api/admin")
+whitechapel_ui.include_router(replay_router, prefix="/api/replays")
 whitechapel_ui.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

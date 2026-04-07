@@ -6,7 +6,7 @@ from engine.env import CopTurn
 from engine.graph import Map
 from engine.graph_utils import jack_bfs_distances, jack_reachable_within, reachable_cop_nodes
 from engine.state import GameState
-from agents.base import CopAgent
+from agents.base import CopAgent, CopDecisionInfo, RoundCopDecisions
 
 
 class HeuristicCops(CopAgent):
@@ -101,16 +101,31 @@ class HeuristicCops(CopAgent):
         # _assign_destinations so cops patrol hideout-likely regions even when
         # the position PMF is flat.
 
-    def act(self, state: GameState, game_map: Map) -> list[CopTurn]:
+    def act(self, state: GameState, game_map: Map) -> tuple[list[CopTurn], RoundCopDecisions]:
         position_pmf = self._compute_pmf(state, game_map)
         hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
-        destinations = self._assign_destinations(
+        assignment   = self._assign_destinations(
             position_pmf, hideout_pmf, state.cop_positions, game_map
         )
-        return [
+        turns = [
             self._decide_action(cop_idx, game_map.cop_nodes[dest - 1], position_pmf)
-            for cop_idx, dest in enumerate(destinations)
+            for cop_idx, (dest, _role, _cov, _dir) in enumerate(assignment)
         ]
+        decisions = RoundCopDecisions(
+            position_pmf=position_pmf,
+            hideout_pmf=hideout_pmf,
+            cops=[
+                CopDecisionInfo(
+                    cop_idx=cop_idx,
+                    role=role,
+                    destination=dest,
+                    coverage_score=cov,
+                    direction_score=dir_score,
+                )
+                for cop_idx, (dest, role, cov, dir_score) in enumerate(assignment)
+            ],
+        )
+        return turns, decisions
 
     # ------------------------------------------------------------------
     # Position PMF
@@ -269,22 +284,26 @@ class HeuristicCops(CopAgent):
         hideout_pmf: dict[int, float],
         cop_positions: tuple[int, ...],
         game_map: Map,
-    ) -> list[int]:
+    ) -> list[tuple[int, str, float, float | None]]:
         """
         Runs n_iterations random orderings and per-cop role draws (pursuer vs
-        searcher). Returns the assignment with the highest total score.
+        searcher). Returns the assignment with the highest total score as a list
+        of (destination, role, coverage_score, direction_score) per cop.
 
         Pursuer score for a cop node:
-            coverage + pursuit_weight * direction_dot_normalised
+            coverage + pursuit_weight * proximity_normalised
         Searcher score:
             coverage only
 
-        direction_dot_normalised maps the raw dot product into [0, 1] across
-        all reachable nodes of all cops so pursuit_weight is comparable to
-        the probability-valued coverage scores.
+        proximity_normalised is 1 for the cop node closest to the position PMF
+        centroid and 0 for the furthest. Using the position PMF centroid (not the
+        hideout centroid) means the signal is always meaningful and well-grounded
+        — it rescues cops that drifted into zero-coverage corners by pulling them
+        back toward where Jack is believed to be right now.
         """
-        cx, cy, dx, dy = self._estimate_heading(position_pmf, hideout_pmf, game_map)
-        has_direction = (dx != 0.0 or dy != 0.0)
+        # Position PMF centroid — probability-weighted mean Jack location.
+        cx = sum(p * game_map.jack_nodes[v - 1].x for v, p in position_pmf.items())
+        cy = sum(p * game_map.jack_nodes[v - 1].y for v, p in position_pmf.items())
 
         # Pre-compute each cop's reachable set (same every iteration).
         reachable_sets = [
@@ -292,28 +311,28 @@ class HeuristicCops(CopAgent):
             for pos in cop_positions
         ]
 
-        # Pre-compute direction dots for all reachable cop nodes across all cops.
-        # Normalise globally so the scale matches probability values.
-        all_dots: dict[int, float] = {}
-        if has_direction:
-            for rs in reachable_sets:
-                for cid in rs:
-                    if cid not in all_dots:
-                        cn = game_map.cop_nodes[cid - 1]
-                        all_dots[cid] = (cn.x - cx) * dx + (cn.y - cy) * dy
+        # Pre-compute proximity scores for all reachable cop nodes across all cops.
+        # proximity = negative distance to PMF centroid; normalise globally to [0, 1].
+        all_prox: dict[int, float] = {}
+        for rs in reachable_sets:
+            for cid in rs:
+                if cid not in all_prox:
+                    cn = game_map.cop_nodes[cid - 1]
+                    all_prox[cid] = -math.hypot(cn.x - cx, cn.y - cy)
 
-            dot_min = min(all_dots.values())
-            dot_range = max(all_dots.values()) - dot_min
-            if dot_range < 1e-9:
-                has_direction = False
-            else:
-                norm_dot: dict[int, float] = {
-                    cid: (d - dot_min) / dot_range
-                    for cid, d in all_dots.items()
-                }
+        prox_min = min(all_prox.values())
+        prox_range = max(all_prox.values()) - prox_min
+        if prox_range < 1e-9:
+            norm_prox: dict[int, float] = {cid: 0.0 for cid in all_prox}
+        else:
+            norm_prox = {
+                cid: (d - prox_min) / prox_range
+                for cid, d in all_prox.items()
+            }
 
         best_score: float = -1.0
-        best_assignment: list[int] = []
+        # Each entry: (destination, role, coverage_score, direction_score)
+        best_assignment: list[tuple[int, str, float, float | None]] = []
 
         for _ in range(self._n_iterations):
             # Random cop ordering and role draw for this iteration
@@ -322,38 +341,47 @@ class HeuristicCops(CopAgent):
             is_pursuer = [self._rng.random() < self._pursuit_fraction for _ in cop_positions]
 
             remaining: dict[int, float] = dict(position_pmf)
-            assignment: list[int] = [0] * len(cop_positions)
+            assignment: list[tuple[int, str, float, float | None]] = [
+                (0, "searcher", 0.0, None)
+            ] * len(cop_positions)
             iteration_score: float = 0.0
             occupied: set[int] = set()  # destinations claimed this iteration
 
             for cop_idx in order:
+                pursuer = is_pursuer[cop_idx]
                 # Exclude already-occupied nodes so two cops never share a node
                 reachable = reachable_sets[cop_idx] - occupied
                 if not reachable:
                     reachable = reachable_sets[cop_idx]  # fallback if all taken
 
-                def node_score(cid: int, pursuer: bool = is_pursuer[cop_idx]) -> float:
+                def node_score(cid: int, pursuer: bool = pursuer) -> float:
                     coverage = sum(
                         remaining.get(jn.id, 0.0)
                         for jn in game_map.cop_nodes[cid - 1].jack_neighbours
                     )
-                    if pursuer and has_direction:
-                        return coverage + self._pursuit_weight * norm_dot.get(cid, 0.0)
-                    return coverage
+                    # Pursuers: full proximity bonus to chase toward the PMF centroid.
+                    # Searchers: small proximity bonus (1/4) as a tiebreaker so they
+                    # drift toward the action instead of wandering randomly when all
+                    # coverage values are 0 (common in early turns when cops are far
+                    # from Jack's starting zone).
+                    prox_weight = self._pursuit_weight if pursuer else self._pursuit_weight * 0.25
+                    return coverage + prox_weight * norm_prox.get(cid, 0.0)
 
                 best_node = max(reachable, key=node_score)
-                assignment[cop_idx] = best_node
                 occupied.add(best_node)
 
-                # Use plain coverage (no pursuit bonus) to compare iterations.
-                # The pursuit bias guides within-iteration selection; if it were
-                # included in the comparison score, iterations that happen to draw
-                # more pursuers would appear better regardless of actual coverage.
                 plain_coverage = sum(
                     remaining.get(jn.id, 0.0)
                     for jn in game_map.cop_nodes[best_node - 1].jack_neighbours
                 )
+                dir_score = norm_prox.get(best_node)
+                role = "pursuer" if pursuer else "searcher"
+                # Use plain coverage (no pursuit bonus) to compare iterations.
+                # The pursuit bias guides within-iteration selection; if it were
+                # included in the comparison score, iterations that happen to draw
+                # more pursuers would appear better regardless of actual coverage.
                 iteration_score += plain_coverage
+                assignment[cop_idx] = (best_node, role, plain_coverage, dir_score)
 
                 for jn in game_map.cop_nodes[best_node - 1].jack_neighbours:
                     if jn.id in remaining:

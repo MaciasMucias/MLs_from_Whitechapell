@@ -24,6 +24,8 @@ class CopStepRecord:
     state_after: GameState
     terminated: bool
     winner: str | None
+    search_results: dict[int, bool] = field(default_factory=dict)
+    # jack_node_id -> True=hit (Jack visited) / False=miss; empty for arrest actions
 
 
 @dataclass
@@ -42,6 +44,7 @@ class RoundRecord:
     state_after_round: GameState
     terminated: bool
     winner: str | None
+    cop_decisions: object = None  # RoundCopDecisions | None (avoid circular import)
 
 
 @dataclass
@@ -108,18 +111,28 @@ def step_round(
 
     events: list[dict] = []
     cop_steps: list[CopStepRecord] = []
+    round_decisions = None
 
     if not terminated:
         # 2. Director adjusts knowledge before cops plan
         state = director.filter_knowledge(state, ctx.game_map)
 
         # 3. All cops plan simultaneously on the post-Director state
-        cop_turns = cop_agent.act(state, ctx.game_map)
+        cop_turns, round_decisions = cop_agent.act(state, ctx.game_map)
 
         # Execute each cop's planned turn
         for cop_turn in cop_turns:
-            state, terminated, winner = step_cop(state, cop_turn, ctx.game_map)
             cop_node = ctx.game_map.cop_nodes[cop_turn.destination - 1]
+            # Compute search results before advancing state (jack_trace is ground truth)
+            if cop_turn.search:
+                search_results = {
+                    jn.id: (jn.id in state.jack_trace)
+                    for jn in cop_node.jack_neighbours
+                }
+            else:
+                search_results = {}
+
+            state, terminated, winner = step_cop(state, cop_turn, ctx.game_map)
             events.append({
                 "cop": cop_turn.cop_idx,
                 "moved_to": cop_turn.destination,
@@ -132,6 +145,7 @@ def step_round(
                 state_after=state,
                 terminated=terminated,
                 winner=winner,
+                search_results=search_results,
             ))
             if terminated:
                 break
@@ -156,6 +170,7 @@ def step_round(
         state_after_round=state,
         terminated=terminated,
         winner=winner,
+        cop_decisions=round_decisions,
     )
     ctx.history.append(record)
     ctx.state = state

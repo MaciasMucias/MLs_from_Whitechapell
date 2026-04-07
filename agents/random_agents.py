@@ -21,12 +21,12 @@ class RandomCops(CopAgent):
     def __init__(self, rng: random.Random | None = None) -> None:
         self._rng = rng or random.Random()
 
-    def act(self, state: GameState, game_map: Map) -> list[CopTurn]:
+    def act(self, state: GameState, game_map: Map) -> tuple[list[CopTurn], None]:
         turns = []
         for cop_idx, cop_pos in enumerate(state.cop_positions):
             reachable = list(reachable_cop_nodes(cop_pos, game_map))
             turns.append(CopTurn(cop_idx=cop_idx, destination=self._rng.choice(reachable), search=True))
-        return turns
+        return turns, None
 
 
 class NoOpDirector(Director):

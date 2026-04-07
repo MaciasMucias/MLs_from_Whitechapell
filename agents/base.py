@@ -16,6 +16,22 @@ class AgentOutput:
     aux: dict[str, Any] | None = None
 
 
+@dataclass
+class CopDecisionInfo:
+    cop_idx: int
+    role: str                      # "pursuer" | "searcher" | "unknown"
+    destination: int               # chosen cop node id
+    coverage_score: float
+    direction_score: float | None  # None when no direction signal
+
+
+@dataclass
+class RoundCopDecisions:
+    position_pmf: dict[int, float]  # node_id -> probability at planning time
+    hideout_pmf: dict[int, float]
+    cops: list[CopDecisionInfo]
+
+
 class JackAgent(ABC):
     @abstractmethod
     def act(self, state: GameState, legal_edges: list[JackEdge], game_map: Map) -> AgentOutput: ...
@@ -26,12 +42,13 @@ class JackAgent(ABC):
 class CopAgent(ABC):
     """
     All cops plan simultaneously on the same pre-move state. Called once per
-    round, returns one CopTurn per cop. Execution then proceeds sequentially
-    through step_cop() to accumulate state changes, but planning is blind to
-    intra-round position updates.
+    round, returns one CopTurn per cop plus optional decision metadata for
+    replay/debugging. Execution then proceeds sequentially through step_cop()
+    to accumulate state changes, but planning is blind to intra-round position
+    updates.
     """
     @abstractmethod
-    def act(self, state: GameState, game_map: Map) -> list[CopTurn]: ...
+    def act(self, state: GameState, game_map: Map) -> tuple[list[CopTurn], RoundCopDecisions | None]: ...
     def on_episode_start(self, state: GameState, game_map: Map) -> None: pass
     def on_episode_end(self, final_state: GameState, winner: str) -> None: pass
 

@@ -4,7 +4,7 @@
 
 let _replayList    = [];    // metadata from GET /api/replays
 let _replayRecord  = null;  // full ReplayRecord currently loaded
-let _replayRound   = 0;     // 0-based index into _replayRecord.rounds
+let _replayRound   = -1;    // -1 = initial state; 0+ = index into _replayRecord.rounds
 let _replaySubStep = 0;     // 0 = after Jack moved, 1 = after all cops acted
 let _replayPmf     = false; // whether PMF overlay is active in replay
 
@@ -14,7 +14,7 @@ async function initReplay() {
   document.getElementById("replay-refresh-btn").addEventListener("click", loadReplayList);
   document.getElementById("replay-prev-btn").addEventListener("click", () => stepReplay(-1));
   document.getElementById("replay-next-btn").addEventListener("click", () => stepReplay(+1));
-  document.getElementById("replay-start-btn").addEventListener("click", () => gotoStep(0, 0));
+  document.getElementById("replay-start-btn").addEventListener("click", () => gotoStep(-1, 0));
   document.getElementById("replay-end-btn").addEventListener("click", () => {
     if (_replayRecord) {
       const lastRound = _replayRecord.rounds.length - 1;
@@ -79,7 +79,7 @@ async function loadReplaySlot(slot) {
     const r = await fetch(`/api/replays/${slot}`);
     if (!r.ok) { console.error("loadReplaySlot: HTTP", r.status); return; }
     _replayRecord = await r.json();
-    gotoStep(0, 0);
+    gotoStep(-1, 0);
     renderReplayMeta();
   } catch (e) {
     console.error("loadReplaySlot:", e);
@@ -98,13 +98,16 @@ function stepReplay(delta) {
   let r = _replayRound;
   let s = _replaySubStep + delta;
 
-  if (s > maxSubStep(r)) {
+  if (r === -1) {
+    if (delta > 0) { r = 0; s = 0; }
+    else return;
+  } else if (s > maxSubStep(r)) {
     r++;
     s = 0;
   } else if (s < 0) {
     r--;
-    if (r < 0) return;
-    s = maxSubStep(r);
+    if (r < -1) return;
+    s = r < 0 ? 0 : maxSubStep(r);
   }
   if (r >= _replayRecord.rounds.length) return;
   gotoStep(r, s);
@@ -112,7 +115,7 @@ function stepReplay(delta) {
 
 function gotoStep(round, subStep) {
   if (!_replayRecord) return;
-  _replayRound   = Math.max(0, Math.min(_replayRecord.rounds.length - 1, round));
+  _replayRound   = Math.max(-1, Math.min(_replayRecord.rounds.length - 1, round));
   _replaySubStep = subStep;
   renderReplayRound();
 }
@@ -133,6 +136,31 @@ function _copPositionsAtSubStep() {
 
 function renderReplayRound() {
   if (!_replayRecord || !window.mapData) return;
+
+  if (_replayRound === -1) {
+    window.renderForReplay({
+      game_id:       _replayRecord.game_id,
+      jack_pos:      _replayRecord.initial_jack_pos,
+      cop_positions: [..._replayRecord.initial_cop_positions],
+      hideout:       _replayRecord.hideout,
+      turn:          0,
+      turn_limit:    _replayRecord.turn_limit,
+      legal_moves:   [],
+      visited:       [],
+      search_misses: [],
+      arrest_misses: [],
+      jack_trace:    [],
+      blocking:      _replayRecord.blocking,
+      history_size:  0,
+      terminated:    false,
+      winner:        null,
+    });
+    window.clearPmfData();
+    renderInitialPanel();
+    updateReplayNav();
+    return;
+  }
+
   const rnd = _replayRecord.rounds[_replayRound];
 
   const replayState = {
@@ -174,6 +202,19 @@ function renderReplayRound() {
 }
 
 // ── Side panel ───────────────────────────────────────────────
+
+function renderInitialPanel() {
+  const el = document.getElementById("replay-round-detail");
+  const rec = _replayRecord;
+  const lines = [
+    `<div class="rpl-section"><strong>Initial state</strong></div>`,
+    `<div class="rpl-row"><span class="rpl-jack">Jack</span> starts at <strong>${rec.initial_jack_pos}</strong></div>`,
+    `<div class="rpl-info">Hideout: ${rec.hideout} &nbsp;·&nbsp; Turn limit: ${rec.turn_limit}</div>`,
+    `<div class="rpl-info">Cops: ${rec.initial_cop_positions.join(", ")}</div>`,
+    `<div style="margin-top:8px"><button onclick="forkFromCurrentTurn()" style="font-size:11px;padding:2px 8px">▶ Play from here</button></div>`,
+  ];
+  el.innerHTML = lines.join("");
+}
 
 function renderReplayMeta() {
   if (!_replayRecord) return;
@@ -253,12 +294,16 @@ function updateReplayNav() {
   const totalRounds = _replayRecord.rounds.length;
   const lastRound   = totalRounds - 1;
   const lastSub     = maxSubStep(lastRound);
-  const atStart     = _replayRound === 0 && _replaySubStep === 0;
+  const atStart     = _replayRound === -1;
   const atEnd       = _replayRound === lastRound && _replaySubStep === lastSub;
 
-  const subLabel = _replaySubStep === 0 ? "Jack" : "Cops";
-  document.getElementById("replay-round-counter").textContent =
-    `Round ${_replayRound + 1} / ${totalRounds} · ${subLabel}`;
+  if (atStart) {
+    document.getElementById("replay-round-counter").textContent = `Initial · 0 / ${totalRounds}`;
+  } else {
+    const subLabel = _replaySubStep === 0 ? "Jack" : "Cops";
+    document.getElementById("replay-round-counter").textContent =
+      `Round ${_replayRound + 1} / ${totalRounds} · ${subLabel}`;
+  }
 
   document.getElementById("replay-prev-btn").disabled  = atStart;
   document.getElementById("replay-start-btn").disabled = atStart;

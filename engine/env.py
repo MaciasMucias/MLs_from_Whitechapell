@@ -22,6 +22,7 @@ class CopTurn:
     destination: int
     search: bool
     arrest_target: int | None = None
+    arrest_all: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +151,12 @@ def step_cop(
             else:
                 search_misses.append((jid, state.turn))
     else:
-        target = cop_turn.arrest_target
-        if target == state.jack_pos:
+        if cop_turn.arrest_all:
+            cop_node_neighbours = {jn.id for jn in cop_node.jack_neighbours}
+        else:
+            cop_node_neighbours = {cop_turn.arrest_target}
+
+        if state.jack_pos in cop_node_neighbours:
             return (
                 _build_state(
                     state.jack_pos, cop_positions, state, state.jack_trace,
@@ -160,7 +165,8 @@ def step_cop(
                 True,
                 "cops",
             )
-        arrest_misses.append((target, state.turn))
+        for jid in cop_node_neighbours:
+            arrest_misses.append((jid, state.turn))
 
     return (
         _build_state(

@@ -39,26 +39,32 @@ class HeuristicCops(CopAgent):
         pursuit_weight * direction_toward_hideout_centroid; searchers by
         coverage only. The assignment with the highest total score is used.
 
-    Search vs arrest: 10% random arrest attempt on the highest-probability
-    adjacent Jack node; 90% search.
-    # TODO: replace random arrest with threshold-based logic once win-rate
-    #       baselines exist (requires a competent Jack agent to be meaningful).
+    Search vs arrest:
+        A cop arrests all adjacent Jack nodes (arrest_all) under two conditions:
+        (1) zone_mass >= effective_threshold, where zone_mass is the sum of PMF
+            across all adjacent Jack nodes, and
+            effective_threshold = arrest_threshold * (remaining_turns / turn_limit).
+        (2) Every adjacent node with nonzero PMF is at the BFS frontier
+            (bfs_dist >= current_depth) — arrest and search give identical miss
+            constraints at the frontier, so arrest strictly dominates.
+        Threshold decays to 0 as the turn limit approaches.
     """
 
     def __init__(
         self,
-        arrest_prob: float = 0.1,
+        arrest_threshold: float = 0.25,
         pursuit_fraction: float = 0.4,
         pursuit_weight: float = 0.5,
         n_iterations: int = 30,
         rng: random.Random | None = None,
     ) -> None:
-        self._arrest_prob = arrest_prob
+        self._arrest_threshold = arrest_threshold
         self._pursuit_fraction = pursuit_fraction
         self._pursuit_weight = pursuit_weight
         self._n_iterations = n_iterations
         self._rng = rng or random.Random()
         self._hideout_candidates: set[int] = set()
+        self._jack_start_distances: dict[int, int] = {}
 
     # ------------------------------------------------------------------
     # CopAgent interface
@@ -67,6 +73,7 @@ class HeuristicCops(CopAgent):
     def on_episode_start(self, state: GameState, game_map: Map) -> None:
         # Cache hideout candidates for this episode (fixed for the whole game).
         distances = jack_bfs_distances(state.cop_knowledge.jack_start, game_map)
+        self._jack_start_distances = distances
         self._hideout_candidates = {
             v for v, d in distances.items()
             if d >= game_map.hideout_min_distance
@@ -107,8 +114,14 @@ class HeuristicCops(CopAgent):
         assignment   = self._assign_destinations(
             position_pmf, hideout_pmf, state.cop_positions, game_map
         )
+        current_depth = state.turn + 1
+        remaining_turns = game_map.turn_limit - 1 - state.turn
+        effective_threshold = self._arrest_threshold * max(0.0, remaining_turns) / game_map.turn_limit
         turns = [
-            self._decide_action(cop_idx, game_map.cop_nodes[dest - 1], position_pmf)
+            self._decide_action(
+                cop_idx, game_map.cop_nodes[dest - 1], position_pmf,
+                effective_threshold, current_depth,
+            )
             for cop_idx, (dest, _role, _cov, _dir) in enumerate(assignment)
         ]
         decisions = RoundCopDecisions(
@@ -402,21 +415,26 @@ class HeuristicCops(CopAgent):
         cop_idx: int,
         cop_node,  # CopNode
         pmf: dict[int, float],
+        effective_threshold: float,
+        current_depth: int,
     ) -> CopTurn:
         adj = cop_node.jack_neighbours
         if not adj:
             return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=True)
 
-        # 10% random arrest on highest-probability adjacent node
-        # TODO: replace with threshold-based logic once win-rate baselines exist
-        if self._rng.random() < self._arrest_prob:
-            best = max(adj, key=lambda jn: pmf.get(jn.id, 0.0))
-            if pmf.get(best.id, 0.0) > 0.0:
+        zone_mass = sum(pmf.get(jn.id, 0.0) for jn in adj)
+
+        if zone_mass > 0.0:
+            all_frontier = all(
+                self._jack_start_distances.get(jn.id, 0) >= current_depth
+                for jn in adj if pmf.get(jn.id, 0.0) > 0.0
+            )
+            if zone_mass >= effective_threshold or all_frontier:
                 return CopTurn(
                     cop_idx=cop_idx,
                     destination=cop_node.id,
                     search=False,
-                    arrest_target=best.id,
+                    arrest_all=True,
                 )
 
         return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=True)

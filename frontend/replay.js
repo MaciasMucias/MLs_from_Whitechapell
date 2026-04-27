@@ -68,6 +68,7 @@ async function loadReplayList() {
       listEl.appendChild(opt);
     }
     listEl.onchange = () => loadReplaySlot(parseInt(listEl.value));
+    loadReplaySlot(parseInt(listEl.value));  // auto-load the initially selected slot
   } catch (e) {
     listEl.innerHTML = "<option disabled selected>Error loading replays</option>";
     console.error("loadReplayList:", e);
@@ -163,6 +164,14 @@ function renderReplayRound() {
 
   const rnd = _replayRecord.rounds[_replayRound];
 
+  // Substep 0 = after Jack moved, before cops act → knowledge is from end of previous round
+  const prevRnd = _replaySubStep === 0 && _replayRound > 0
+    ? _replayRecord.rounds[_replayRound - 1]
+    : null;
+  const visited      = _replaySubStep === 1 ? rnd.visited_after      : (prevRnd ? prevRnd.visited_after      : []);
+  const searchMisses = _replaySubStep === 1 ? rnd.search_misses_after : (prevRnd ? prevRnd.search_misses_after : []);
+  const arrestMisses = _replaySubStep === 1 ? rnd.arrest_misses_after : (prevRnd ? prevRnd.arrest_misses_after : []);
+
   const replayState = {
     game_id:       _replayRecord.game_id,
     jack_pos:      rnd.jack_to,
@@ -171,9 +180,9 @@ function renderReplayRound() {
     turn:          rnd.turn,
     turn_limit:    _replayRecord.turn_limit,
     legal_moves:   [],
-    visited:       rnd.visited_after,
-    search_misses: rnd.search_misses_after,
-    arrest_misses: rnd.arrest_misses_after,
+    visited:       visited,
+    search_misses: searchMisses,
+    arrest_misses: arrestMisses,
     jack_trace:    [],
     blocking:      _replayRecord.blocking,
     history_size:  0,
@@ -263,7 +272,10 @@ function renderReplayPanel(rnd) {
         const outcome = ca.arrest_success
           ? `<span class="rpl-hit">SUCCESS</span>`
           : `<span class="rpl-miss">miss</span>`;
-        lines.push(`<div class="rpl-info">Arrest node ${ca.arrest_target ?? "?"}: ${outcome}</div>`);
+        const targets = (Array.isArray(ca.arrest_target) && ca.arrest_target.length)
+          ? ca.arrest_target.join(", ")
+          : "?";
+        lines.push(`<div class="rpl-info">Arrest nodes ${targets}: ${outcome}</div>`);
       }
 
       if (ca.coverage_score !== null && ca.coverage_score !== undefined) {

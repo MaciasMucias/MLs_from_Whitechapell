@@ -33,7 +33,7 @@ class ReplayCopAction:
     searched_nodes: list[int]      # adjacent jack nodes (search only)
     search_hits: list[int]         # searched nodes that Jack visited
     search_miss_nodes: list[int]   # searched nodes that Jack did NOT visit
-    arrest_target: int | None
+    arrest_target: list[int]
     arrest_success: bool
     role: str | None               # from CopDecisionInfo
     coverage_score: float | None
@@ -113,7 +113,18 @@ def load_replay(slot: int) -> ReplayRecord | None:
             jack_to=r["jack_to"],
             jack_via=r["jack_via"],
             jack_legal_moves=r["jack_legal_moves"],
-            cop_actions=[ReplayCopAction(**a) for a in r["cop_actions"]],
+            cop_actions=[
+            ReplayCopAction(
+                **{
+                    **a,
+                    "arrest_target": (
+                        a["arrest_target"] if isinstance(a.get("arrest_target"), list)
+                        else ([a["arrest_target"]] if a.get("arrest_target") is not None else [])
+                    ),
+                }
+            )
+            for a in r["cop_actions"]
+        ],
             position_pmf=r.get("position_pmf"),
             pmf_after_cops=r.get("pmf_after_cops"),
             hideout_pmf=r.get("hideout_pmf"),
@@ -207,6 +218,14 @@ def build_and_save_replay(session: "GameSession") -> None:
             hits   = [n for n, hit in step.search_results.items() if hit]
             misses = [n for n, hit in step.search_results.items() if not hit]
 
+            if not ct.search:
+                if ct.arrest_all:
+                    arrest_nodes = [jn.id for jn in cop_node.jack_neighbours]
+                else:
+                    arrest_nodes = [ct.arrest_target] if ct.arrest_target is not None else []
+            else:
+                arrest_nodes = []
+
             cd = decision_by_idx.get(ct.cop_idx)
             cop_actions.append(ReplayCopAction(
                 cop_idx=ct.cop_idx,
@@ -216,7 +235,7 @@ def build_and_save_replay(session: "GameSession") -> None:
                 searched_nodes=searched,
                 search_hits=hits,
                 search_miss_nodes=misses,
-                arrest_target=ct.arrest_target,
+                arrest_target=arrest_nodes,
                 arrest_success=(
                     step.terminated and step.winner == "cops"
                     and not ct.search

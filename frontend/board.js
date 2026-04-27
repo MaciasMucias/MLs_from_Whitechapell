@@ -25,6 +25,13 @@ window.refreshBoard = function(state) {
   render(state);
 };
 
+// Switch to live game mode from an externally supplied state (e.g. forked from a replay).
+window.startGameFromState = function(state) {
+  document.getElementById("log").innerHTML = "";
+  render(state);
+  logEntry(`Forked game ${state.game_id}. Jack at node ${state.jack_pos}, turn ${state.turn}.`, "event-jack");
+};
+
 // Render a board state without touching gameId / lastState / adminOnStateUpdate.
 // Used by the replay viewer so live game state is never corrupted.
 window.renderForReplay = function(state) {

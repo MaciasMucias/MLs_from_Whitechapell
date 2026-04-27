@@ -30,6 +30,24 @@ async function initReplay() {
 
 // ── Load list ────────────────────────────────────────────────
 
+async function forkFromCurrentTurn() {
+  if (!_replayRecord) return;
+  const slot = parseInt(document.getElementById("replay-list").value);
+  if (isNaN(slot)) return;
+  try {
+    const r = await fetch(`/api/replays/${slot}/fork-at-turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ turn: _replayRound }),
+    });
+    if (!r.ok) { console.error("fork-at-turn: HTTP", r.status); return; }
+    const state = await r.json();
+    window.startGameFromState(state);
+  } catch (e) {
+    console.error("forkFromCurrentTurn:", e);
+  }
+}
+
 async function loadReplayList() {
   const listEl = document.getElementById("replay-list");
   listEl.innerHTML = "<option disabled selected>Loading…</option>";
@@ -224,6 +242,8 @@ function renderReplayPanel(rnd) {
     const color = rnd.winner === "jack" ? "#81c784" : "#e57373";
     lines.push(`<div class="rpl-result" style="color:${color}"><strong>${rnd.winner === "jack" ? "Jack escapes!" : "Cops win!"}</strong></div>`);
   }
+
+  lines.push(`<div style="margin-top:8px"><button onclick="forkFromCurrentTurn()" style="font-size:11px;padding:2px 8px">▶ Play from here</button></div>`);
 
   el.innerHTML = lines.join("");
 }

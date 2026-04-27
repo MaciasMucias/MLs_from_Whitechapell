@@ -25,6 +25,10 @@ class CopKnowledge:
     visited: frozenset[int] = frozenset()
     search_misses: tuple[tuple[int, int], ...] = ()
     arrest_misses: tuple[tuple[int, int], ...] = ()
+    # (jack_node_id, first_confirmed_depth) — depth = state.turn + 1 when the
+    # search hit was first observed. Not Director-manipulable; derived from
+    # ground-truth timing and used only by the PMF computation.
+    visited_at: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)

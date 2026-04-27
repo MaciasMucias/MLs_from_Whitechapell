@@ -111,7 +111,8 @@ class HeuristicCops(CopAgent):
         position_pmf = self._compute_pmf(state, game_map)
         hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
         assignment   = self._assign_destinations(
-            position_pmf, hideout_pmf, state.cop_positions, game_map
+            position_pmf, hideout_pmf, state.cop_positions, game_map,
+            state.cop_knowledge.visited,
         )
         current_depth = state.turn + 1
         remaining_turns = game_map.turn_limit - 1 - state.turn
@@ -168,6 +169,18 @@ class HeuristicCops(CopAgent):
         # arrest_miss (v, T): counts[T][v][*] = 0
         arrest_exclude: set[tuple[int, int]] = set(ck.arrest_misses)
 
+        # Temporal waypoint constraint: if waypoint v was first confirmed at
+        # depth D, then by turn D the path must have already visited v.
+        # required_masks[t] = bitmask of waypoints that must be in the path's
+        # mask by turn t. Paths that lag behind this schedule are pruned.
+        first_hit_depth: dict[int, int] = dict(ck.visited_at)
+        required_masks: list[int] = [0] * (current_depth + 1)
+        for v, d in first_hit_depth.items():
+            if v in wp_idx:
+                bit = 1 << wp_idx[v]
+                for t in range(min(d, current_depth), current_depth + 1):
+                    required_masks[t] |= bit
+
         # ------ DP tables ------
         jack_start = ck.jack_start
         n = len(game_map.jack_nodes)
@@ -177,6 +190,7 @@ class HeuristicCops(CopAgent):
         prev[jack_start][start_mask] = 1.0
 
         for t in range(1, current_depth + 1):
+            req = required_masks[t]
             curr: list[list[float]] = [[0.0] * num_masks for _ in range(n + 1)]
             for u_id in range(1, n + 1):
                 for mask in range(num_masks):
@@ -190,6 +204,8 @@ class HeuristicCops(CopAgent):
                         if (v_id, t) in arrest_exclude:
                             continue
                         new_mask = mask | (1 << wp_idx[v_id]) if v_id in wp_idx else mask
+                        if (new_mask & req) != req:
+                            continue
                         curr[v_id][new_mask] += mass
             prev = curr
 
@@ -296,6 +312,7 @@ class HeuristicCops(CopAgent):
         hideout_pmf: dict[int, float],
         cop_positions: tuple[int, ...],
         game_map: Map,
+        confirmed_visited: frozenset[int] = frozenset(),
     ) -> list[tuple[int, str, float, float | None]]:
         """
         Runs n_iterations random orderings and per-cop role draws (pursuer vs
@@ -352,7 +369,9 @@ class HeuristicCops(CopAgent):
             self._rng.shuffle(order)
             is_pursuer = [self._rng.random() < self._pursuit_fraction for _ in cop_positions]
 
-            remaining: dict[int, float] = dict(position_pmf)
+            remaining: dict[int, float] = {
+                k: v for k, v in position_pmf.items() if k not in confirmed_visited
+            }
             assignment: list[tuple[int, str, float, float | None]] = [
                 (0, "searcher", 0.0, None)
             ] * len(cop_positions)

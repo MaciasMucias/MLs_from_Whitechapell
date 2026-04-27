@@ -69,7 +69,7 @@ def make_initial_state(
         hideout_zone=zone,
         turn=0,
         jack_trace=frozenset({start}),
-        cop_knowledge=CopKnowledge(jack_start=start),
+        cop_knowledge=CopKnowledge(jack_start=start, visited_at=((start, 0),)),
     )
 
 
@@ -151,12 +151,14 @@ def step_cop(
     visited = set(state.cop_knowledge.visited)
     search_misses = list(state.cop_knowledge.search_misses)
     arrest_misses = list(state.cop_knowledge.arrest_misses)
+    visited_at_dict: dict[int, int] = dict(state.cop_knowledge.visited_at)
 
     if cop_turn.search:
         for jack_nb in cop_node.jack_neighbours:
             jid = jack_nb.id
             if jid in state.jack_trace:
                 visited.add(jid)
+                visited_at_dict.setdefault(jid, state.turn + 1)
             else:
                 search_misses.append((jid, state.turn + 1))
     else:
@@ -169,7 +171,7 @@ def step_cop(
             return (
                 _build_state(
                     state.jack_pos, cop_positions, state, state.jack_trace,
-                    visited, search_misses, arrest_misses,
+                    visited, search_misses, arrest_misses, visited_at_dict,
                 ),
                 True,
                 "cops",
@@ -180,7 +182,7 @@ def step_cop(
     return (
         _build_state(
             state.jack_pos, cop_positions, state, state.jack_trace,
-            visited, search_misses, arrest_misses,
+            visited, search_misses, arrest_misses, visited_at_dict,
         ),
         False,
         None,
@@ -234,8 +236,11 @@ def _build_state(
     visited: set[int],
     search_misses: list[tuple[int, int]],
     arrest_misses: list[tuple[int, int]],
+    visited_at_dict: dict[int, int] | None = None,
     turn: int | None = None,
 ) -> GameState:
+    if visited_at_dict is None:
+        visited_at_dict = dict(prev.cop_knowledge.visited_at)
     return GameState(
         jack_pos=jack_pos,
         cop_positions=tuple(cop_positions),
@@ -249,5 +254,6 @@ def _build_state(
             visited=frozenset(visited),
             search_misses=tuple(search_misses),
             arrest_misses=tuple(arrest_misses),
+            visited_at=tuple(visited_at_dict.items()),
         ),
     )

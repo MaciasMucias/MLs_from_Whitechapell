@@ -50,6 +50,8 @@ class GameState:
     jack_pos: int
     cop_positions: tuple[int, ...]
     hideout: int
+    hideout_zone_anchor: int
+    hideout_zone: frozenset[int]
     turn: int
     jack_trace: frozenset[int]
     cop_knowledge: CopKnowledge

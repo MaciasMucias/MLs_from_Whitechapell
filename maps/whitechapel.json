@@ -19,9 +19,10 @@
     56
   ],
   "config": {
-    "hideout_min_distance": 4,
+    "hideout_min_distance": 6,
     "num_cops": 5,
-    "turn_limit": 15
+    "turn_limit": 15,
+    "zone_radius": 3
   },
   "jack_nodes": [
     {

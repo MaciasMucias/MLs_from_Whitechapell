@@ -267,15 +267,23 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
 
     if body.same_hideout:
         hideout = state.hideout
+        anchor = state.hideout_zone_anchor
+        zone = state.hideout_zone
     else:
         distances = jack_bfs_distances(jack_start, gm)
-        candidates = [jid for jid, d in distances.items() if d >= gm.hideout_min_distance]
-        hideout = session.rng.choice(candidates or list(distances.keys()))
+        base_candidates = [jid for jid, d in distances.items() if d >= gm.hideout_min_distance]
+        anchor = session.rng.choice(base_candidates or list(distances.keys()))
+        anchor_distances = jack_bfs_distances(anchor, gm)
+        zone = frozenset(v for v, d in anchor_distances.items() if d <= gm.zone_radius)
+        zone_candidates = [jid for jid in base_candidates if jid in zone]
+        hideout = session.rng.choice(zone_candidates if zone_candidates else base_candidates)
 
     new_state = GameState(
         jack_pos=jack_start,
         cop_positions=state.cop_positions,
         hideout=hideout,
+        hideout_zone_anchor=anchor,
+        hideout_zone=zone,
         turn=0,
         jack_trace=frozenset({jack_start}),
         cop_knowledge=CopKnowledge(jack_start=jack_start),

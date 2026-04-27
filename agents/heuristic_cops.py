@@ -74,10 +74,9 @@ class HeuristicCops(CopAgent):
         # Cache hideout candidates for this episode (fixed for the whole game).
         distances = jack_bfs_distances(state.cop_knowledge.jack_start, game_map)
         self._jack_start_distances = distances
-        self._hideout_candidates = {
-            v for v, d in distances.items()
-            if d >= game_map.hideout_min_distance
-        }
+        base_candidates = {v for v, d in distances.items() if d >= game_map.hideout_min_distance}
+        zone_candidates = base_candidates & state.hideout_zone
+        self._hideout_candidates = zone_candidates if zone_candidates else base_candidates
 
         # MULTI-NIGHT EXTENSION POINT
         #

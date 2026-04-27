@@ -36,6 +36,7 @@ class Map:
     num_cops: int
     turn_limit: int
     hideout_min_distance: int
+    zone_radius: int
 
 
 def load_map(path: str | Path) -> Map:
@@ -83,4 +84,5 @@ def load_map(path: str | Path) -> Map:
         num_cops=cfg["num_cops"],
         turn_limit=cfg["turn_limit"],
         hideout_min_distance=cfg["hideout_min_distance"],
+        zone_radius=cfg["zone_radius"],
     )

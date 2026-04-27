@@ -86,4 +86,6 @@ def state_view(session: GameSession) -> dict:
         "history_size": len(session.history),
         "terminated": session.terminated,
         "winner": session.winner,
+        "hideout_zone_anchor": s.hideout_zone_anchor,
+        "hideout_zone": sorted(s.hideout_zone),
     }

@@ -104,6 +104,7 @@ window.renderForReplay = function(state) {
   }
 
   svg.appendChild(g);
+  renderZoneLayer(state);
   renderPmfLayer();
   updateStatus(state);
 };
@@ -301,11 +302,40 @@ function render(state) {
   }
 
   svg.appendChild(g);
+  renderZoneLayer(state);
   renderPmfLayer();
   renderPickLayer();
   updateStatus(state);
 
   window.adminOnStateUpdate?.(state);
+}
+
+// --- Zone layer ---
+
+function renderZoneLayer(state) {
+  const svg = document.getElementById("board");
+  const old = svg.getElementById("zone-layer");
+  if (old) old.remove();
+  if (!state.hideout_zone || state.hideout_zone.length === 0 || !mapData) return;
+
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("id", "zone-layer");
+  g.setAttribute("pointer-events", "none");
+
+  for (const nodeId of state.hideout_zone) {
+    const node = mapData.jack_nodes[nodeId - 1];
+    if (!node) continue;
+    const c = document.createElementNS(SVG_NS, "circle");
+    c.setAttribute("cx", node.x);
+    c.setAttribute("cy", node.y);
+    c.setAttribute("r", 12);
+    c.setAttribute("fill", "rgba(33, 150, 243, 0.18)");
+    c.setAttribute("stroke", "none");
+    g.appendChild(c);
+  }
+
+  const overlay = svg.getElementById("overlay-group");
+  svg.insertBefore(g, overlay);
 }
 
 // --- PMF overlay ---

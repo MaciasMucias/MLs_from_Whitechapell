@@ -51,8 +51,13 @@ def make_initial_state(
     start = rng.choice(game_map.jack_starts)
 
     distances = jack_bfs_distances(start, game_map)
-    candidates = [jid for jid, d in distances.items() if d >= game_map.hideout_min_distance]
-    hideout = rng.choice(candidates)
+    base_candidates = [jid for jid, d in distances.items() if d >= game_map.hideout_min_distance]
+
+    anchor = rng.choice(base_candidates)
+    anchor_distances = jack_bfs_distances(anchor, game_map)
+    zone = frozenset(v for v, d in anchor_distances.items() if d <= game_map.zone_radius)
+    zone_candidates = [jid for jid in base_candidates if jid in zone]
+    hideout = rng.choice(zone_candidates if zone_candidates else base_candidates)
 
     cop_positions = tuple(rng.sample(game_map.cop_starts, game_map.num_cops))
 
@@ -60,6 +65,8 @@ def make_initial_state(
         jack_pos=start,
         cop_positions=cop_positions,
         hideout=hideout,
+        hideout_zone_anchor=anchor,
+        hideout_zone=zone,
         turn=0,
         jack_trace=frozenset({start}),
         cop_knowledge=CopKnowledge(jack_start=start),
@@ -111,6 +118,8 @@ def step_jack(
         jack_pos=new_jack_pos,
         cop_positions=state.cop_positions,
         hideout=state.hideout,
+        hideout_zone_anchor=state.hideout_zone_anchor,
+        hideout_zone=state.hideout_zone,
         turn=state.turn,
         jack_trace=new_trace,
         cop_knowledge=state.cop_knowledge,
@@ -203,6 +212,8 @@ def end_of_round(
         jack_pos=state.jack_pos,
         cop_positions=state.cop_positions,
         hideout=state.hideout,
+        hideout_zone_anchor=state.hideout_zone_anchor,
+        hideout_zone=state.hideout_zone,
         turn=state.turn + 1,
         jack_trace=state.jack_trace,
         cop_knowledge=state.cop_knowledge,
@@ -229,6 +240,8 @@ def _build_state(
         jack_pos=jack_pos,
         cop_positions=tuple(cop_positions),
         hideout=prev.hideout,
+        hideout_zone_anchor=prev.hideout_zone_anchor,
+        hideout_zone=prev.hideout_zone,
         turn=turn if turn is not None else prev.turn,
         jack_trace=jack_trace,
         cop_knowledge=CopKnowledge(

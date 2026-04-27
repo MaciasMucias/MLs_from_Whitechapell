@@ -158,7 +158,7 @@ def step_cop(
             if jid in state.jack_trace:
                 visited.add(jid)
             else:
-                search_misses.append((jid, state.turn))
+                search_misses.append((jid, state.turn + 1))
     else:
         if cop_turn.arrest_all:
             cop_node_neighbours = {jn.id for jn in cop_node.jack_neighbours}
@@ -175,7 +175,7 @@ def step_cop(
                 "cops",
             )
         for jid in cop_node_neighbours:
-            arrest_misses.append((jid, state.turn))
+            arrest_misses.append((jid, state.turn + 1))
 
     return (
         _build_state(

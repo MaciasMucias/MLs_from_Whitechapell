@@ -110,13 +110,15 @@ class HeuristicCops(CopAgent):
     def act(self, state: GameState, game_map: Map) -> tuple[list[CopTurn], RoundCopDecisions]:
         position_pmf = self.compute_pmf(state, game_map)
         hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
-        assignment   = self._assign_destinations(
-            position_pmf, hideout_pmf, state.cop_positions, game_map,
-            frozenset(n for n, _ in state.cop_knowledge.visited_at),
-        )
         current_depth = state.turn + 1
         remaining_turns = game_map.turn_limit - 1 - state.turn
         effective_threshold = self._arrest_threshold * max(0.0, remaining_turns) / game_map.turn_limit
+        assignment   = self._assign_destinations(
+            position_pmf, hideout_pmf, state.cop_positions, game_map,
+            frozenset(n for n, _ in state.cop_knowledge.visited_at),
+            effective_threshold=effective_threshold,
+            current_depth=current_depth,
+        )
         turns = [
             self._decide_action(
                 cop_idx, game_map.cop_nodes[dest - 1], position_pmf,
@@ -314,6 +316,8 @@ class HeuristicCops(CopAgent):
         cop_positions: tuple[int, ...],
         game_map: Map,
         confirmed_visited: frozenset[int] = frozenset(),
+        effective_threshold: float = 0.0,
+        current_depth: int = 0,
     ) -> list[tuple[int, str, float, float | None]]:
         """
         Runs n_iterations random orderings and per-cop role draws (pursuer vs
@@ -415,9 +419,24 @@ class HeuristicCops(CopAgent):
                 iteration_score += plain_coverage
                 assignment[cop_idx] = (best_node, role, plain_coverage, dir_score)
 
-                for jn in game_map.cop_nodes[best_node - 1].jack_neighbours:
+                # If this cop would arrest, its adjacent Jack nodes are fully
+                # resolved — zero them out so no other cop scores credit for
+                # re-arresting the same node.  Arrest decision mirrors _decide_action.
+                cop_adj = game_map.cop_nodes[best_node - 1].jack_neighbours
+                zone_mass = sum(position_pmf.get(jn.id, 0.0) for jn in cop_adj)
+                would_arrest = zone_mass > 0.0 and (
+                    zone_mass >= effective_threshold
+                    or all(
+                        self._jack_start_distances.get(jn.id, 0) >= current_depth
+                        for jn in cop_adj if position_pmf.get(jn.id, 0.0) > 0.0
+                    )
+                )
+                for jn in cop_adj:
                     if jn.id in remaining:
-                        remaining[jn.id] *= 0.5
+                        if would_arrest:
+                            remaining[jn.id] = 0.0
+                        else:
+                            remaining[jn.id] *= 0.5
 
             if iteration_score > best_score:
                 best_score = iteration_score

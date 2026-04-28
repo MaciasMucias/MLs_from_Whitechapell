@@ -312,7 +312,7 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
 @admin_router.get("/{game_id}/pmf")
 async def get_pmf(game_id: str):
     session = _get_or_404(game_id)
-    pmf = HeuristicCops()._compute_pmf(session.state, session.game_map)
+    pmf = HeuristicCops().compute_pmf(session.state, session.game_map)
     return pmf
 
 

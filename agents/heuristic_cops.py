@@ -108,7 +108,7 @@ class HeuristicCops(CopAgent):
         # the position PMF is flat.
 
     def act(self, state: GameState, game_map: Map) -> tuple[list[CopTurn], RoundCopDecisions]:
-        position_pmf = self._compute_pmf(state, game_map)
+        position_pmf = self.compute_pmf(state, game_map)
         hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
         assignment   = self._assign_destinations(
             position_pmf, hideout_pmf, state.cop_positions, game_map,
@@ -144,7 +144,8 @@ class HeuristicCops(CopAgent):
     # Position PMF
     # ------------------------------------------------------------------
 
-    def _compute_pmf(self, state: GameState, game_map: Map) -> dict[int, float]:
+    @staticmethod
+    def compute_pmf(state: GameState, game_map: Map) -> dict[int, float]:
         """
         Bitmask forward DP over (turn, jack_node, visited_waypoints_mask).
 
@@ -279,8 +280,8 @@ class HeuristicCops(CopAgent):
     # Heading estimation
     # ------------------------------------------------------------------
 
+    @staticmethod
     def _estimate_heading(
-        self,
         position_pmf: dict[int, float],
         hideout_pmf: dict[int, float],
         game_map: Map,
@@ -385,18 +386,18 @@ class HeuristicCops(CopAgent):
                 if not reachable:
                     reachable = reachable_sets[cop_idx]  # fallback if all taken
 
-                def node_score(cid: int, pursuer: bool = pursuer) -> float:
+                def node_score(_cid: int, _pursuer: bool = pursuer) -> float:
                     coverage = sum(
                         remaining.get(jn.id, 0.0)
-                        for jn in game_map.cop_nodes[cid - 1].jack_neighbours
+                        for jn in game_map.cop_nodes[_cid - 1].jack_neighbours
                     )
                     # Pursuers: full proximity bonus to chase toward the PMF centroid.
                     # Searchers: small proximity bonus (1/4) as a tiebreaker so they
                     # drift toward the action instead of wandering randomly when all
                     # coverage values are 0 (common in early turns when cops are far
                     # from Jack's starting zone).
-                    prox_weight = self._pursuit_weight if pursuer else self._pursuit_weight * 0.25
-                    return coverage + prox_weight * norm_prox.get(cid, 0.0)
+                    prox_weight = self._pursuit_weight if _pursuer else self._pursuit_weight * 0.25
+                    return coverage + prox_weight * norm_prox.get(_cid, 0.0)
 
                 best_node = max(reachable, key=node_score)
                 occupied.add(best_node)

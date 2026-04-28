@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from agents.base import CopDecisionInfo
+
 if TYPE_CHECKING:
     from server.session import GameSession
 
@@ -51,9 +53,9 @@ class ReplayRound:
     position_pmf: dict[str, float] | None    # PMF at cop planning time (before cops act)
     pmf_after_cops: dict[str, float] | None  # PMF after all cops acted (search misses applied)
     hideout_pmf: dict[str, float] | None
-    visited_at_after: list[list[int]]   # each inner list is [node_id, depth]
-    search_misses_after: list[list[int]]
-    arrest_misses_after: list[list[int]]
+    visited_at_after: list[tuple[int, int]]   # each inner list is [node_id, depth]
+    search_misses_after: list[tuple[int, int]]
+    arrest_misses_after: list[tuple[int, int]]
     terminated: bool
     winner: str | None
 
@@ -204,7 +206,7 @@ def build_and_save_replay(session: "GameSession") -> None:
 
         # Cop decision metadata sidecar
         decisions = rr.cop_decisions  # RoundCopDecisions | None
-        decision_by_idx: dict[int, object] = {}
+        decision_by_idx: dict[int, CopDecisionInfo] = {}
         if decisions is not None:
             for cd in decisions.cops:
                 decision_by_idx[cd.cop_idx] = cd
@@ -261,7 +263,7 @@ def build_and_save_replay(session: "GameSession") -> None:
         # search/arrest misses incorporated into cop_knowledge.
         if rr.cop_steps:
             final_state = rr.cop_steps[-1].state_after
-            pmf_raw = _pmf_computer._compute_pmf(final_state, gm)
+            pmf_raw = _pmf_computer.compute_pmf(final_state, gm)
             pmf_after_cops: dict[str, float] | None = {str(k): v for k, v in pmf_raw.items()}
         else:
             pmf_after_cops = None
@@ -277,8 +279,8 @@ def build_and_save_replay(session: "GameSession") -> None:
             pmf_after_cops=pmf_after_cops,
             hideout_pmf=hid_pmf,
             visited_at_after=sorted(ck.visited_at),
-            search_misses_after=[list(m) for m in ck.search_misses],
-            arrest_misses_after=[list(m) for m in ck.arrest_misses],
+            search_misses_after=[tuple(m) for m in ck.search_misses],
+            arrest_misses_after=[tuple(m) for m in ck.arrest_misses],
             terminated=rr.terminated,
             winner=rr.winner,
         ))
@@ -289,7 +291,7 @@ def build_and_save_replay(session: "GameSession") -> None:
         timestamp=datetime.now(timezone.utc).isoformat(),
         map_name=getattr(gm, "name", "whitechapel"),
         winner=session.winner or "unknown",
-        turns_survived=len(session.round_history),
+        turns_survived=len(session.ctx.history),
         initial_jack_pos=initial.jack_pos,
         initial_cop_positions=list(initial.cop_positions),
         hideout=initial.hideout,

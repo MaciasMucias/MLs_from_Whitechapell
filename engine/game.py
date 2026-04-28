@@ -2,6 +2,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 
+from agents.base import RoundCopDecisions
 from engine.env import (
     CopTurn,
     end_of_round,
@@ -44,7 +45,7 @@ class RoundRecord:
     state_after_round: GameState
     terminated: bool
     winner: str | None
-    cop_decisions: object = None  # RoundCopDecisions | None (avoid circular import)
+    cop_decisions: RoundCopDecisions | None = None
 
 
 @dataclass

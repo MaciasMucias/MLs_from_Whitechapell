@@ -160,7 +160,7 @@ def step_cop(
                 state.cop_knowledge,
                 search_misses=tuple(sorted(search_misses)),
                 arrest_misses=tuple(sorted(arrest_misses)),
-                visited_at=tuple(visited_at_dict.items()),
+                visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
             )
             return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), True, "cops"
         for jid in cop_node_neighbours:
@@ -170,7 +170,7 @@ def step_cop(
         state.cop_knowledge,
         search_misses=tuple(sorted(search_misses)),
         arrest_misses=tuple(sorted(arrest_misses)),
-        visited_at=tuple(visited_at_dict.items()),
+        visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
     )
     return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), False, None
 

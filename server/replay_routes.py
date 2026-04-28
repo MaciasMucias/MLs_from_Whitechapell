@@ -5,6 +5,7 @@ from dataclasses import asdict
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from engine.game import StepContext
 from engine.graph_utils import jack_bfs_distances
 from engine.state import CopKnowledge, GameState
 from server.replay import list_replays, load_replay
@@ -92,15 +93,18 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             cop_knowledge=ck,
         )
 
-    session = GameSession(
-        game_id=str(uuid.uuid4())[:8],
+    ctx = StepContext(
         game_map=gm,
         state=state,
         terminated=False,
         winner=None,
-        rng=random.Random(),
         blocking=record.blocking,
         turn_limit=record.turn_limit,
+    )
+    session = GameSession(
+        game_id=str(uuid.uuid4())[:8],
+        ctx=ctx,
+        rng=random.Random(),
     )
     register_session(session)
     return state_view(session)

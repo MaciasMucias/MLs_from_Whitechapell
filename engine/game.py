@@ -77,6 +77,7 @@ class StepContext:
     history: list[RoundRecord] = field(default_factory=list)
     blocking: bool = False
     turn_limit: int | None = None
+    arrest_all_enabled: bool = True
 
 
 # ---------------------------------------------------------------------------

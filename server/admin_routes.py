@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from agents.heuristic_cops import HeuristicCops
 from engine.env import CopTurn, step_cop
+from engine.game import StepContext
 from engine.graph_utils import jack_bfs_distances, reachable_cop_nodes
 from engine.state import CopKnowledge, GameState
 from server.session import (
@@ -291,15 +292,18 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
         jack_trace=frozenset({jack_start}),
         cop_knowledge=CopKnowledge(jack_start=jack_start),
     )
-    new_sess = GameSession(
-        game_id=str(uuid.uuid4())[:8],
+    ctx = StepContext(
         game_map=gm,
         state=new_state,
         terminated=False,
         winner=None,
-        rng=session.rng,
         blocking=session.blocking,
         turn_limit=session.turn_limit,
+    )
+    new_sess = GameSession(
+        game_id=str(uuid.uuid4())[:8],
+        ctx=ctx,
+        rng=session.rng,
     )
     register_session(new_sess)
     return state_view(new_sess)

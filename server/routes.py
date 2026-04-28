@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from engine.env import legal_jack_edges
-from engine.game import StepContext, step_round
+from engine.game import step_round
 from engine.graph import Map
 from server.session import get_session, new_session, state_view
 
@@ -41,24 +41,11 @@ async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
     if edge is None:
         raise HTTPException(status_code=400, detail="Illegal move")
 
-    ctx = StepContext(
-        game_map=session.game_map,
-        state=session.state,
-        terminated=session.terminated,
-        winner=session.winner,
-        blocking=session.blocking,
-        turn_limit=session.turn_limit,
-    )
     events, terminated, winner = step_round(
-        ctx, edge,
+        session.ctx, edge,
         request.app.state.cop_agent,
         request.app.state.director,
     )
-
-    session.state = ctx.state
-    session.terminated = ctx.terminated
-    session.winner = ctx.winner
-    session.round_history.extend(ctx.history)
 
     if terminated:
         from server.replay import build_and_save_replay

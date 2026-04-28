@@ -3,6 +3,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from engine.env import legal_jack_edges, make_initial_state
+from engine.game import StepContext
 from engine.graph import Map
 from engine.state import GameState
 
@@ -10,15 +11,37 @@ from engine.state import GameState
 @dataclass
 class GameSession:
     game_id: str
-    game_map: Map
-    state: GameState
-    terminated: bool
-    winner: str | None
+    ctx: StepContext
     rng: random.Random
-    blocking: bool = False
-    turn_limit: int | None = None   # overrides game_map.turn_limit when set
-    history: list = field(default_factory=list)        # list[GameState], capped at 50
-    round_history: list = field(default_factory=list)  # list[RoundRecord], full game
+    history: list = field(default_factory=list)  # GameState undo stack (admin panel)
+
+    @property
+    def state(self) -> GameState: return self.ctx.state
+    @state.setter
+    def state(self, v: GameState) -> None: self.ctx.state = v
+
+    @property
+    def terminated(self) -> bool: return self.ctx.terminated
+    @terminated.setter
+    def terminated(self, v: bool) -> None: self.ctx.terminated = v
+
+    @property
+    def winner(self) -> str | None: return self.ctx.winner
+    @winner.setter
+    def winner(self, v: str | None) -> None: self.ctx.winner = v
+
+    @property
+    def game_map(self) -> Map: return self.ctx.game_map
+
+    @property
+    def blocking(self) -> bool: return self.ctx.blocking
+    @blocking.setter
+    def blocking(self, v: bool) -> None: self.ctx.blocking = v
+
+    @property
+    def turn_limit(self) -> int | None: return self.ctx.turn_limit
+    @turn_limit.setter
+    def turn_limit(self, v: int | None) -> None: self.ctx.turn_limit = v
 
 
 _sessions: dict[str, GameSession] = {}
@@ -29,14 +52,8 @@ def new_session(game_map: Map, rng: random.Random | None = None) -> GameSession:
         rng = random.Random()
     game_id = str(uuid.uuid4())[:8]
     state = make_initial_state(game_map, rng)
-    session = GameSession(
-        game_id=game_id,
-        game_map=game_map,
-        state=state,
-        terminated=False,
-        winner=None,
-        rng=rng,
-    )
+    ctx = StepContext(game_map=game_map, state=state, terminated=False, winner=None)
+    session = GameSession(game_id=game_id, ctx=ctx, rng=rng)
     _sessions[game_id] = session
     return session
 

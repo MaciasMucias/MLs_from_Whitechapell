@@ -191,7 +191,7 @@ def build_and_save_replay(session: "GameSession") -> None:
     effective_limit = session.turn_limit if session.turn_limit is not None else gm.turn_limit
 
     rounds: list[ReplayRound] = []
-    for rr in session.round_history:
+    for rr in session.ctx.history:
         # Jack info
         jack_from = rr.state_before.jack_pos
         jack_to   = rr.state_after_jack.jack_pos
@@ -283,7 +283,7 @@ def build_and_save_replay(session: "GameSession") -> None:
             winner=rr.winner,
         ))
 
-    initial = session.round_history[0].state_before if session.round_history else session.state
+    initial = session.ctx.history[0].state_before if session.ctx.history else session.state
     record = ReplayRecord(
         game_id=session.game_id,
         timestamp=datetime.now(timezone.utc).isoformat(),

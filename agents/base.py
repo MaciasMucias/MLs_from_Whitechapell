@@ -55,7 +55,7 @@ class CopAgent(ABC):
 
 class Director(ABC):
     """
-    May only modify cop_knowledge.visited. Called once per round after Jack
+    May only modify cop_knowledge.visited_at. Called once per round after Jack
     moves and before cops plan, so cops act on the manipulated knowledge.
     on_game_end() receives performance stats for curriculum adjustment.
     """

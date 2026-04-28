@@ -138,7 +138,6 @@ def step_cop(
     cop_positions[cop_turn.cop_idx] = cop_turn.destination
     cop_node = game_map.cop_nodes[cop_turn.destination - 1]
 
-    visited = set(state.cop_knowledge.visited)
     search_misses: set[tuple[int, int]] = set(state.cop_knowledge.search_misses)
     arrest_misses: set[tuple[int, int]] = set(state.cop_knowledge.arrest_misses)
     visited_at_dict: dict[int, int] = dict(state.cop_knowledge.visited_at)
@@ -147,7 +146,6 @@ def step_cop(
         for jack_nb in cop_node.jack_neighbours:
             jid = jack_nb.id
             if jid in state.jack_trace:
-                visited.add(jid)
                 visited_at_dict.setdefault(jid, state.turn + 1)
             else:
                 search_misses.add((jid, state.turn + 1))
@@ -160,7 +158,6 @@ def step_cop(
         if state.jack_pos in cop_node_neighbours:
             new_knowledge = replace(
                 state.cop_knowledge,
-                visited=frozenset(visited),
                 search_misses=tuple(sorted(search_misses)),
                 arrest_misses=tuple(sorted(arrest_misses)),
                 visited_at=tuple(visited_at_dict.items()),
@@ -171,7 +168,6 @@ def step_cop(
 
     new_knowledge = replace(
         state.cop_knowledge,
-        visited=frozenset(visited),
         search_misses=tuple(sorted(search_misses)),
         arrest_misses=tuple(sorted(arrest_misses)),
         visited_at=tuple(visited_at_dict.items()),

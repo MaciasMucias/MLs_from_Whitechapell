@@ -76,7 +76,7 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
 
         ck = CopKnowledge(
             jack_start=record.initial_jack_pos,
-            visited=frozenset(rnd.visited_after),
+            visited_at=tuple(tuple(m) for m in rnd.visited_at_after),
             search_misses=tuple(tuple(m) for m in rnd.search_misses_after),
             arrest_misses=tuple(tuple(m) for m in rnd.arrest_misses_after),
         )

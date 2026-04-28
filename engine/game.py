@@ -114,7 +114,7 @@ def step_round(
     round_decisions = None
 
     if not terminated:
-        # 2. Director adjusts knowledge before cops plan
+        # 2. Director filters  → manipulates cop_knowledge.visited_at before cops plan
         state = director.filter_knowledge(state, ctx.game_map)
 
         # 3. All cops plan simultaneously on the post-Director state

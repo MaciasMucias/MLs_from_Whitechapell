@@ -51,7 +51,7 @@ class ReplayRound:
     position_pmf: dict[str, float] | None    # PMF at cop planning time (before cops act)
     pmf_after_cops: dict[str, float] | None  # PMF after all cops acted (search misses applied)
     hideout_pmf: dict[str, float] | None
-    visited_after: list[int]
+    visited_at_after: list[list[int]]   # each inner list is [node_id, depth]
     search_misses_after: list[list[int]]
     arrest_misses_after: list[list[int]]
     terminated: bool
@@ -128,7 +128,7 @@ def load_replay(slot: int) -> ReplayRecord | None:
             position_pmf=r.get("position_pmf"),
             pmf_after_cops=r.get("pmf_after_cops"),
             hideout_pmf=r.get("hideout_pmf"),
-            visited_after=r["visited_after"],
+            visited_at_after=r["visited_at_after"],
             search_misses_after=r["search_misses_after"],
             arrest_misses_after=r["arrest_misses_after"],
             terminated=r["terminated"],
@@ -276,7 +276,7 @@ def build_and_save_replay(session: "GameSession") -> None:
             position_pmf=pos_pmf,
             pmf_after_cops=pmf_after_cops,
             hideout_pmf=hid_pmf,
-            visited_after=sorted(ck.visited),
+            visited_at_after=sorted(ck.visited_at),
             search_misses_after=[list(m) for m in ck.search_misses],
             arrest_misses_after=[list(m) for m in ck.arrest_misses],
             terminated=rr.terminated,

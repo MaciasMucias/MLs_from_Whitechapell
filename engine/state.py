@@ -4,31 +4,23 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CopKnowledge:
     """
-    The shared knowledge state that all cops act on.
-
-    This is the Director's surface: `visited` may be suppressed or injected
-    relative to ground truth. `search_misses` and `arrest_misses` are always
-    accurate — the Director only manipulates positive sightings.
+    Director's surface: `visited_at` may be suppressed or injected relative to
+    ground truth. `search_misses` and `arrest_misses` are always accurate.
 
     Attributes:
-        jack_start:      Jack's starting node (revealed at game start).
-        visited:         Jack nodes cops believe Jack has visited this game.
-                         Director can suppress real finds or inject false ones.
-        search_misses:   (jack_node_id, turn) pairs: Jack's trace did not
-                         include this node at or before this turn. Constrains
-                         count[t][v] = 0 for t <= turn in the PMF.
-        arrest_misses:   (jack_node_id, turn) pairs: Jack was confirmed absent
-                         from this node at this exact turn. Constrains
-                         count[turn][v] = 0 in the PMF.
+        jack_start:    Jack's starting node (revealed at game start).
+        visited_at:    (jack_node_id, depth) pairs — nodes cops believe Jack
+                       visited, with depth = state.turn + 1 at observation time.
+                       Director-manipulable.
+        search_misses: Unique (jack_node_id, turn) pairs: Jack not seen here at
+                       or before this turn.
+        arrest_misses: Unique (jack_node_id, turn) pairs: Jack absent at exactly
+                       this turn.
     """
     jack_start: int
-    visited: frozenset[int] = frozenset()
+    visited_at: tuple[tuple[int, int], ...] = ()
     search_misses: tuple[tuple[int, int], ...] = ()
     arrest_misses: tuple[tuple[int, int], ...] = ()
-    # (jack_node_id, first_confirmed_depth) — depth = state.turn + 1 when the
-    # search hit was first observed. Not Director-manipulable; derived from
-    # ground-truth timing and used only by the PMF computation.
-    visited_at: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)

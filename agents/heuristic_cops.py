@@ -112,7 +112,7 @@ class HeuristicCops(CopAgent):
         hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
         assignment   = self._assign_destinations(
             position_pmf, hideout_pmf, state.cop_positions, game_map,
-            state.cop_knowledge.visited,
+            frozenset(n for n, _ in state.cop_knowledge.visited_at),
         )
         current_depth = state.turn + 1
         remaining_turns = game_map.turn_limit - 1 - state.turn
@@ -154,7 +154,7 @@ class HeuristicCops(CopAgent):
         current_depth = state.turn + 1  # Jack just moved; state.turn not yet incremented
 
         # ------ waypoint index ------
-        waypoints = sorted(ck.visited)  # deterministic ordering
+        waypoints = sorted({n for n, _ in ck.visited_at})  # deterministic ordering
         wp_idx: dict[int, int] = {v: i for i, v in enumerate(waypoints)}
         num_masks = 1 << len(waypoints)
         full_mask = num_masks - 1

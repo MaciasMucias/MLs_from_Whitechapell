@@ -53,7 +53,7 @@ class InjectNodeBody(BaseModel):
 
 class SetKnowledgeBody(BaseModel):
     jack_start: int
-    visited: list[int] = []
+    visited_at: list[tuple[int, int]] = []
     search_misses: list[tuple[int, int]] = []
     arrest_misses: list[tuple[int, int]] = []
 
@@ -198,7 +198,9 @@ async def inject_visited(game_id: str, body: InjectNodeBody):
     session = _get_or_404(game_id)
     push_history(session)
     k = session.state.cop_knowledge
-    _mutate_knowledge(session, visited=k.visited | {body.node})
+    existing = dict(k.visited_at)
+    existing.setdefault(body.node, session.state.turn)
+    _mutate_knowledge(session, visited_at=tuple(existing.items()))
     return state_view(session)
 
 
@@ -207,7 +209,8 @@ async def remove_visited(game_id: str, body: InjectNodeBody):
     session = _get_or_404(game_id)
     push_history(session)
     k = session.state.cop_knowledge
-    _mutate_knowledge(session, visited=k.visited - {body.node})
+    new_visited_at = tuple((n, t) for n, t in k.visited_at if n != body.node)
+    _mutate_knowledge(session, visited_at=new_visited_at)
     return state_view(session)
 
 
@@ -231,7 +234,7 @@ async def set_knowledge(game_id: str, body: SetKnowledgeBody):
         session.state,
         cop_knowledge=CopKnowledge(
             jack_start=body.jack_start,
-            visited=frozenset(body.visited),
+            visited_at=tuple(tuple(m) for m in body.visited_at),
             search_misses=tuple(tuple(m) for m in body.search_misses),
             arrest_misses=tuple(tuple(m) for m in body.arrest_misses),
         ),

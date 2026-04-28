@@ -94,15 +94,15 @@ def _run_cop_action(
         search=action.search,
         arrest_target=action.arrest_target,
     )
-    return step_cop(state, cop_turn, session.game_map)
+    return step_cop(state, cop_turn, session.ctx.game_map)
 
 
 def _mutate_knowledge(
     session: GameSession,
     **kwargs,
 ) -> None:
-    new_k = replace(session.state.cop_knowledge, **kwargs)
-    session.state = replace(session.state, cop_knowledge=new_k)
+    new_k = replace(session.ctx.state.cop_knowledge, **kwargs)
+    session.ctx.state = replace(session.ctx.state, cop_knowledge=new_k)
 
 
 # ---------------------------------------------------------------------------
@@ -112,14 +112,14 @@ def _mutate_knowledge(
 @admin_router.post("/{game_id}/teleport-jack")
 async def teleport_jack(game_id: str, body: TeleportJackBody):
     session = _get_or_404(game_id)
-    gm = session.game_map
+    gm = session.ctx.game_map
     if body.node < 1 or body.node > len(gm.jack_nodes):
         raise HTTPException(status_code=400, detail="Invalid jack node")
     push_history(session)
-    session.state = replace(
-        session.state,
+    session.ctx.state = replace(
+        session.ctx.state,
         jack_pos=body.node,
-        jack_trace=session.state.jack_trace | {body.node},
+        jack_trace=session.ctx.state.jack_trace | {body.node},
     )
     return state_view(session)
 
@@ -127,41 +127,41 @@ async def teleport_jack(game_id: str, body: TeleportJackBody):
 @admin_router.post("/{game_id}/teleport-cop")
 async def teleport_cop(game_id: str, body: TeleportCopBody):
     session = _get_or_404(game_id)
-    gm = session.game_map
+    gm = session.ctx.game_map
     if body.cop < 0 or body.cop >= gm.num_cops:
         raise HTTPException(status_code=400, detail="Invalid cop index")
     if body.node < 1 or body.node > len(gm.cop_nodes):
         raise HTTPException(status_code=400, detail="Invalid cop node")
     push_history(session)
-    positions = list(session.state.cop_positions)
+    positions = list(session.ctx.state.cop_positions)
     positions[body.cop] = body.node
-    session.state = replace(session.state, cop_positions=tuple(positions))
+    session.ctx.state = replace(session.ctx.state, cop_positions=tuple(positions))
     return state_view(session)
 
 
 @admin_router.post("/{game_id}/cop-action")
 async def cop_action(game_id: str, body: CopActionBody):
     session = _get_or_404(game_id)
-    if body.cop < 0 or body.cop >= session.game_map.num_cops:
+    if body.cop < 0 or body.cop >= session.ctx.game_map.num_cops:
         raise HTTPException(status_code=400, detail="Invalid cop index")
     push_history(session)
-    state, terminated, winner = _run_cop_action(session.state, body, session)
-    session.state = state
-    session.terminated = terminated
-    session.winner = winner
+    state, terminated, winner = _run_cop_action(session.ctx.state, body, session)
+    session.ctx.state = state
+    session.ctx.terminated = terminated
+    session.ctx.winner = winner
     return state_view(session)
 
 
 @admin_router.post("/{game_id}/cop-actions")
 async def cop_actions(game_id: str, body: CopActionsBody):
     session = _get_or_404(game_id)
-    gm = session.game_map
+    gm = session.ctx.game_map
     push_history(session)
 
     provided = {a.cop: a for a in body.actions}
-    state = session.state
-    terminated = session.terminated
-    winner = session.winner
+    state = session.ctx.state
+    terminated = session.ctx.terminated
+    winner = session.ctx.winner
 
     for cop_idx in range(gm.num_cops):
         if terminated:
@@ -169,9 +169,9 @@ async def cop_actions(game_id: str, body: CopActionsBody):
         action = provided.get(cop_idx) or CopActionBody(cop=cop_idx, search=True)
         state, terminated, winner = _run_cop_action(state, action, session)
 
-    session.state = state
-    session.terminated = terminated
-    session.winner = winner
+    session.ctx.state = state
+    session.ctx.terminated = terminated
+    session.ctx.winner = winner
     return state_view(session)
 
 
@@ -179,28 +179,28 @@ async def cop_actions(game_id: str, body: CopActionsBody):
 async def set_turn(game_id: str, body: SetTurnBody):
     session = _get_or_404(game_id)
     push_history(session)
-    session.state = replace(session.state, turn=body.turn)
+    session.ctx.state = replace(session.ctx.state, turn=body.turn)
     return state_view(session)
 
 
 @admin_router.post("/{game_id}/set-turn-limit")
 async def set_turn_limit(game_id: str, body: SetTurnLimitBody):
     session = _get_or_404(game_id)
-    session.turn_limit = body.turn_limit
+    session.ctx.turn_limit = body.turn_limit
     return state_view(session)
 
 
 @admin_router.post("/{game_id}/set-blocking")
 async def set_blocking(game_id: str, body: SetBlockingBody):
     session = _get_or_404(game_id)
-    session.blocking = body.blocking
+    session.ctx.blocking = body.blocking
     return state_view(session)
 
 
 @admin_router.post("/{game_id}/set-arrest-all")
 async def set_arrest_all(game_id: str, body: SetArrestAllBody):
     session = _get_or_404(game_id)
-    session.arrest_all_enabled = body.arrest_all_enabled
+    session.ctx.arrest_all_enabled = body.arrest_all_enabled
     return state_view(session)
 
 
@@ -208,9 +208,9 @@ async def set_arrest_all(game_id: str, body: SetArrestAllBody):
 async def inject_visited(game_id: str, body: InjectNodeBody):
     session = _get_or_404(game_id)
     push_history(session)
-    k = session.state.cop_knowledge
+    k = session.ctx.state.cop_knowledge
     existing = dict(k.visited_at)
-    existing.setdefault(body.node, session.state.turn)
+    existing.setdefault(body.node, session.ctx.state.turn)
     _mutate_knowledge(session, visited_at=tuple(existing.items()))
     return state_view(session)
 
@@ -219,7 +219,7 @@ async def inject_visited(game_id: str, body: InjectNodeBody):
 async def remove_visited(game_id: str, body: InjectNodeBody):
     session = _get_or_404(game_id)
     push_history(session)
-    k = session.state.cop_knowledge
+    k = session.ctx.state.cop_knowledge
     new_visited_at = tuple((n, t) for n, t in k.visited_at if n != body.node)
     _mutate_knowledge(session, visited_at=new_visited_at)
     return state_view(session)
@@ -230,9 +230,9 @@ async def remove_visited(game_id: str, body: InjectNodeBody):
 async def clear_knowledge(game_id: str):
     session = _get_or_404(game_id)
     push_history(session)
-    session.state = replace(
-        session.state,
-        cop_knowledge=CopKnowledge(jack_start=session.state.cop_knowledge.jack_start),
+    session.ctx.state = replace(
+        session.ctx.state,
+        cop_knowledge=CopKnowledge(jack_start=session.ctx.state.cop_knowledge.jack_start),
     )
     return state_view(session)
 
@@ -241,8 +241,8 @@ async def clear_knowledge(game_id: str):
 async def set_knowledge(game_id: str, body: SetKnowledgeBody):
     session = _get_or_404(game_id)
     push_history(session)
-    session.state = replace(
-        session.state,
+    session.ctx.state = replace(
+        session.ctx.state,
         cop_knowledge=CopKnowledge(
             jack_start=body.jack_start,
             visited_at=tuple(tuple(m) for m in body.visited_at),
@@ -257,7 +257,7 @@ async def set_knowledge(game_id: str, body: SetKnowledgeBody):
 async def set_trace(game_id: str, body: SetTraceBody):
     session = _get_or_404(game_id)
     push_history(session)
-    session.state = replace(session.state, jack_trace=frozenset(body.nodes))
+    session.ctx.state = replace(session.ctx.state, jack_trace=frozenset(body.nodes))
     return state_view(session)
 
 
@@ -266,17 +266,17 @@ async def undo(game_id: str):
     session = _get_or_404(game_id)
     if not session.history:
         raise HTTPException(status_code=400, detail="Nothing to undo")
-    session.state = session.history.pop()
-    session.terminated = False
-    session.winner = None
+    session.ctx.state = session.history.pop()
+    session.ctx.terminated = False
+    session.ctx.winner = None
     return state_view(session)
 
 
 @admin_router.post("/{game_id}/new-from-state")
 async def new_from_state(game_id: str, body: NewFromStateBody):
     session = _get_or_404(game_id)
-    state = session.state
-    gm = session.game_map
+    state = session.ctx.state
+    gm = session.ctx.game_map
     jack_start = state.jack_pos
 
     if body.same_hideout:
@@ -307,8 +307,8 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
         state=new_state,
         terminated=False,
         winner=None,
-        blocking=session.blocking,
-        turn_limit=session.turn_limit,
+        blocking=session.ctx.blocking,
+        turn_limit=session.ctx.turn_limit,
     )
     new_sess = GameSession(
         game_id=str(uuid.uuid4())[:8],
@@ -322,14 +322,14 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
 @admin_router.get("/{game_id}/pmf")
 async def get_pmf(game_id: str):
     session = _get_or_404(game_id)
-    pmf = HeuristicCops().compute_pmf(session.state, session.game_map)
+    pmf = HeuristicCops().compute_pmf(session.ctx.state, session.ctx.game_map)
     return pmf
 
 
 @admin_router.post("/{game_id}/node-info")
 async def node_info(game_id: str, body: NodeInfoBody):
     session = _get_or_404(game_id)
-    gm = session.game_map
+    gm = session.ctx.game_map
     if body.cop_node < 1 or body.cop_node > len(gm.cop_nodes):
         raise HTTPException(status_code=400, detail="Invalid cop node")
     cop_node = gm.cop_nodes[body.cop_node - 1]

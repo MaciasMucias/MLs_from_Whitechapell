@@ -23,14 +23,6 @@ def jack_bfs_distances(start_id: int, game_map: Map) -> dict[int, int]:
     return distances
 
 
-def jack_predecessors(game_map: Map) -> dict[int, list[int]]:
-    """For each Jack node v, return the list of Jack node IDs with an edge to v."""
-    predecessors: dict[int, list[int]] = {n.id: [] for n in game_map.jack_nodes}
-    for node in game_map.jack_nodes:
-        for edge in node.edges:
-            predecessors[edge.destination.id].append(node.id)
-    return predecessors
-
 
 def jack_reachable_within(start_id: int, max_hops: int, game_map: Map) -> set[int]:
     """Set of Jack node IDs reachable from start_id in at most max_hops moves."""

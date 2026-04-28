@@ -116,15 +116,7 @@ def load_replay(slot: int) -> ReplayRecord | None:
             jack_via=r["jack_via"],
             jack_legal_moves=r["jack_legal_moves"],
             cop_actions=[
-            ReplayCopAction(
-                **{
-                    **a,
-                    "arrest_target": (
-                        a["arrest_target"] if isinstance(a.get("arrest_target"), list)
-                        else ([a["arrest_target"]] if a.get("arrest_target") is not None else [])
-                    ),
-                }
-            )
+            ReplayCopAction(**{**a, "arrest_target": a.get("arrest_target") or []})
             for a in r["cop_actions"]
         ],
             position_pmf=r.get("position_pmf"),
@@ -187,10 +179,9 @@ def build_and_save_replay(session: "GameSession") -> None:
     """Build a ReplayRecord from session.round_history and save it."""
     from engine.env import legal_jack_edges
     from agents.heuristic_cops import HeuristicCops
-    _pmf_computer = HeuristicCops()  # throwaway — _compute_pmf only needs state + game_map
 
-    gm = session.game_map
-    effective_limit = session.turn_limit if session.turn_limit is not None else gm.turn_limit
+    gm = session.ctx.game_map
+    effective_limit = session.ctx.turn_limit if session.ctx.turn_limit is not None else gm.turn_limit
 
     rounds: list[ReplayRound] = []
     for rr in session.ctx.history:
@@ -201,7 +192,7 @@ def build_and_save_replay(session: "GameSession") -> None:
 
         legal_moves = list(dict.fromkeys(
             e.destination.id
-            for e in legal_jack_edges(rr.state_before, gm, blocking=session.blocking)
+            for e in legal_jack_edges(rr.state_before, gm, blocking=session.ctx.blocking)
         ))
 
         # Cop decision metadata sidecar
@@ -263,7 +254,7 @@ def build_and_save_replay(session: "GameSession") -> None:
         # search/arrest misses incorporated into cop_knowledge.
         if rr.cop_steps:
             final_state = rr.cop_steps[-1].state_after
-            pmf_raw = _pmf_computer.compute_pmf(final_state, gm)
+            pmf_raw = HeuristicCops.compute_pmf(final_state, gm)
             pmf_after_cops: dict[str, float] | None = {str(k): v for k, v in pmf_raw.items()}
         else:
             pmf_after_cops = None
@@ -285,17 +276,17 @@ def build_and_save_replay(session: "GameSession") -> None:
             winner=rr.winner,
         ))
 
-    initial = session.ctx.history[0].state_before if session.ctx.history else session.state
+    initial = session.ctx.history[0].state_before if session.ctx.history else session.ctx.state
     record = ReplayRecord(
         game_id=session.game_id,
         timestamp=datetime.now(timezone.utc).isoformat(),
         map_name=getattr(gm, "name", "whitechapel"),
-        winner=session.winner or "unknown",
+        winner=session.ctx.winner or "unknown",
         turns_survived=len(session.ctx.history),
         initial_jack_pos=initial.jack_pos,
         initial_cop_positions=list(initial.cop_positions),
         hideout=initial.hideout,
-        blocking=session.blocking,
+        blocking=session.ctx.blocking,
         turn_limit=effective_limit,
         rounds=rounds,
     )

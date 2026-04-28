@@ -282,29 +282,6 @@ class HeuristicCops(CopAgent):
     # Heading estimation
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _estimate_heading(
-        position_pmf: dict[int, float],
-        hideout_pmf: dict[int, float],
-        game_map: Map,
-    ) -> tuple[float, float, float, float]:
-        """
-        Returns (cx, cy, dx, dy):
-          (cx, cy) — probability-weighted centroid of the position PMF.
-          (dx, dy) — unit vector from position centroid toward hideout centroid.
-        Returns (cx, cy, 0, 0) if both centroids coincide.
-        """
-        cx = sum(p * game_map.jack_nodes[v - 1].x for v, p in position_pmf.items())
-        cy = sum(p * game_map.jack_nodes[v - 1].y for v, p in position_pmf.items())
-        hx = sum(p * game_map.jack_nodes[h - 1].x for h, p in hideout_pmf.items())
-        hy = sum(p * game_map.jack_nodes[h - 1].y for h, p in hideout_pmf.items())
-
-        dx, dy = hx - cx, hy - cy
-        mag = math.hypot(dx, dy)
-        if mag < 1e-6:
-            return cx, cy, 0.0, 0.0
-        return cx, cy, dx / mag, dy / mag
-
     # ------------------------------------------------------------------
     # ACO-based destination assignment
     # ------------------------------------------------------------------

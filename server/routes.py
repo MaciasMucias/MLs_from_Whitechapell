@@ -33,10 +33,10 @@ async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
     session = get_session(game_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Game not found")
-    if session.terminated:
+    if session.ctx.terminated:
         raise HTTPException(status_code=400, detail="Game already over")
 
-    edges = legal_jack_edges(session.state, session.game_map, blocking=session.blocking)
+    edges = legal_jack_edges(session.ctx.state, session.ctx.game_map, blocking=session.ctx.blocking)
     edge = next((e for e in edges if e.destination.id == body.destination), None)
     if edge is None:
         raise HTTPException(status_code=400, detail="Illegal move")

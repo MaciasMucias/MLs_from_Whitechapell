@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import random
 
 from engine.graph import JackEdge, Map
@@ -112,19 +112,9 @@ def step_jack(
     Returns:
         (new_state, terminated, winner)
     """
-    new_jack_pos = jack_edge.destination.id
-    new_trace = state.jack_trace | {new_jack_pos}
-    new_state = GameState(
-        jack_pos=new_jack_pos,
-        cop_positions=state.cop_positions,
-        hideout=state.hideout,
-        hideout_zone_anchor=state.hideout_zone_anchor,
-        hideout_zone=state.hideout_zone,
-        turn=state.turn,
-        jack_trace=new_trace,
-        cop_knowledge=state.cop_knowledge,
-    )
-    if new_jack_pos == state.hideout:
+    new_trace = state.jack_trace | {jack_edge.destination.id}
+    new_state = replace(state, jack_pos=jack_edge.destination.id, jack_trace=new_trace)
+    if new_state.jack_pos == state.hideout:
         return new_state, True, "jack"
     return new_state, False, None
 
@@ -168,25 +158,25 @@ def step_cop(
             cop_node_neighbours = {cop_turn.arrest_target}
 
         if state.jack_pos in cop_node_neighbours:
-            return (
-                _build_state(
-                    state.jack_pos, cop_positions, state, state.jack_trace,
-                    visited, search_misses, arrest_misses, visited_at_dict,
-                ),
-                True,
-                "cops",
+            new_knowledge = replace(
+                state.cop_knowledge,
+                visited=frozenset(visited),
+                search_misses=tuple(search_misses),
+                arrest_misses=tuple(arrest_misses),
+                visited_at=tuple(visited_at_dict.items()),
             )
+            return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), True, "cops"
         for jid in cop_node_neighbours:
             arrest_misses.append((jid, state.turn + 1))
 
-    return (
-        _build_state(
-            state.jack_pos, cop_positions, state, state.jack_trace,
-            visited, search_misses, arrest_misses, visited_at_dict,
-        ),
-        False,
-        None,
+    new_knowledge = replace(
+        state.cop_knowledge,
+        visited=frozenset(visited),
+        search_misses=tuple(search_misses),
+        arrest_misses=tuple(arrest_misses),
+        visited_at=tuple(visited_at_dict.items()),
     )
+    return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), False, None
 
 
 def end_of_round(
@@ -210,16 +200,7 @@ def end_of_round(
     Returns:
         (new_state, terminated, winner)
     """
-    new_state = GameState(
-        jack_pos=state.jack_pos,
-        cop_positions=state.cop_positions,
-        hideout=state.hideout,
-        hideout_zone_anchor=state.hideout_zone_anchor,
-        hideout_zone=state.hideout_zone,
-        turn=state.turn + 1,
-        jack_trace=state.jack_trace,
-        cop_knowledge=state.cop_knowledge,
-    )
+    new_state = replace(state, turn=state.turn + 1)
     effective_limit = turn_limit if turn_limit is not None else game_map.turn_limit
     if new_state.turn >= effective_limit:
         return new_state, True, "cops"
@@ -228,32 +209,3 @@ def end_of_round(
     return new_state, False, None
 
 
-def _build_state(
-    jack_pos: int,
-    cop_positions: list[int],
-    prev: GameState,
-    jack_trace: frozenset[int],
-    visited: set[int],
-    search_misses: list[tuple[int, int]],
-    arrest_misses: list[tuple[int, int]],
-    visited_at_dict: dict[int, int] | None = None,
-    turn: int | None = None,
-) -> GameState:
-    if visited_at_dict is None:
-        visited_at_dict = dict(prev.cop_knowledge.visited_at)
-    return GameState(
-        jack_pos=jack_pos,
-        cop_positions=tuple(cop_positions),
-        hideout=prev.hideout,
-        hideout_zone_anchor=prev.hideout_zone_anchor,
-        hideout_zone=prev.hideout_zone,
-        turn=turn if turn is not None else prev.turn,
-        jack_trace=jack_trace,
-        cop_knowledge=CopKnowledge(
-            jack_start=prev.cop_knowledge.jack_start,
-            visited=frozenset(visited),
-            search_misses=tuple(search_misses),
-            arrest_misses=tuple(arrest_misses),
-            visited_at=tuple(visited_at_dict.items()),
-        ),
-    )

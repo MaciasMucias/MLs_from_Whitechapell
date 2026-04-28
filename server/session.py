@@ -43,6 +43,11 @@ class GameSession:
     @turn_limit.setter
     def turn_limit(self, v: int | None) -> None: self.ctx.turn_limit = v
 
+    @property
+    def arrest_all_enabled(self) -> bool: return self.ctx.arrest_all_enabled
+    @arrest_all_enabled.setter
+    def arrest_all_enabled(self, v: bool) -> None: self.ctx.arrest_all_enabled = v
+
 
 _sessions: dict[str, GameSession] = {}
 
@@ -101,6 +106,7 @@ def state_view(session: GameSession) -> dict:
         "arrest_misses": [list(m) for m in s.cop_knowledge.arrest_misses],
         "jack_trace": sorted(s.jack_trace),
         "blocking": session.blocking,
+        "arrest_all_enabled": session.arrest_all_enabled,
         "history_size": len(session.history),
         "terminated": session.terminated,
         "winner": session.winner,

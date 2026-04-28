@@ -49,6 +49,9 @@ class SetTurnLimitBody(BaseModel):
 class SetBlockingBody(BaseModel):
     blocking: bool
 
+class SetArrestAllBody(BaseModel):
+    arrest_all_enabled: bool
+
 class InjectNodeBody(BaseModel):
     node: int
 
@@ -191,6 +194,13 @@ async def set_turn_limit(game_id: str, body: SetTurnLimitBody):
 async def set_blocking(game_id: str, body: SetBlockingBody):
     session = _get_or_404(game_id)
     session.blocking = body.blocking
+    return state_view(session)
+
+
+@admin_router.post("/{game_id}/set-arrest-all")
+async def set_arrest_all(game_id: str, body: SetArrestAllBody):
+    session = _get_or_404(game_id)
+    session.arrest_all_enabled = body.arrest_all_enabled
     return state_view(session)
 
 

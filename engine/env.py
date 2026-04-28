@@ -139,8 +139,8 @@ def step_cop(
     cop_node = game_map.cop_nodes[cop_turn.destination - 1]
 
     visited = set(state.cop_knowledge.visited)
-    search_misses = list(state.cop_knowledge.search_misses)
-    arrest_misses = list(state.cop_knowledge.arrest_misses)
+    search_misses: set[tuple[int, int]] = set(state.cop_knowledge.search_misses)
+    arrest_misses: set[tuple[int, int]] = set(state.cop_knowledge.arrest_misses)
     visited_at_dict: dict[int, int] = dict(state.cop_knowledge.visited_at)
 
     if cop_turn.search:
@@ -150,7 +150,7 @@ def step_cop(
                 visited.add(jid)
                 visited_at_dict.setdefault(jid, state.turn + 1)
             else:
-                search_misses.append((jid, state.turn + 1))
+                search_misses.add((jid, state.turn + 1))
     else:
         if cop_turn.arrest_all:
             cop_node_neighbours = {jn.id for jn in cop_node.jack_neighbours}
@@ -161,19 +161,19 @@ def step_cop(
             new_knowledge = replace(
                 state.cop_knowledge,
                 visited=frozenset(visited),
-                search_misses=tuple(search_misses),
-                arrest_misses=tuple(arrest_misses),
+                search_misses=tuple(sorted(search_misses)),
+                arrest_misses=tuple(sorted(arrest_misses)),
                 visited_at=tuple(visited_at_dict.items()),
             )
             return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), True, "cops"
         for jid in cop_node_neighbours:
-            arrest_misses.append((jid, state.turn + 1))
+            arrest_misses.add((jid, state.turn + 1))
 
     new_knowledge = replace(
         state.cop_knowledge,
         visited=frozenset(visited),
-        search_misses=tuple(search_misses),
-        arrest_misses=tuple(arrest_misses),
+        search_misses=tuple(sorted(search_misses)),
+        arrest_misses=tuple(sorted(arrest_misses)),
         visited_at=tuple(visited_at_dict.items()),
     )
     return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), False, None

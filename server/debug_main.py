@@ -24,9 +24,8 @@ async def lifespan(app: FastAPI):
     yield
 
 
-whitechapel_ui = FastAPI(lifespan=lifespan)
-whitechapel_ui.include_router(router, prefix="/api")
-whitechapel_ui.include_router(admin_router, prefix="/api/admin")
-whitechapel_ui.include_router(replay_router, prefix="/api/replays")
-
-whitechapel_ui.mount("/", StaticFiles(directory="frontend_participant", html=True), name="participant")
+debug_ui = FastAPI(lifespan=lifespan)
+debug_ui.include_router(router, prefix="/api")
+debug_ui.include_router(admin_router, prefix="/api/admin")
+debug_ui.include_router(replay_router, prefix="/api/replays")
+debug_ui.mount("/", StaticFiles(directory="frontend", html=True), name="debug")

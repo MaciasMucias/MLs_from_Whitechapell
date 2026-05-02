@@ -5,6 +5,7 @@ from dataclasses import asdict
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from agents import HeuristicCops
 from engine.game import StepContext
 from engine.graph_utils import jack_bfs_distances
 from engine.state import CopKnowledge, GameState
@@ -42,7 +43,7 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
     if body.turn < -1 or body.turn >= len(record.rounds):
         raise HTTPException(status_code=400, detail=f"Turn out of range (-1–{len(record.rounds) - 1})")
 
-    gm = request.app.state.game_map
+    gm = next(iter(request.app.state.game_maps.values()))
 
     # Hideout zone: approximate as BFS neighbourhood around the hideout
     hideout = record.hideout
@@ -101,10 +102,13 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
         blocking=record.blocking,
         turn_limit=record.turn_limit,
     )
+    cop_agent = HeuristicCops()
+    cop_agent.on_episode_start(state, gm)
     session = GameSession(
         game_id=str(uuid.uuid4())[:8],
         ctx=ctx,
         rng=random.Random(),
+        cop_agent=cop_agent,
     )
     register_session(session)
     return state_view(session)

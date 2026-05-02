@@ -1,7 +1,7 @@
 import random
 import uuid
 from dataclasses import dataclass, field
-
+from agents import HeuristicCops
 from engine.env import legal_jack_edges, make_initial_state
 from engine.game import StepContext
 from engine.graph import Map
@@ -12,10 +12,20 @@ class GameSession:
     game_id: str
     ctx: StepContext
     rng: random.Random
+    cop_agent: HeuristicCops
     history: list = field(default_factory=list)  # GameState undo stack (admin panel)
 
 
 _sessions: dict[str, GameSession] = {}
+_participant_meta: dict[str, dict] = {}
+
+
+def set_participant_meta(game_id: str, meta: dict) -> None:
+    _participant_meta[game_id] = meta
+
+
+def pop_participant_meta(game_id: str) -> dict:
+    return _participant_meta.pop(game_id, {})
 
 
 def new_session(game_map: Map, rng: random.Random | None = None) -> GameSession:
@@ -24,7 +34,9 @@ def new_session(game_map: Map, rng: random.Random | None = None) -> GameSession:
     game_id = str(uuid.uuid4())[:8]
     state = make_initial_state(game_map, rng)
     ctx = StepContext(game_map=game_map, state=state, terminated=False, winner=None)
-    session = GameSession(game_id=game_id, ctx=ctx, rng=rng)
+    cop_agent = HeuristicCops()
+    cop_agent.on_episode_start(state, game_map)
+    session = GameSession(game_id=game_id, ctx=ctx, rng=rng, cop_agent=cop_agent)
     _sessions[game_id] = session
     return session
 

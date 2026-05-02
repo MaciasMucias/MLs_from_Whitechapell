@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Letters from Whitechapel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="colors.css">
+  <style>
+    :root {
+      --ink: #0d0f14;
+      --surface: #161a23;
+      --surface-hi: #1e2433;
+      --border: #2a3040;
+      --border-brass: #7a5c10;
+      --brass: #c9941a;
+      --brass-bright: #e8a820;
+      --text: #e8dcc8;
+      --text-muted: #9d8f7a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: var(--ink);
+      background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
+      font-family: 'Crimson Pro', Georgia, serif;
+      color: var(--text);
+    }
+
+    .card {
+      width: 100%;
+      max-width: 560px;
+      background: var(--surface);
+      border: 1px solid var(--border-brass);
+      border-radius: 2px;
+      padding: 48px 48px 40px;
+      position: relative;
+    }
+
+    .card::before, .card::after {
+      content: '✦';
+      position: absolute;
+      color: var(--border-brass);
+      font-size: 10px;
+      opacity: 0.7;
+    }
+    .card::before { top: 10px; left: 14px; }
+    .card::after  { bottom: 10px; right: 14px; }
+
+    .eyebrow {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(2rem, 6vw, 2.75rem);
+      font-weight: 900;
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    h1 em {
+      font-style: italic;
+      font-weight: 700;
+      color: var(--brass);
+    }
+
+    .rule {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(to right, var(--border-brass), transparent);
+      margin: 20px 0;
+    }
+
+    .description {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      color: var(--text-muted);
+      margin-bottom: 28px;
+    }
+
+    .question-label {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 0.95rem;
+      font-style: italic;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .radio-option:hover { border-color: var(--border-brass); background: var(--surface-hi); }
+    .radio-option:has(input:checked) { border-color: var(--brass); background: rgba(201,148,26,0.08); }
+
+    .radio-option input[type="radio"] {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid var(--text-muted);
+      border-radius: 50%;
+      flex-shrink: 0;
+      position: relative;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .radio-option input[type="radio"]:checked { border-color: var(--brass); }
+    .radio-option input[type="radio"]:checked::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--brass);
+    }
+
+    .radio-option span { font-size: 0.95rem; color: var(--text-muted); }
+    .radio-option:has(input:checked) span { color: var(--text); }
+
+    details.tutorial {
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      margin-bottom: 28px;
+      overflow: hidden;
+    }
+
+    details.tutorial summary {
+      padding: 12px 16px;
+      font-family: 'Courier Prime', monospace;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    details.tutorial summary::after { content: '▼'; font-size: 9px; }
+    details.tutorial[open] summary::after { content: '▲'; }
+    details.tutorial summary::-webkit-details-marker { display: none; }
+
+    .tutorial-body {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .tutorial-step { display: flex; gap: 14px; align-items: flex-start; }
+
+    .step-num {
+      font-family: 'Courier Prime', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--brass);
+      background: rgba(201,148,26,0.1);
+      border: 1px solid var(--border-brass);
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .step-text { font-size: 0.9rem; line-height: 1.6; color: var(--text-muted); }
+    .step-text strong { color: var(--text); font-weight: 600; }
+
+    .start-btn {
+      width: 100%;
+      padding: 14px 24px;
+      background: var(--brass);
+      border: none;
+      border-radius: 2px;
+      color: var(--ink);
+      font-family: 'Courier Prime', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .start-btn:hover { background: var(--brass-bright); }
+    .start-btn:active { transform: scale(0.99); }
+    .start-btn:disabled { background: #3a3020; color: #6a5a30; cursor: default; }
+
+    .footnote {
+      margin-top: 16px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      opacity: 0.5;
+      text-align: center;
+      font-style: italic;
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 32px 24px 28px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <p class="eyebrow">Research Participation — 1888</p>
+    <h1>Letters from <em>Whitechapel</em></h1>
+    <div class="rule"></div>
+
+    <p class="description">
+      The night is yours. You move unseen through the gaslit streets of Whitechapel,
+      evading the Metropolitan Police as they close in. Reach your hideout before they
+      find you — every move counts, and the net grows tighter with each round.
+    </p>
+
+    <label class="question-label">Have you played Letters from Whitechapel before?</label>
+    <div class="radio-group">
+      <label class="radio-option">
+        <input type="radio" name="gaming_habit" value="never_played"> <span>Never played</span>
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="gaming_habit" value="played_few"> <span>Played 1–2 times</span>
+      </label>
+      <label class="radio-option">
+        <input type="radio" name="gaming_habit" value="played_many"> <span>Played multiple times</span>
+      </label>
+    </div>
+
+    <details class="tutorial">
+      <summary>How to play</summary>
+      <div class="tutorial-body">
+        <div class="tutorial-step">
+          <span class="step-num">1</span>
+          <p class="step-text"><strong>Your goal:</strong> Move Jack from his starting position to his <strong style="color:var(--color-hideout)">rose-ringed</strong> hideout before the turn limit expires. Click any <strong style="color:var(--color-legal)">orange-ringed</strong> node to move there — your position glows <strong style="color:var(--color-jack)">green</strong>. A <strong style="color:var(--color-zone-stroke)">purple zone</strong> on the board shows the approximate area where the hideout lies.</p>
+        </div>
+        <div class="tutorial-step">
+          <span class="step-num">2</span>
+          <p class="step-text"><strong>Two kinds of node:</strong> Large circular nodes are <em>Jack nodes</em> — the positions you move between. Small squares are <em>cop nodes</em> — the intersections where police stand and act. Each alley between two Jack nodes passes through one or more cop nodes.</p>
+        </div>
+        <div class="tutorial-step">
+          <span class="step-num">3</span>
+          <p class="step-text"><strong>Police turn:</strong> After you move, each cop moves up to 2 steps along the police network, then chooses one action. <strong>Search</strong> — they check all Jack nodes adjacent to their position against your trail; confirmed nodes turn <strong style="color:var(--color-visited)">blue</strong> permanently. <strong>Arrest</strong> — they attempt to catch you on those same adjacent nodes. If you are there, the police win. All cops share every discovery instantly.</p>
+        </div>
+        <div class="tutorial-step" style="flex-direction:column;gap:6px;">
+          <p class="step-text" style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--brass);margin-bottom:4px;">Important details</p>
+          <p class="step-text">• Cops <strong>do not block your movement</strong> — you can walk through any alley regardless of where cops stand.</p>
+          <p class="step-text">• When a cop arrests, they target <strong>all adjacent Jack nodes simultaneously</strong>, not just one.</p>
+          <p class="step-text">• A failed arrest or missed search still tells the police something — they now know you were not on those nodes at that moment.</p>
+          <p class="step-text">• The <strong style="color:var(--color-zone-stroke)">purple-shaded zone</strong> on the board marks the approximate area where your hideout lies — the police know this zone at the start of the game.</p>
+        </div>
+      </div>
+    </details>
+
+    <button class="start-btn" id="start-btn" disabled>Begin the Night</button>
+    <p class="footnote">Your answers are collected anonymously for academic research.</p>
+  </div>
+
+  <script src="api.js"></script>
+  <script>
+    // Enable start button only after an experience level is selected
+    document.querySelectorAll('input[name="gaming_habit"]').forEach(r =>
+      r.addEventListener('change', () => {
+        document.getElementById('start-btn').disabled = false;
+      })
+    );
+
+    document.getElementById('start-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('start-btn');
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+
+      const checked = document.querySelector('input[name="gaming_habit"]:checked');
+      const gamingHabit = checked ? checked.value : 'unknown';
+
+      try {
+        const course = await fetchCourse();
+        const firstMap = course[0];
+        const state = await newGame(firstMap.name, gamingHabit);
+
+        sessionStorage.setItem('course', JSON.stringify(course));
+        sessionStorage.setItem('course_index', '0');
+        sessionStorage.setItem('gaming_habit', gamingHabit);
+        sessionStorage.setItem('game_id', state.game_id);
+
+        window.location.href = 'game.html';
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Begin the Night';
+        alert('Could not connect to the server. Please try again.');
+      }
+    });
+  </script>
+</body>
+</html>

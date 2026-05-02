@@ -88,8 +88,8 @@ class StepContext:
 def step_round(
     ctx: StepContext,
     jack_edge: JackEdge,
-    cop_agent,   # CopAgent
-    director,    # Director
+    cop_agent,           # CopAgent
+    director=None,       # Director | None
 ) -> tuple[list[dict], bool, str | None]:
     """
     Advance one full round given Jack's chosen edge.
@@ -117,7 +117,8 @@ def step_round(
 
     if not terminated:
         # 2. Director filters  → manipulates cop_knowledge.visited_at before cops plan
-        state = director.filter_knowledge(state, ctx.game_map)
+        if director is not None:
+            state = director.filter_knowledge(state, ctx.game_map)
 
         # 3. All cops plan simultaneously on the post-Director state
         cop_turns, round_decisions = cop_agent.act(state, ctx.game_map)
@@ -141,6 +142,9 @@ def step_round(
                 "action": "search" if cop_turn.search else "arrest",
                 "jack_neighbours": [n.id for n in cop_node.jack_neighbours],
                 "arrest_target": cop_turn.arrest_target,
+                "arrest_all": cop_turn.arrest_all,
+                "search_hits": [jn_id for jn_id, hit in search_results.items() if hit],
+                "arrest_success": terminated and winner == "cops" and not cop_turn.search,
             })
             cop_steps.append(CopStepRecord(
                 cop_turn=cop_turn,

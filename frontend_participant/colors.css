@@ -1,0 +1,10 @@
+:root {
+  --color-jack:         #22c55e;
+  --color-hideout:      #f43f5e;
+  --color-legal:        #f97316;
+  --color-visited:      #60a5fa;
+  --color-cop:          #ef4444;
+  --color-cop-stroke:   #ff6659;
+  --color-zone:         rgba(168, 85, 247, 0.45);
+  --color-zone-stroke:  #7c3aed;
+}

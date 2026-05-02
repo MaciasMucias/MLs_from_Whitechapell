@@ -3,6 +3,16 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const COP_COLORS = ["#ffeb3b", "#00bcd4", "#8bc34a", "#ff9800", "#e91e63", "#9c27b0"];
 window.COP_COLORS = COP_COLORS;
 
+// Game element colors — keep in sync with frontend_participant/colors.css
+const COLOR_JACK        = "#22c55e";
+const COLOR_HIDEOUT     = "#f43f5e";
+const COLOR_LEGAL       = "#f97316";
+const COLOR_VISITED     = "#60a5fa";
+const COLOR_COP         = "#ef4444";
+const COLOR_COP_STROKE  = "#ff6659";
+const COLOR_ZONE        = "rgba(168,85,247,0.45)";
+const COLOR_ZONE_STROKE = "#7c3aed";
+
 let mapData = null;
 let gameId = null;
 let busy = false;
@@ -42,7 +52,7 @@ window.renderForReplay = function(state) {
   const g = document.createElementNS(SVG_NS, "g");
   g.setAttribute("id", "overlay-group");
 
-  const visitedSet  = new Set(state.visited);
+  const visitedSet  = new Set(state.visited_at.map(([id]) => id));
   const copIndexMap = new Map();
   for (let ci = 0; ci < state.cop_positions.length; ci++) {
     copIndexMap.set(state.cop_positions[ci], ci);
@@ -56,8 +66,8 @@ window.renderForReplay = function(state) {
     rect.setAttribute("height", 8);
     const copIdx = copIndexMap.get(node.id);
     if (copIdx !== undefined) {
-      rect.setAttribute("fill", "#d32f2f");
-      rect.setAttribute("stroke", "#ff6659");
+      rect.setAttribute("fill", COLOR_COP);
+      rect.setAttribute("stroke", COLOR_COP_STROKE);
       rect.setAttribute("stroke-width", 1.5);
       g.appendChild(rect);
       const dot = document.createElementNS(SVG_NS, "circle");
@@ -79,9 +89,9 @@ window.renderForReplay = function(state) {
     const isVisited = visitedSet.has(node.id);
 
     const activeStates = [];
-    if (isJack)    activeStates.push({ stroke: "#2e7d32" });
-    if (isHideout) activeStates.push({ stroke: "#f9a825" });
-    if (isVisited) activeStates.push({ stroke: "#1565c0" });
+    if (isJack)    activeStates.push({ stroke: COLOR_JACK });
+    if (isHideout) activeStates.push({ stroke: COLOR_HIDEOUT });
+    if (isVisited) activeStates.push({ stroke: COLOR_VISITED });
 
     if (activeStates.length === 0) continue;
 
@@ -110,8 +120,8 @@ window.renderForReplay = function(state) {
     g.appendChild(nodeGroup);
   }
 
-  svg.appendChild(g);
   renderZoneLayer(state);
+  svg.appendChild(g);
   renderPmfLayer();
   updateStatus(state);
 };
@@ -215,7 +225,7 @@ function render(state) {
   g.setAttribute("id", "overlay-group");
 
   const legalSet   = new Set(state.legal_moves);
-  const visitedSet = new Set(state.visited);
+  const visitedSet = new Set(state.visited_at.map(([id]) => id));
   const copIndexMap = new Map();
   for (let ci = 0; ci < state.cop_positions.length; ci++) {
     copIndexMap.set(state.cop_positions[ci], ci);
@@ -230,8 +240,8 @@ function render(state) {
     rect.setAttribute("height", 8);
     const copIdx = copIndexMap.get(node.id);
     if (copIdx !== undefined) {
-      rect.setAttribute("fill", "#d32f2f");
-      rect.setAttribute("stroke", "#ff6659");
+      rect.setAttribute("fill", COLOR_COP);
+      rect.setAttribute("stroke", COLOR_COP_STROKE);
       rect.setAttribute("stroke-width", 1.5);
       g.appendChild(rect);
       const dot = document.createElementNS(SVG_NS, "circle");
@@ -255,10 +265,10 @@ function render(state) {
     const isVisited = visitedSet.has(node.id);
 
     const activeStates = [];
-    if (isJack)    activeStates.push({ stroke: "#2e7d32" });
-    if (isHideout) activeStates.push({ stroke: "#f9a825" });
-    if (isLegal)   activeStates.push({ stroke: "#ff6d00" });
-    if (isVisited) activeStates.push({ stroke: "#1565c0" });
+    if (isJack)    activeStates.push({ stroke: COLOR_JACK });
+    if (isHideout) activeStates.push({ stroke: COLOR_HIDEOUT });
+    if (isLegal)   activeStates.push({ stroke: COLOR_LEGAL });
+    if (isVisited) activeStates.push({ stroke: COLOR_VISITED });
 
     if (activeStates.length === 0) continue;
 
@@ -308,8 +318,8 @@ function render(state) {
     g.appendChild(nodeGroup);
   }
 
-  svg.appendChild(g);
   renderZoneLayer(state);
+  svg.appendChild(g);
   renderPmfLayer();
   renderPickLayer();
   updateStatus(state);
@@ -336,13 +346,19 @@ function renderZoneLayer(state) {
     c.setAttribute("cx", node.x);
     c.setAttribute("cy", node.y);
     c.setAttribute("r", 12);
-    c.setAttribute("fill", "rgba(33, 150, 243, 0.18)");
-    c.setAttribute("stroke", "none");
+    c.setAttribute("fill", COLOR_ZONE);
+    c.setAttribute("stroke", COLOR_ZONE_STROKE);
+    c.setAttribute("stroke-width", "2");
     g.appendChild(c);
   }
 
-  const overlay = svg.getElementById("overlay-group");
-  svg.insertBefore(g, overlay);
+  const overlayGroup = svg.getElementById("overlay-group");
+  if (overlayGroup) {
+    svg.insertBefore(g, overlayGroup);
+  } else {
+    const mapImage = svg.querySelector("image");
+    svg.insertBefore(g, mapImage ? mapImage.nextSibling : svg.firstChild);
+  }
 }
 
 // --- PMF overlay ---
@@ -503,7 +519,7 @@ function updateStatus(state) {
       `Jack: node <strong>${state.jack_pos}</strong><br>` +
       `Hideout: node <strong>${state.hideout}</strong><br>` +
       `Legal moves: <strong>${state.legal_moves.length}</strong><br>` +
-      `Cop-visited: <strong>${state.visited.length}</strong>`;
+      `Cop-visited: <strong>${state.visited_at.length}</strong>`;
   }
 }
 

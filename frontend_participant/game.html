@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Letters from Whitechapel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="colors.css">
+  <style>
+    :root {
+      --ink: #0d0f14;
+      --surface: #161a23;
+      --surface-hi: #1e2433;
+      --border: #2a3040;
+      --border-brass: #7a5c10;
+      --brass: #c9941a;
+      --brass-bright: #e8a820;
+      --text: #e8dcc8;
+      --text-muted: #9d8f7a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      background: var(--ink);
+      font-family: 'Crimson Pro', Georgia, serif;
+      color: var(--text);
+    }
+
+    /* ── Board ───────────────────────────────────────────── */
+    #board-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: radial-gradient(ellipse at center, #a07830 0%, #4a2808 100%);
+      position: relative;
+      padding: 4%;
+    }
+
+    #board { max-width: 100%; max-height: 100%; display: block; }
+
+    #board-wrapper.busy::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      cursor: not-allowed;
+      z-index: 5;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      width: 300px;
+      min-width: 300px;
+      background: var(--surface);
+      border-left: 1px solid var(--border-brass);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #map-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--brass);
+      margin-bottom: 8px;
+    }
+
+    #map-progress { display: flex; align-items: center; gap: 6px; }
+
+    .progress-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .progress-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      border: 1px solid var(--border);
+      transition: background 0.2s;
+    }
+    .progress-dot.done   { background: var(--brass); border-color: var(--brass); }
+    .progress-dot.active { background: transparent; border-color: var(--brass); box-shadow: 0 0 4px var(--brass); }
+
+    /* ── Round counter ───────────────────────────────────── */
+    #round-section {
+      padding: 20px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+
+    #round-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    #round-counter {
+      font-family: 'Courier Prime', monospace;
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    #round-counter .sep   { color: var(--border-brass); font-weight: 400; }
+    #round-counter .limit { color: var(--text-muted); font-size: 1.5rem; }
+
+    /* ── Status ──────────────────────────────────────────── */
+    #status-section {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .stat-row { display: flex; justify-content: space-between; align-items: center; }
+
+    .stat-key {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .stat-val {
+      font-family: 'Courier Prime', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* ── Cop summary ─────────────────────────────────────── */
+    #cop-section {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    #cop-section-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    #cop-summary { display: flex; flex-direction: column; gap: 6px; }
+
+    .cop-event {
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--text-muted);
+      padding: 7px 10px;
+      background: var(--surface-hi);
+      border-radius: 2px;
+      border-left: 2px solid var(--border);
+    }
+    .cop-event .cop-id { font-family: 'Courier Prime', monospace; color: var(--text); font-weight: 700; }
+    .cop-event .hit    { color: #ef4444; font-weight: 600; }
+    .cop-event .miss   { color: var(--text-muted); }
+    .cop-event.searching     { border-left-color: #60a5fa; }
+    .cop-event.arresting     { border-left-color: #ef4444; }
+    .cop-event.arrest-success { border-left-color: #ef4444; background: rgba(239,68,68,0.08); }
+
+    #police-moving {
+      font-style: italic;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      display: none;
+    }
+    #police-moving.visible { display: block; }
+
+    /* ── Legend ──────────────────────────────────────────── */
+    #legend-section { padding: 12px 20px; }
+
+    #legend {
+      display: grid;
+      grid-template-columns: 14px 1fr 14px 1fr;
+      gap: 5px 10px;
+      align-items: center;
+    }
+
+    .swatch {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+    .swatch.square { border-radius: 2px; }
+
+    .legend-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ── Game-over overlay ───────────────────────────────── */
+    #gameover-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8,10,15,0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+    #gameover-overlay.visible { opacity: 1; pointer-events: all; }
+
+    #gameover-card {
+      background: var(--surface);
+      border: 1px solid var(--border-brass);
+      padding: 48px 56px;
+      text-align: center;
+      max-width: 480px;
+      width: 90%;
+    }
+
+    #gameover-icon   { font-size: 2.5rem; margin-bottom: 16px; display: block; }
+    #gameover-title  { font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; font-weight: 900; color: var(--text); margin-bottom: 8px; }
+    #gameover-sub    { font-size: 1rem; color: var(--text-muted); font-style: italic; margin-bottom: 8px; line-height: 1.6; }
+    #gameover-turns  { font-family: 'Courier Prime', monospace; font-size: 0.85rem; color: var(--border-brass); margin-bottom: 32px; letter-spacing: 0.1em; }
+
+    #gameover-btn {
+      padding: 12px 32px;
+      background: var(--brass);
+      border: none;
+      border-radius: 2px;
+      color: var(--ink);
+      font-family: 'Courier Prime', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #gameover-btn:hover { background: var(--brass-bright); }
+    #gameover-btn:disabled { background: #3a3020; color: #6a5a30; cursor: default; }
+
+    /* ── Mobile ──────────────────────────────────────────── */
+    @media (max-width: 700px) {
+      body { flex-direction: column; }
+      #board-wrapper { flex: 1; min-height: 0; }
+      #sidebar {
+        width: 100%; min-width: unset; height: auto;
+        flex-direction: row; flex-wrap: wrap; overflow-x: auto;
+        border-left: none; border-top: 1px solid var(--border-brass);
+      }
+      #sidebar-header, #round-section, #status-section {
+        padding: 10px 14px; border-bottom: none; border-right: 1px solid var(--border);
+      }
+      #round-counter { font-size: 1.6rem; }
+      #cop-section { display: none; }
+      #legend-section { padding: 10px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="board-wrapper">
+    <svg
+      id="board"
+      viewBox="0 0 1434.5061 965.09717"
+      xmlns="http://www.w3.org/2000/svg"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+    >
+      <image href="/api/map-svg" x="0" y="0" width="1434.5061" height="965.09717"/>
+    </svg>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div id="map-title">Whitechapel</div>
+      <div id="map-progress">
+        <span class="progress-label">Map</span>
+      </div>
+    </div>
+
+    <div id="round-section">
+      <div id="round-label">Round</div>
+      <div id="round-counter">
+        <span id="rc-current">—</span><span class="sep"> / </span><span id="rc-limit" class="limit">—</span>
+      </div>
+    </div>
+
+    <div id="status-section">
+      <div class="stat-row">
+        <span class="stat-key">Your node</span>
+        <span class="stat-val" id="stat-jack">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-key">Hideout</span>
+        <span class="stat-val" id="stat-hideout">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-key">Moves available</span>
+        <span class="stat-val" id="stat-moves">—</span>
+      </div>
+    </div>
+
+    <div id="cop-section">
+      <div id="cop-section-label">Last round</div>
+      <div id="police-moving">Police are moving…</div>
+      <div id="cop-summary"></div>
+    </div>
+
+    <div id="legend-section">
+      <div id="legend">
+        <div class="swatch" style="border-color:#22c55e;border-width:2.5px"></div>
+        <span class="legend-label">Your position</span>
+        <div class="swatch" style="border-color:#f43f5e;border-width:2.5px"></div>
+        <span class="legend-label">Hideout</span>
+        <div class="swatch" style="border-color:#f97316;border-width:2.5px"></div>
+        <span class="legend-label">Legal move</span>
+        <div class="swatch" style="border-color:#60a5fa;border-width:2.5px"></div>
+        <span class="legend-label">Cop-visited</span>
+        <div class="swatch square" style="background:#ef4444"></div>
+        <span class="legend-label">Cop</span>
+        <div class="swatch" style="background:rgba(168,85,247,0.45);border:2px solid #7c3aed"></div>
+        <span class="legend-label">Hideout zone</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="gameover-overlay">
+    <div id="gameover-card">
+      <span id="gameover-icon"></span>
+      <h2 id="gameover-title"></h2>
+      <p id="gameover-sub"></p>
+      <p id="gameover-turns"></p>
+      <button id="gameover-btn"></button>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

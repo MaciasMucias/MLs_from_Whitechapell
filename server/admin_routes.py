@@ -4,7 +4,7 @@ from dataclasses import replace
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from agents.heuristic_cops import HeuristicCops
+from agents import HeuristicCops
 from engine.env import CopTurn, step_cop
 from engine.game import StepContext
 from engine.graph_utils import jack_bfs_distances, reachable_cop_nodes
@@ -310,10 +310,13 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
         blocking=session.ctx.blocking,
         turn_limit=session.ctx.turn_limit,
     )
+    cop_agent = HeuristicCops()
+    cop_agent.on_episode_start(new_state, gm)
     new_sess = GameSession(
         game_id=str(uuid.uuid4())[:8],
         ctx=ctx,
         rng=session.rng,
+        cop_agent=cop_agent,
     )
     register_session(new_sess)
     return state_view(new_sess)

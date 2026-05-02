@@ -43,24 +43,30 @@ class HeuristicCops(CopAgent):
         A cop arrests all adjacent Jack nodes (arrest_all) under two conditions:
         (1) zone_mass >= effective_threshold, where zone_mass is the sum of PMF
             across all adjacent Jack nodes, and
-            effective_threshold = arrest_threshold * (remaining_turns / turn_limit).
+            effective_threshold = arrest_threshold * max(min_arrest_fraction,
+            remaining_turns / turn_limit). Threshold decays from arrest_threshold
+            down to arrest_threshold * min_arrest_fraction as turns run out.
         (2) Every adjacent node with nonzero PMF is at the BFS frontier
-            (bfs_dist >= current_depth) — arrest and search give identical miss
-            constraints at the frontier, so arrest strictly dominates.
-        Threshold decays to 0 as the turn limit approaches.
+            (bfs_dist >= current_depth) — at the frontier Jack can only just have
+            arrived, so a positive search gives no extra information over arrest
+            while arrest carries a win condition. Arrest strictly dominates.
     """
 
     def __init__(
         self,
         arrest_threshold: float = 0.25,
+        min_arrest_fraction: float = 0.4,
         pursuit_fraction: float = 0.4,
         pursuit_weight: float = 0.5,
+        hideout_blend: float = 0.5,
         n_iterations: int = 30,
         rng: random.Random | None = None,
     ) -> None:
         self._arrest_threshold = arrest_threshold
+        self._min_arrest_fraction = min_arrest_fraction
         self._pursuit_fraction = pursuit_fraction
         self._pursuit_weight = pursuit_weight
+        self._hideout_blend = hideout_blend
         self._n_iterations = n_iterations
         self._rng = rng or random.Random()
         self._hideout_candidates: set[int] = set()
@@ -112,7 +118,8 @@ class HeuristicCops(CopAgent):
         hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
         current_depth = state.turn + 1
         remaining_turns = game_map.turn_limit - 1 - state.turn
-        effective_threshold = self._arrest_threshold * max(0.0, remaining_turns) / game_map.turn_limit
+        t = max(self._min_arrest_fraction, remaining_turns / game_map.turn_limit)
+        effective_threshold = self._arrest_threshold * t
         assignment   = self._assign_destinations(
             position_pmf, hideout_pmf, state.cop_positions, game_map,
             frozenset(n for n, _ in state.cop_knowledge.visited_at),
@@ -316,6 +323,14 @@ class HeuristicCops(CopAgent):
         cx = sum(p * game_map.jack_nodes[v - 1].x for v, p in position_pmf.items())
         cy = sum(p * game_map.jack_nodes[v - 1].y for v, p in position_pmf.items())
 
+        # Hideout PMF centroid — blend toward likely destination so pursuers
+        # intercept Jack's path rather than purely chasing his current position.
+        hx = sum(p * game_map.jack_nodes[h - 1].x for h, p in hideout_pmf.items())
+        hy = sum(p * game_map.jack_nodes[h - 1].y for h, p in hideout_pmf.items())
+        blend = self._hideout_blend
+        tx = (1.0 - blend) * cx + blend * hx
+        ty = (1.0 - blend) * cy + blend * hy
+
         # Pre-compute each cop's reachable set (same every iteration).
         reachable_sets = [
             reachable_cop_nodes(pos, game_map, max_steps=2)
@@ -329,7 +344,7 @@ class HeuristicCops(CopAgent):
             for cid in rs:
                 if cid not in all_prox:
                     cn = game_map.cop_nodes[cid - 1]
-                    all_prox[cid] = -math.hypot(cn.x - cx, cn.y - cy)
+                    all_prox[cid] = -math.hypot(cn.x - tx, cn.y - ty)
 
         prox_min = min(all_prox.values())
         prox_range = max(all_prox.values()) - prox_min

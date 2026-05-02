@@ -321,6 +321,7 @@ function render(state) {
   renderZoneLayer(state);
   svg.appendChild(g);
   renderPmfLayer();
+  renderPmfZoneLayer();
   renderPickLayer();
   updateStatus(state);
 
@@ -364,22 +365,36 @@ function renderZoneLayer(state) {
 // --- PMF overlay ---
 
 let _currentPmf = null;  // dict { nodeId(string): probability } or null
+let _pmfLayerEnabled = false;
+let _pmfZoneEnabled  = false;
 
 window.setPmfData = function(pmf) {
   _currentPmf = pmf;
   renderPmfLayer();
+  renderPmfZoneLayer();
 };
 
 window.clearPmfData = function() {
   _currentPmf = null;
   renderPmfLayer();
+  renderPmfZoneLayer();
+};
+
+window.setPmfLayerEnabled = function(enabled) {
+  _pmfLayerEnabled = enabled;
+  renderPmfLayer();
+};
+
+window.setPmfZoneEnabled = function(enabled) {
+  _pmfZoneEnabled = enabled;
+  renderPmfZoneLayer();
 };
 
 function renderPmfLayer() {
   const svg = document.getElementById("board");
   const old = svg.getElementById("pmf-layer");
   if (old) old.remove();
-  if (!_currentPmf || !mapData) return;
+  if (!_pmfLayerEnabled || !_currentPmf || !mapData) return;
 
   const entries = Object.entries(_currentPmf);
   if (entries.length === 0) return;
@@ -411,6 +426,49 @@ function renderPmfLayer() {
   // Insert before overlay-group so PMF sits under game markers
   const overlay = svg.getElementById("overlay-group");
   svg.insertBefore(g, overlay);
+}
+
+// --- PMF–zone intersection overlay ---
+
+function renderPmfZoneLayer() {
+  const svg = document.getElementById("board");
+  const old = svg.getElementById("pmf-zone-layer");
+  if (old) old.remove();
+  if (!_pmfZoneEnabled || !_currentPmf || !lastState?.hideout_zone || !mapData) return;
+
+  const zoneSet = new Set(lastState.hideout_zone);
+  const entries = Object.entries(_currentPmf).filter(([id, p]) => p > 0 && zoneSet.has(parseInt(id)));
+  if (entries.length === 0) return;
+
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("id", "pmf-zone-layer");
+  g.setAttribute("pointer-events", "none");
+
+  for (const [nodeIdStr] of entries) {
+    const nodeId = parseInt(nodeIdStr);
+    const node = mapData.jack_nodes[nodeId - 1];
+    if (!node) continue;
+    const c = document.createElementNS(SVG_NS, "circle");
+    c.setAttribute("cx", node.x);
+    c.setAttribute("cy", node.y);
+    c.setAttribute("r", 12);
+    c.setAttribute("fill", "rgba(0,255,0,0.45)");
+    c.setAttribute("stroke", "#00cc00");
+    c.setAttribute("stroke-width", "2");
+    g.appendChild(c);
+  }
+
+  // Insert after zone-layer so lime green sits on top of purple for intersection nodes
+  const zoneLayer = svg.getElementById("zone-layer");
+  const overlayGroup = svg.getElementById("overlay-group");
+  if (zoneLayer) {
+    svg.insertBefore(g, zoneLayer.nextSibling);
+  } else if (overlayGroup) {
+    svg.insertBefore(g, overlayGroup);
+  } else {
+    const mapImage = svg.querySelector("image");
+    svg.insertBefore(g, mapImage ? mapImage.nextSibling : svg.firstChild);
+  }
 }
 
 // --- Pick layer (admin mode) ---

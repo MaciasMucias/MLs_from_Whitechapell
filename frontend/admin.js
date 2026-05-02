@@ -5,7 +5,8 @@
 let adminGameId  = null;
 let adminState   = null;
 let copRowsBuilt = 0;  // number of cop rows currently in DOM
-let pmfEnabled   = false;
+let pmfEnabled     = false;
+let pmfZoneEnabled = false;
 
 // pendingActions[i] = { destination: int|null, search: bool, arrest_target: int|null } | null
 const pendingActions = [];
@@ -15,7 +16,7 @@ window.adminOnStateUpdate = function(state) {
   adminState  = state;
   adminGameId = state.game_id;
   renderAdmin();
-  if (pmfEnabled) refreshPmf();
+  if (pmfEnabled || pmfZoneEnabled) refreshPmf();
 };
 
 async function refreshPmf() {
@@ -417,9 +418,20 @@ function initAdmin() {
 
   document.getElementById("adm-show-pmf").addEventListener("change", async (e) => {
     pmfEnabled = e.target.checked;
+    window.setPmfLayerEnabled(pmfEnabled);
     if (pmfEnabled) {
       await refreshPmf();
-    } else {
+    } else if (!pmfZoneEnabled) {
+      window.clearPmfData();
+    }
+  });
+
+  document.getElementById("adm-show-pmf-zone").addEventListener("change", async (e) => {
+    pmfZoneEnabled = e.target.checked;
+    window.setPmfZoneEnabled(pmfZoneEnabled);
+    if (pmfZoneEnabled) {
+      await refreshPmf();
+    } else if (!pmfEnabled) {
       window.clearPmfData();
     }
   });

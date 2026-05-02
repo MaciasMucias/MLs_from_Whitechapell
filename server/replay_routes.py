@@ -60,6 +60,7 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             hideout_zone=hideout_zone,
             turn=0,
             jack_trace=frozenset({record.initial_jack_pos}),
+            jack_path=(record.initial_jack_pos,),
             cop_knowledge=CopKnowledge(jack_start=record.initial_jack_pos),
         )
     else:
@@ -71,10 +72,11 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             for ca in r.cop_actions:
                 cop_positions[ca.cop_idx] = ca.to_node
 
-        # Jack trace: every node Jack occupied through the requested turn
+        # Jack trace and path: every node Jack occupied through the requested turn
         jack_trace: set[int] = {record.initial_jack_pos}
         for r in record.rounds[: body.turn + 1]:
             jack_trace.add(r.jack_to)
+        jack_path = tuple([record.initial_jack_pos] + [r.jack_to for r in record.rounds[: body.turn + 1]])
 
         ck = CopKnowledge(
             jack_start=record.initial_jack_pos,
@@ -91,6 +93,7 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             hideout_zone=hideout_zone,
             turn=body.turn + 1,
             jack_trace=frozenset(jack_trace),
+            jack_path=jack_path,
             cop_knowledge=ck,
         )
 

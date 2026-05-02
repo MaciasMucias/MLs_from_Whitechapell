@@ -316,7 +316,11 @@ function initAdmin() {
 
   // Knowledge
   document.getElementById("adm-inject-visited").addEventListener("click", () => {
-    window.setPickMode("jack", null, "Inject visited — click a jack node", async (nodeId) => {
+    if (!adminState?.jack_trace?.length) return;
+    const alreadyInjected = new Set(adminState.visited_at.map(([id]) => id));
+    const injectable = new Set(adminState.jack_trace.filter(id => !alreadyInjected.has(id)));
+    if (!injectable.size) return;
+    window.setPickMode("jack", injectable, "Inject visited — click a node on Jack's path", async (nodeId) => {
       await adminAction("inject-visited", { node: nodeId });
     });
   });

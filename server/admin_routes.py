@@ -207,10 +207,15 @@ async def set_arrest_all(game_id: str, body: SetArrestAllBody):
 @admin_router.post("/{game_id}/inject-visited")
 async def inject_visited(game_id: str, body: InjectNodeBody):
     session = _get_or_404(game_id)
+    state = session.ctx.state
+    if body.node not in state.jack_trace:
+        raise HTTPException(status_code=400, detail="Node not on Jack's path")
     push_history(session)
-    k = session.ctx.state.cop_knowledge
+    k = state.cop_knowledge
     existing = dict(k.visited_at)
-    existing.setdefault(body.node, session.ctx.state.turn)
+    path = state.jack_path
+    depth = path.index(body.node) if body.node in path else len(path) - 1
+    existing.setdefault(body.node, depth)
     _mutate_knowledge(session, visited_at=tuple(existing.items()))
     return state_view(session)
 
@@ -300,6 +305,7 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
         hideout_zone=zone,
         turn=0,
         jack_trace=frozenset({jack_start}),
+        jack_path=(jack_start,),
         cop_knowledge=CopKnowledge(jack_start=jack_start),
     )
     ctx = StepContext(

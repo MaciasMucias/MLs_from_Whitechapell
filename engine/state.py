@@ -50,4 +50,5 @@ class GameState:
     hideout_zone: frozenset[int]
     turn: int
     jack_trace: frozenset[int]
+    jack_path: tuple[int, ...]  # ordered positions, one per move (jack_path[0] = start)
     cop_knowledge: CopKnowledge

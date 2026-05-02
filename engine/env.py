@@ -69,6 +69,7 @@ def make_initial_state(
         hideout_zone=zone,
         turn=0,
         jack_trace=frozenset({start}),
+        jack_path=(start,),
         cop_knowledge=CopKnowledge(jack_start=start, visited_at=((start, 0),)),
     )
 
@@ -113,7 +114,8 @@ def step_jack(
         (new_state, terminated, winner)
     """
     new_trace = state.jack_trace | {jack_edge.destination.id}
-    new_state = replace(state, jack_pos=jack_edge.destination.id, jack_trace=new_trace)
+    new_path = state.jack_path + (jack_edge.destination.id,)
+    new_state = replace(state, jack_pos=jack_edge.destination.id, jack_trace=new_trace, jack_path=new_path)
     if new_state.jack_pos == state.hideout:
         return new_state, True, "jack"
     return new_state, False, None

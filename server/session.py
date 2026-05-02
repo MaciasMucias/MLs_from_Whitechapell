@@ -82,6 +82,7 @@ def state_view(session: GameSession) -> dict:
         "search_misses": [list(m) for m in s.cop_knowledge.search_misses],
         "arrest_misses": [list(m) for m in s.cop_knowledge.arrest_misses],
         "jack_trace": sorted(s.jack_trace),
+        "jack_path": list(s.jack_path),
         "blocking": session.ctx.blocking,
         "arrest_all_enabled": session.ctx.arrest_all_enabled,
         "history_size": len(session.history),

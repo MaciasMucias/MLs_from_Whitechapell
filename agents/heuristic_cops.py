@@ -8,6 +8,11 @@ from engine.graph_utils import jack_bfs_distances, jack_reachable_within, reacha
 from engine.state import GameState
 from agents.base import CopAgent, CopDecisionInfo, RoundCopDecisions
 
+# Minimum proximity range below which all nodes are treated as equidistant.
+_PROX_RANGE_EPS = 1e-9
+# Fallback search discount used when current_depth is zero (should never occur in practice).
+_SEARCH_DISC_ZERO_DEPTH_FALLBACK = 0.5
+
 
 class HeuristicCops(CopAgent):
     """
@@ -58,16 +63,22 @@ class HeuristicCops(CopAgent):
         min_arrest_fraction: float = 0.4,
         pursuit_fraction: float = 0.4,
         pursuit_weight: float = 0.5,
+        searcher_prox_fraction: float = 0.25,
+        arrest_discount: float = 0.0,
         hideout_blend: float = 0.5,
         n_iterations: int = 30,
+        cop_max_steps: int = 2,
         rng: random.Random | None = None,
     ) -> None:
         self._arrest_threshold = arrest_threshold
         self._min_arrest_fraction = min_arrest_fraction
         self._pursuit_fraction = pursuit_fraction
         self._pursuit_weight = pursuit_weight
+        self._searcher_prox_fraction = searcher_prox_fraction
+        self._arrest_discount = arrest_discount
         self._hideout_blend = hideout_blend
         self._n_iterations = n_iterations
+        self._cop_max_steps = cop_max_steps
         self._rng = rng or random.Random()
         self._hideout_candidates: set[int] = set()
         self._jack_start_distances: dict[int, int] = {}
@@ -342,12 +353,13 @@ class HeuristicCops(CopAgent):
 
         # Pre-compute each cop's reachable set (same every iteration).
         reachable_sets = [
-            reachable_cop_nodes(pos, game_map, max_steps=2)
+            reachable_cop_nodes(pos, game_map, max_steps=self._cop_max_steps)
             for pos in cop_positions
         ]
 
         # Pre-compute proximity scores for all reachable cop nodes across all cops.
-        # proximity = negative distance to PMF centroid; normalise globally to [0, 1].
+        # Negated distance so that max() picks the closest node (closer → larger value).
+        # Normalised globally to [0, 1] after all values are collected.
         all_prox: dict[int, float] = {}
         for rs in reachable_sets:
             for cid in rs:
@@ -357,7 +369,7 @@ class HeuristicCops(CopAgent):
 
         prox_min = min(all_prox.values())
         prox_range = max(all_prox.values()) - prox_min
-        if prox_range < 1e-9:
+        if prox_range < _PROX_RANGE_EPS:
             norm_prox: dict[int, float] = {cid: 0.0 for cid in all_prox}
         else:
             norm_prox = {
@@ -366,8 +378,10 @@ class HeuristicCops(CopAgent):
             }
 
         best_score: float = -1.0
-        # Each entry: (destination, role, coverage_score, direction_score)
-        best_assignment: list[tuple[int, str, float, float | None]] = []
+        # Default: cops stay put if every iteration is invalid (all reachable nodes occupied).
+        best_assignment: list[tuple[int, str, float, float | None]] = [
+            (pos, "searcher", 0.0, None) for pos in cop_positions
+        ]
 
         for _ in range(self._n_iterations):
             # Random cop ordering and role draw for this iteration
@@ -375,75 +389,94 @@ class HeuristicCops(CopAgent):
             self._rng.shuffle(order)
             is_pursuer = [self._rng.random() < self._pursuit_fraction for _ in cop_positions]
 
-            remaining: dict[int, float] = {
+            # Two separate remaining-mass dicts so that arrest and search coordination
+            # don't interfere: an arresting cop zeros remaining_arrest (preventing
+            # double-arrest) but leaves remaining_search intact (a search of the same
+            # zone still provides independent visit-history information).
+            remaining_arrest: dict[int, float] = {
+                k: v for k, v in position_pmf.items() if k not in confirmed_visited
+            }
+            remaining_search: dict[int, float] = {
                 k: v for k, v in position_pmf.items() if k not in confirmed_visited
             }
             assignment: list[tuple[int, str, float, float | None]] = [
                 (0, "searcher", 0.0, None)
             ] * len(cop_positions)
             iteration_score: float = 0.0
-            occupied: set[int] = set()  # destinations claimed this iteration
+            occupied: set[int] = set()
+            valid = True
 
             for cop_idx in order:
                 pursuer = is_pursuer[cop_idx]
-                # Exclude already-occupied nodes so two cops never share a node
                 reachable = reachable_sets[cop_idx] - occupied
                 if not reachable:
-                    reachable = reachable_sets[cop_idx]  # fallback if all taken
+                    valid = False
+                    break
 
                 def node_score(_cid: int, _pursuer: bool = pursuer) -> float:
-                    coverage = sum(
-                        remaining.get(jn.id, 0.0)
-                        for jn in game_map.cop_nodes[_cid].jack_neighbours
-                    )
-                    # Pursuers: full proximity bonus to chase toward the PMF centroid.
-                    # Searchers: small proximity bonus (1/4) as a tiebreaker so they
-                    # drift toward the action instead of wandering randomly when all
-                    # coverage values are 0 (common in early turns when cops are far
-                    # from Jack's starting zone).
-                    prox_weight = self._pursuit_weight if _pursuer else self._pursuit_weight * 0.25
+                    cn = game_map.cop_nodes[_cid]
+                    if self._would_arrest(cn, position_pmf, effective_threshold, current_depth):
+                        coverage = sum(remaining_arrest.get(jn.id, 0.0) for jn in cn.jack_neighbours)
+                    else:
+                        coverage = sum(remaining_search.get(jn.id, 0.0) for jn in cn.jack_neighbours)
+                    # Pursuers: full proximity bonus. Searchers: small tiebreaker
+                    # so they drift toward the action when all coverage values are zero.
+                    prox_weight = self._pursuit_weight if _pursuer else self._pursuit_weight * self._searcher_prox_fraction
                     return coverage + prox_weight * norm_prox.get(_cid, 0.0)
 
                 best_node = max(reachable, key=node_score)
                 occupied.add(best_node)
 
-                plain_coverage = sum(
-                    remaining.get(jn.id, 0.0)
-                    for jn in game_map.cop_nodes[best_node].jack_neighbours
-                )
+                cop_node_obj = game_map.cop_nodes[best_node]
+                cop_adj = cop_node_obj.jack_neighbours
+                would_arrest = self._would_arrest(cop_node_obj, position_pmf, effective_threshold, current_depth)
+
+                if would_arrest:
+                    plain_coverage = sum(remaining_arrest.get(jn.id, 0.0) for jn in cop_adj)
+                    for jn in cop_adj:
+                        if jn.id in remaining_arrest:
+                            remaining_arrest[jn.id] *= self._arrest_discount
+                else:
+                    plain_coverage = sum(remaining_search.get(jn.id, 0.0) for jn in cop_adj)
+                    disc = 1.0 / current_depth if current_depth > 0 else _SEARCH_DISC_ZERO_DEPTH_FALLBACK
+                    for jn in cop_adj:
+                        if jn.id in remaining_search:
+                            remaining_search[jn.id] *= disc
+
                 dir_score = norm_prox.get(best_node)
                 role = "pursuer" if pursuer else "searcher"
-                # Use plain coverage (no pursuit bonus) to compare iterations.
-                # The pursuit bias guides within-iteration selection; if it were
-                # included in the comparison score, iterations that happen to draw
-                # more pursuers would appear better regardless of actual coverage.
+                # Use plain coverage (no pursuit bonus) to compare iterations so that
+                # iterations drawing more pursuers don't appear better regardless of coverage.
                 iteration_score += plain_coverage
                 assignment[cop_idx] = (best_node, role, plain_coverage, dir_score)
 
-                # If this cop would arrest, its adjacent Jack nodes are fully
-                # resolved — zero them out so no other cop scores credit for
-                # re-arresting the same node.  Arrest decision mirrors _decide_action.
-                cop_adj = game_map.cop_nodes[best_node].jack_neighbours
-                zone_mass = sum(position_pmf.get(jn.id, 0.0) for jn in cop_adj)
-                would_arrest = zone_mass > 0.0 and (
-                    zone_mass >= effective_threshold
-                    or all(
-                        self._jack_start_distances.get(jn.id, 0) >= current_depth
-                        for jn in cop_adj if position_pmf.get(jn.id, 0.0) > 0.0
-                    )
-                )
-                for jn in cop_adj:
-                    if jn.id in remaining:
-                        if would_arrest:
-                            remaining[jn.id] = 0.0
-                        else:
-                            remaining[jn.id] *= 0.5
-
-            if iteration_score > best_score:
+            if valid and iteration_score > best_score:
                 best_score = iteration_score
                 best_assignment = assignment[:]
 
         return best_assignment
+
+    # ------------------------------------------------------------------
+    # Shared arrest decision
+    # ------------------------------------------------------------------
+
+    def _would_arrest(
+        self,
+        cop_node,
+        pmf: dict[int, float],
+        effective_threshold: float,
+        current_depth: int,
+    ) -> bool:
+        adj = cop_node.jack_neighbours
+        if not adj:
+            return False
+        zone_mass = sum(pmf.get(jn.id, 0.0) for jn in adj)
+        if zone_mass == 0.0:
+            return False
+        return zone_mass >= effective_threshold or all(
+            self._jack_start_distances.get(jn.id, 0) >= current_depth
+            for jn in adj if pmf.get(jn.id, 0.0) > 0.0
+        )
 
     # ------------------------------------------------------------------
     # Action decision
@@ -457,23 +490,10 @@ class HeuristicCops(CopAgent):
         effective_threshold: float,
         current_depth: int,
     ) -> CopTurn:
-        adj = cop_node.jack_neighbours
-        if not adj:
+        if not cop_node.jack_neighbours:
             return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=True)
 
-        zone_mass = sum(pmf.get(jn.id, 0.0) for jn in adj)
-
-        if zone_mass > 0.0:
-            all_frontier = all(
-                self._jack_start_distances.get(jn.id, 0) >= current_depth
-                for jn in adj if pmf.get(jn.id, 0.0) > 0.0
-            )
-            if zone_mass >= effective_threshold or all_frontier:
-                return CopTurn(
-                    cop_idx=cop_idx,
-                    destination=cop_node.id,
-                    search=False,
-                    arrest_all=True,
-                )
+        if self._would_arrest(cop_node, pmf, effective_threshold, current_depth):
+            return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=False, arrest_all=True)
 
         return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=True)

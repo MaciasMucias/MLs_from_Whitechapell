@@ -1,11 +1,37 @@
-# MLs_from_Whitechapel
-## Cel pracy
+# MLs from Whitechapel
 
-Stworzenie środowiska reprezentującego asymetryczną grę planszową z pojedynczym uciekinierem posiadającym pełną wiedzę i wieloma poszukiwaczami nieznającymi pozycji uciekiniera, ale mogącymi przeszukiwać planszę w celu znajdywania jego śladów. Następnie zaprojektowanie i wytrenowanie agenta grającego w roli uciekiniera wykorzystując techniki uczenia ze wzmocnieniem.
+A reinforcement learning agent trained to play the fugitive role in an asymmetric board game based on *Letters from Whitechapel*. Heuristic cops hunt Jack using a probabilistic position model; a curriculum Director adjusts difficulty to keep training productive. Human participants play via a web interface, providing performance baselines for RL evaluation.
 
-## Tematyka zgłaszanej pracy
+The thesis trains Jack using PPO, evaluates win rate and survival time, and ablates the curriculum system against a baseline without it.
 
-Asymetryczne gry planszowe, gdzie gracze mają różne role, cele i mechaniki (np. Root, Netrunner), stanowią doskonały „poligon testowy” dla algorytmów AI i modeli wieloagentowych, wymagając specjalizacji strategii dla każdego "agenta" oraz modelowania złożonych interakcji asymetrycznych. W przypadku tej pracy będzie rozpatrywana gra, w której mamy jednego uciekiniera i wielu poszukiwaczy. Rola uciekiniera wymaga poruszania się w sposób wymijający poszukiwaczy i wprowadzający ich w błąd. Z kolei rola poszukiwaczy wymaga systematycznego eliminowania potencjalnych ruchów uciekiniera by zawęzić przestrzeń pól na których może się znajdować, oraz wyciąganie wniosków z odnalezionych śladów by próbować przewidzieć cel lub obecną lokalizację uciekiniera.
-W ramach realizacji treningu agenta stworzeni zostaną heurystyczni poszukiwacze z wspierającym systemem dynamicznie balansującym poziom trudności podczas rozgrywek by agent mógł uczyć się w sprzyjających warunkach. Eksperymenty zostaną przeprowadzone na planszach o różnych rozmiarach, a skuteczność systemu curriculum learning zostanie zweryfikowana poprzez studia ablacyjne porównujące proces uczenia z tym systemem i bez niego.
-Ewaluacja wytrenowanego agenta obejmie analizę skuteczności na podstawie takich metryk jak procent wygranych gier oraz średni czas przetrwania, a także porównanie z wynikami graczy ludzkich o różnym poziomie umiejętności, co pozwoli ocenić jakość wyuczonych strategii.
-Podsumowując, głównym celem pracy będzie wytrenowanie agenta wykorzystującego przewagę informacyjną w asymetrycznej grze planszowej przy użyciu wskazanych metod oraz analiza efektywności wyuczonych strategii w kontekście adaptacji do różnych warunków środowiska i przeciwników.
+## Setup
+
+Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync --extra server
+```
+
+## Running locally
+
+### Participant UI
+
+The human-play interface served to dissertation participants.
+
+```bash
+uv run uvicorn server.main:whitechapel_ui --reload
+```
+
+Open http://localhost:8000
+
+### Debug UI
+
+Researcher tool with an admin panel, cop PMF overlay, and replay viewer.
+
+```bash
+uv run uvicorn server.debug_main:debug_ui --reload --port 8001
+```
+
+Open http://localhost:8001
+
+Both apps share the same SQLite database (`data/games.sqlite`) and can run simultaneously on different ports.

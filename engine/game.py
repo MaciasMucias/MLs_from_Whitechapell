@@ -126,16 +126,7 @@ def step_round(
         # Execute each cop's planned turn
         for cop_turn in cop_turns:
             cop_node = ctx.game_map.cop_nodes[cop_turn.destination]
-            # Compute search results before advancing state (jack_trace is ground truth)
-            if cop_turn.search:
-                search_results = {
-                    jn.id: (jn.id in state.jack_trace)
-                    for jn in cop_node.jack_neighbours
-                }
-            else:
-                search_results = {}
-
-            state, terminated, winner = step_cop(state, cop_turn, ctx.game_map)
+            state, terminated, winner, search_results = step_cop(state, cop_turn, ctx.game_map)
             events.append({
                 "cop": cop_turn.cop_idx,
                 "moved_to": cop_turn.destination,

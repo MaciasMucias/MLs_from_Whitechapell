@@ -94,7 +94,8 @@ def _run_cop_action(
         search=action.search,
         arrest_target=action.arrest_target,
     )
-    return step_cop(state, cop_turn, session.ctx.game_map)
+    new_state, terminated, winner, _ = step_cop(state, cop_turn, session.ctx.game_map)
+    return new_state, terminated, winner
 
 
 def _mutate_knowledge(

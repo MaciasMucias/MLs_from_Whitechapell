@@ -38,9 +38,13 @@ class GameState:
         cop_positions:  Cop node IDs, one per cop (index = cop index).
         hideout:        Target node Jack must reach to win.
         turn:           Current round number (0-indexed).
-        jack_trace:     All jack node IDs Jack has visited this game (ground
-                        truth). Used by Director and for deriving true search
-                        results from Jack's perspective.
+        jack_trace:     Frozenset of all Jack node IDs visited this game.
+                        Ground truth for search hit/miss (O(1) lookup).
+                        Admin endpoints may decouple it from jack_path.
+        jack_path:      Ordered tuple of Jack's positions, one entry per move
+                        (jack_path[0] = start). Preserves chronological order
+                        for turn-depth lookups (.index()) and serialisation.
+                        In normal gameplay frozenset(jack_path) == jack_trace.
         cop_knowledge:  What cops are told — potentially Director-modified.
     """
     jack_pos: int

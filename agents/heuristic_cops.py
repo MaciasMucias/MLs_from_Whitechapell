@@ -80,9 +80,7 @@ class HeuristicCops(CopAgent):
         # Cache hideout candidates for this episode (fixed for the whole game).
         distances = jack_bfs_distances(state.cop_knowledge.jack_start, game_map)
         self._jack_start_distances = distances
-        base_candidates = {v for v, d in distances.items() if d >= game_map.hideout_min_distance}
-        zone_candidates = base_candidates & state.hideout_zone
-        self._hideout_candidates = zone_candidates if zone_candidates else base_candidates
+        self._hideout_candidates = state.hideout_zone
 
         # MULTI-NIGHT EXTENSION POINT
         #
@@ -128,7 +126,7 @@ class HeuristicCops(CopAgent):
         )
         turns = [
             self._decide_action(
-                cop_idx, game_map.cop_nodes[dest - 1], position_pmf,
+                cop_idx, game_map.cop_nodes[dest], position_pmf,
                 effective_threshold, current_depth,
             )
             for cop_idx, (dest, _role, _cov, _dir) in enumerate(assignment)
@@ -159,6 +157,14 @@ class HeuristicCops(CopAgent):
         Bitmask forward DP over (turn, jack_node, visited_waypoints_mask).
 
         Returns a normalised probability dict {jack_node_id: probability}.
+        Mass values accumulate as paths fan out; normalisation happens once at
+        the end — there is no per-step normalisation.
+
+        Caching across turns is not practical: current_depth increases every
+        turn, the waypoint set (and thus bitmask dimension) can expand, and new
+        search/arrest misses can invalidate any previously computed entries.
+        search_exclude/arrest_exclude are O(|misses|) to rebuild, which is
+        negligible compared to the DP itself.
         """
         ck = state.cop_knowledge
         current_depth = state.turn + 1  # Jack just moved; state.turn not yet incremented
@@ -183,6 +189,8 @@ class HeuristicCops(CopAgent):
         # depth D, then by turn D the path must have already visited v.
         # required_masks[t] = bitmask of waypoints that must be in the path's
         # mask by turn t. Paths that lag behind this schedule are pruned.
+        # Sized current_depth+1 so index t is valid for t in 0..current_depth;
+        # index 0 is unused (loop starts at t=1).
         first_hit_depth: dict[int, int] = dict(ck.visited_at)
         required_masks: list[int] = [0] * (current_depth + 1)
         for v, d in first_hit_depth.items():
@@ -192,22 +200,23 @@ class HeuristicCops(CopAgent):
                     required_masks[t] |= bit
 
         # ------ DP tables ------
+        # Sized n because node IDs are 0-based; node.id is a valid direct index.
         jack_start = ck.jack_start
         n = len(game_map.jack_nodes)
 
-        prev: list[list[float]] = [[0.0] * num_masks for _ in range(n + 1)]
+        prev: list[list[float]] = [[0.0] * num_masks for _ in range(n)]
         start_mask = (1 << wp_idx[jack_start]) if jack_start in wp_idx else 0
         prev[jack_start][start_mask] = 1.0
 
         for t in range(1, current_depth + 1):
             req = required_masks[t]
-            curr: list[list[float]] = [[0.0] * num_masks for _ in range(n + 1)]
-            for u_id in range(1, n + 1):
+            curr: list[list[float]] = [[0.0] * num_masks for _ in range(n)]
+            for u_id in range(n):
                 for mask in range(num_masks):
                     mass = prev[u_id][mask]
                     if mass == 0.0:
                         continue
-                    for edge in game_map.jack_nodes[u_id - 1].edges:
+                    for edge in game_map.jack_nodes[u_id].edges:
                         v_id = edge.destination.id
                         if search_exclude.get(v_id, -1) >= t:
                             continue
@@ -221,13 +230,13 @@ class HeuristicCops(CopAgent):
 
         # ------ extract terminal distribution ------
         raw: dict[int, float] = {}
-        for v_id in range(1, n + 1):
+        for v_id in range(n):
             mass = prev[v_id][full_mask]
             if mass > 0.0:
                 raw[v_id] = mass
 
         if not raw:
-            for v_id in range(1, n + 1):
+            for v_id in range(n):
                 total = sum(prev[v_id])
                 if total > 0.0:
                     raw[v_id] = total
@@ -320,13 +329,13 @@ class HeuristicCops(CopAgent):
         back toward where Jack is believed to be right now.
         """
         # Position PMF centroid — probability-weighted mean Jack location.
-        cx = sum(p * game_map.jack_nodes[v - 1].x for v, p in position_pmf.items())
-        cy = sum(p * game_map.jack_nodes[v - 1].y for v, p in position_pmf.items())
+        cx = sum(p * game_map.jack_nodes[v].x for v, p in position_pmf.items())
+        cy = sum(p * game_map.jack_nodes[v].y for v, p in position_pmf.items())
 
         # Hideout PMF centroid — blend toward likely destination so pursuers
         # intercept Jack's path rather than purely chasing his current position.
-        hx = sum(p * game_map.jack_nodes[h - 1].x for h, p in hideout_pmf.items())
-        hy = sum(p * game_map.jack_nodes[h - 1].y for h, p in hideout_pmf.items())
+        hx = sum(p * game_map.jack_nodes[h].x for h, p in hideout_pmf.items())
+        hy = sum(p * game_map.jack_nodes[h].y for h, p in hideout_pmf.items())
         blend = self._hideout_blend
         tx = (1.0 - blend) * cx + blend * hx
         ty = (1.0 - blend) * cy + blend * hy
@@ -343,7 +352,7 @@ class HeuristicCops(CopAgent):
         for rs in reachable_sets:
             for cid in rs:
                 if cid not in all_prox:
-                    cn = game_map.cop_nodes[cid - 1]
+                    cn = game_map.cop_nodes[cid]
                     all_prox[cid] = -math.hypot(cn.x - tx, cn.y - ty)
 
         prox_min = min(all_prox.values())
@@ -385,7 +394,7 @@ class HeuristicCops(CopAgent):
                 def node_score(_cid: int, _pursuer: bool = pursuer) -> float:
                     coverage = sum(
                         remaining.get(jn.id, 0.0)
-                        for jn in game_map.cop_nodes[_cid - 1].jack_neighbours
+                        for jn in game_map.cop_nodes[_cid].jack_neighbours
                     )
                     # Pursuers: full proximity bonus to chase toward the PMF centroid.
                     # Searchers: small proximity bonus (1/4) as a tiebreaker so they
@@ -400,7 +409,7 @@ class HeuristicCops(CopAgent):
 
                 plain_coverage = sum(
                     remaining.get(jn.id, 0.0)
-                    for jn in game_map.cop_nodes[best_node - 1].jack_neighbours
+                    for jn in game_map.cop_nodes[best_node].jack_neighbours
                 )
                 dir_score = norm_prox.get(best_node)
                 role = "pursuer" if pursuer else "searcher"
@@ -414,7 +423,7 @@ class HeuristicCops(CopAgent):
                 # If this cop would arrest, its adjacent Jack nodes are fully
                 # resolved — zero them out so no other cop scores credit for
                 # re-arresting the same node.  Arrest decision mirrors _decide_action.
-                cop_adj = game_map.cop_nodes[best_node - 1].jack_neighbours
+                cop_adj = game_map.cop_nodes[best_node].jack_neighbours
                 zone_mass = sum(position_pmf.get(jn.id, 0.0) for jn in cop_adj)
                 would_arrest = zone_mass > 0.0 and (
                     zone_mass >= effective_threshold

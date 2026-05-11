@@ -257,7 +257,7 @@ function renderZoneLayer(state) {
   g.setAttribute("pointer-events", "none");
 
   for (const nodeId of state.hideout_zone) {
-    const node = jackNodeById ? jackNodeById.get(nodeId) : mapData.jack_nodes[nodeId - 1];
+    const node = jackNodeById ? jackNodeById.get(nodeId) : mapData.jack_nodes[nodeId];
     if (!node) continue;
     const c = document.createElementNS(SVG_NS, "circle");
     c.setAttribute("cx", node.x);

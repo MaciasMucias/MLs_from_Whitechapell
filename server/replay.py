@@ -175,8 +175,8 @@ def save_replay(record: ReplayRecord) -> int:
     return slot
 
 
-def build_and_save_replay(session: "GameSession") -> None:
-    """Build a ReplayRecord from session.round_history and save it."""
+def build_replay(session: "GameSession") -> ReplayRecord:
+    """Build a ReplayRecord from session history (does not save)."""
     from engine.env import legal_jack_edges
     from agents.heuristic_cops import HeuristicCops
 
@@ -206,7 +206,7 @@ def build_and_save_replay(session: "GameSession") -> None:
         cop_actions: list[ReplayCopAction] = []
         for step in rr.cop_steps:
             ct = step.cop_turn
-            cop_node = gm.cop_nodes[ct.destination - 1]
+            cop_node = gm.cop_nodes[ct.destination]
             searched = list(step.search_results.keys()) if ct.search else []
             hits   = [n for n, hit in step.search_results.items() if hit]
             misses = [n for n, hit in step.search_results.items() if not hit]
@@ -290,4 +290,11 @@ def build_and_save_replay(session: "GameSession") -> None:
         turn_limit=effective_limit,
         rounds=rounds,
     )
+    return record
+
+
+def build_and_save_replay(session: "GameSession") -> ReplayRecord:
+    """Build a ReplayRecord from session history and save it to the rotating slots."""
+    record = build_replay(session)
     save_replay(record)
+    return record

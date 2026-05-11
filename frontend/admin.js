@@ -162,7 +162,7 @@ function setupCopRow(i) {
       for (let step = 0; step < 2; step++) {
         const next = [];
         for (const nodeId of frontier) {
-          const cn = window.mapData.cop_nodes[nodeId - 1];
+          const cn = window.mapData.cop_nodes[nodeId];
           if (!cn) continue;
           // Direct cop-to-cop edges
           for (const nb of cn.edges) {
@@ -196,7 +196,7 @@ function setupCopRow(i) {
     const dest = getPending(i)?.destination ?? adminState?.cop_positions[i];
     let pickableJack = null;
     if (dest !== null && dest !== undefined) {
-      const copNode = window.mapData?.cop_nodes[dest - 1];
+      const copNode = window.mapData?.cop_nodes[dest];
       if (copNode?.jack_neighbours) {
         pickableJack = new Set(copNode.jack_neighbours);
       }
@@ -221,7 +221,7 @@ function updateCopRows(state) {
     const seesEl = document.getElementById(`adm-cop-sees-${i}`);
     if (posEl) posEl.textContent = state.cop_positions[i];
     if (seesEl) {
-      const copNode = window.mapData?.cop_nodes[state.cop_positions[i] - 1];
+      const copNode = window.mapData?.cop_nodes[state.cop_positions[i]];
       const nb = copNode?.jack_neighbours ?? [];
       seesEl.textContent = nb.length ? `Sees jack: ${nb.join(", ")}` : "Sees: none";
     }

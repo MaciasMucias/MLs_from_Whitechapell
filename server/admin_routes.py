@@ -339,9 +339,9 @@ async def get_pmf(game_id: str):
 async def node_info(game_id: str, body: NodeInfoBody):
     session = _get_or_404(game_id)
     gm = session.ctx.game_map
-    if body.cop_node < 1 or body.cop_node > len(gm.cop_nodes):
+    if body.cop_node < 0 or body.cop_node >= len(gm.cop_nodes):
         raise HTTPException(status_code=400, detail="Invalid cop node")
-    cop_node = gm.cop_nodes[body.cop_node - 1]
+    cop_node = gm.cop_nodes[body.cop_node]
     reachable = reachable_cop_nodes(body.cop_node, gm)
     return {
         "cop_node": body.cop_node,

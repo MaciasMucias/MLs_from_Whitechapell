@@ -341,7 +341,7 @@ function renderZoneLayer(state) {
   g.setAttribute("pointer-events", "none");
 
   for (const nodeId of state.hideout_zone) {
-    const node = mapData.jack_nodes[nodeId - 1];
+    const node = mapData.jack_nodes[nodeId];
     if (!node) continue;
     const c = document.createElementNS(SVG_NS, "circle");
     c.setAttribute("cx", node.x);
@@ -407,7 +407,7 @@ function renderPmfLayer() {
 
   for (const [nodeIdStr, prob] of entries) {
     const nodeId = parseInt(nodeIdStr);
-    const node = mapData.jack_nodes[nodeId - 1];
+    const node = mapData.jack_nodes[nodeId];
     if (!node) continue;
 
     // Scale so the highest-probability node is fully opaque;
@@ -446,7 +446,7 @@ function renderPmfZoneLayer() {
 
   for (const [nodeIdStr] of entries) {
     const nodeId = parseInt(nodeIdStr);
-    const node = mapData.jack_nodes[nodeId - 1];
+    const node = mapData.jack_nodes[nodeId];
     if (!node) continue;
     const c = document.createElementNS(SVG_NS, "circle");
     c.setAttribute("cx", node.x);

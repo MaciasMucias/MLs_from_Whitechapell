@@ -61,9 +61,10 @@ async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
     events, terminated, winner = step_round(session.ctx, edge, session.cop_agent)
 
     if terminated:
+        from dataclasses import asdict
         from server.replay import build_and_save_replay
         from server.database import ParticipantGame, save_game
-        build_and_save_replay(session)
+        replay_record = build_and_save_replay(session)
         ctx = session.ctx
         meta = pop_participant_meta(session.game_id)
         effective_limit = ctx.turn_limit if ctx.turn_limit is not None else ctx.game_map.turn_limit
@@ -78,6 +79,7 @@ async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
                 {"turn": r.turn, "jack_to": r.state_after_round.jack_pos, "winner": r.winner}
                 for r in ctx.history
             ],
+            replay=asdict(replay_record),
         ))
 
     view = state_view(session)

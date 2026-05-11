@@ -89,7 +89,7 @@ def legal_jack_edges(
     When blocking is enabled, edges where any traversal cop node is currently
     occupied are excluded.
     """
-    jack_node = game_map.jack_nodes[state.jack_pos - 1]
+    jack_node = game_map.jack_nodes[state.jack_pos]
     if not blocking:
         return list(jack_node.edges)
     occupied = set(state.cop_positions)
@@ -138,7 +138,7 @@ def step_cop(
     """
     cop_positions = list(state.cop_positions)
     cop_positions[cop_turn.cop_idx] = cop_turn.destination
-    cop_node = game_map.cop_nodes[cop_turn.destination - 1]
+    cop_node = game_map.cop_nodes[cop_turn.destination]
 
     search_misses: set[tuple[int, int]] = set(state.cop_knowledge.search_misses)
     arrest_misses: set[tuple[int, int]] = set(state.cop_knowledge.arrest_misses)

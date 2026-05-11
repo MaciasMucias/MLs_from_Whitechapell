@@ -18,6 +18,7 @@ class ParticipantGame:
     turns_survived: int
     turn_limit: int
     move_sequence: list
+    replay: dict            # full ReplayRecord serialised (asdict)
 
 
 def init_db(path: Path = DB_PATH) -> None:
@@ -33,6 +34,7 @@ def init_db(path: Path = DB_PATH) -> None:
                 turns_survived INTEGER NOT NULL,
                 turn_limit     INTEGER NOT NULL,
                 move_sequence  TEXT    NOT NULL,
+                replay         TEXT    NOT NULL,
                 created_at     TEXT    NOT NULL
             )
         """)
@@ -42,8 +44,8 @@ def save_game(record: ParticipantGame, path: Path = DB_PATH) -> None:
     with sqlite3.connect(path) as conn:
         conn.execute(
             "INSERT INTO games "
-            "(game_id, map_name, gaming_habit, outcome, turns_survived, turn_limit, move_sequence, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "(game_id, map_name, gaming_habit, outcome, turns_survived, turn_limit, move_sequence, replay, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 record.game_id,
                 record.map_name,
@@ -52,6 +54,7 @@ def save_game(record: ParticipantGame, path: Path = DB_PATH) -> None:
                 record.turns_survived,
                 record.turn_limit,
                 json.dumps(record.move_sequence),
+                json.dumps(record.replay),
                 datetime.now(timezone.utc).isoformat(),
             ),
         )

@@ -15,7 +15,7 @@ def jack_bfs_distances(start_id: int, game_map: Map) -> dict[int, int]:
     queue = [start_id]
     while queue:
         node_id = queue.pop(0)
-        for edge in game_map.jack_nodes[node_id - 1].edges:
+        for edge in game_map.jack_nodes[node_id].edges:
             nb_id = edge.destination.id
             if nb_id not in distances:
                 distances[nb_id] = distances[node_id] + 1
@@ -31,7 +31,7 @@ def jack_reachable_within(start_id: int, max_hops: int, game_map: Map) -> set[in
     for _ in range(max_hops):
         next_frontier: set[int] = set()
         for nid in frontier:
-            for edge in game_map.jack_nodes[nid - 1].edges:
+            for edge in game_map.jack_nodes[nid].edges:
                 nb = edge.destination.id
                 if nb not in reachable:
                     reachable.add(nb)
@@ -59,7 +59,7 @@ def reachable_cop_nodes(cop_id: int, game_map: Map, max_steps: int = 2) -> set[i
     for _ in range(max_steps):
         next_frontier: set[int] = set()
         for cid in frontier:
-            cn = game_map.cop_nodes[cid - 1]
+            cn = game_map.cop_nodes[cid]
             for nb in cn.edges:
                 if nb.id not in reachable:
                     reachable.add(nb.id)

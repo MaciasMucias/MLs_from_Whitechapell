@@ -125,7 +125,7 @@ def step_round(
 
         # Execute each cop's planned turn
         for cop_turn in cop_turns:
-            cop_node = ctx.game_map.cop_nodes[cop_turn.destination - 1]
+            cop_node = ctx.game_map.cop_nodes[cop_turn.destination]
             # Compute search results before advancing state (jack_trace is ground truth)
             if cop_turn.search:
                 search_results = {

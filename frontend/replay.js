@@ -24,6 +24,7 @@ async function initReplay() {
   });
   document.getElementById("replay-pmf-check").addEventListener("change", e => {
     _replayPmf = e.target.checked;
+    window.setPmfLayerEnabled(_replayPmf);
     renderReplayRound();
   });
 }
@@ -147,7 +148,7 @@ function renderReplayRound() {
       turn:          0,
       turn_limit:    _replayRecord.turn_limit,
       legal_moves:   [],
-      visited:       [],
+      visited_at:    [],
       search_misses: [],
       arrest_misses: [],
       jack_trace:    [],
@@ -168,9 +169,9 @@ function renderReplayRound() {
   const prevRnd = _replaySubStep === 0 && _replayRound > 0
     ? _replayRecord.rounds[_replayRound - 1]
     : null;
-  const visited      = _replaySubStep === 1 ? rnd.visited_after      : (prevRnd ? prevRnd.visited_after      : []);
-  const searchMisses = _replaySubStep === 1 ? rnd.search_misses_after : (prevRnd ? prevRnd.search_misses_after : []);
-  const arrestMisses = _replaySubStep === 1 ? rnd.arrest_misses_after : (prevRnd ? prevRnd.arrest_misses_after : []);
+  const visited      = _replaySubStep === 1 ? rnd.visited_at_after      : (prevRnd ? prevRnd.visited_at_after      : []);
+  const searchMisses = _replaySubStep === 1 ? rnd.search_misses_after   : (prevRnd ? prevRnd.search_misses_after   : []);
+  const arrestMisses = _replaySubStep === 1 ? rnd.arrest_misses_after   : (prevRnd ? prevRnd.arrest_misses_after   : []);
 
   const replayState = {
     game_id:       _replayRecord.game_id,
@@ -180,7 +181,7 @@ function renderReplayRound() {
     turn:          rnd.turn,
     turn_limit:    _replayRecord.turn_limit,
     legal_moves:   [],
-    visited:       visited,
+    visited_at:    visited,
     search_misses: searchMisses,
     arrest_misses: arrestMisses,
     jack_trace:    [],
@@ -286,8 +287,8 @@ function renderReplayPanel(rnd) {
       }
     }
 
-    if (rnd.visited_after.length) {
-      lines.push(`<div class="rpl-info rpl-visited">Visited: ${rnd.visited_after.map(n => n + 1).join(", ")}</div>`);
+    if (rnd.visited_at_after.length) {
+      lines.push(`<div class="rpl-info rpl-visited">Visited: ${rnd.visited_at_after.map(([n]) => n + 1).join(", ")}</div>`);
     }
   }
 

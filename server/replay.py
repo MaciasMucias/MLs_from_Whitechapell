@@ -72,6 +72,8 @@ class ReplayRecord:
     hideout: int
     blocking: bool
     turn_limit: int
+    hideout_zone_anchor: int
+    hideout_zone: list[int]
     rounds: list[ReplayRound] = field(default_factory=list)
 
 
@@ -141,6 +143,8 @@ def load_replay(slot: int) -> ReplayRecord | None:
         hideout=data["hideout"],
         blocking=data["blocking"],
         turn_limit=data["turn_limit"],
+        hideout_zone_anchor=data["hideout_zone_anchor"],
+        hideout_zone=data["hideout_zone"],
         rounds=rounds,
     )
 
@@ -288,6 +292,8 @@ def build_replay(session: "GameSession") -> ReplayRecord:
         hideout=initial.hideout,
         blocking=session.ctx.blocking,
         turn_limit=effective_limit,
+        hideout_zone_anchor=initial.hideout_zone_anchor,
+        hideout_zone=sorted(initial.hideout_zone),
         rounds=rounds,
     )
     return record

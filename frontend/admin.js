@@ -82,8 +82,8 @@ function renderCopPending(i) {
     el.textContent = "No action (will stay + search)";
     return;
   }
-  const dest = pa.destination !== null ? `→ node ${pa.destination}` : "(stay)";
-  const action = pa.search ? "Search" : `Arrest node ${pa.arrest_target ?? "?"}`;
+  const dest = pa.destination !== null ? `→ node ${pa.destination + 1}` : "(stay)";
+  const action = pa.search ? "Search" : `Arrest node ${pa.arrest_target != null ? pa.arrest_target + 1 : "?"}`;
   el.textContent = `${dest}  ·  ${action}`;
 
   // Show/hide arrest controls
@@ -203,7 +203,7 @@ function setupCopRow(i) {
     }
     window.setPickMode("jack", pickableJack, `Cop ${i} arrest target — click a jack node`, (nodeId) => {
       setPending(i, { arrest_target: nodeId });
-      document.getElementById(`adm-cop-arrest-node-${i}`).textContent = `Node ${nodeId}`;
+      document.getElementById(`adm-cop-arrest-node-${i}`).textContent = `Node ${nodeId + 1}`;
     });
   });
 
@@ -219,11 +219,11 @@ function updateCopRows(state) {
   for (let i = 0; i < state.cop_positions.length; i++) {
     const posEl  = document.getElementById(`adm-cop-pos-${i}`);
     const seesEl = document.getElementById(`adm-cop-sees-${i}`);
-    if (posEl) posEl.textContent = state.cop_positions[i];
+    if (posEl) posEl.textContent = state.cop_positions[i] + 1;
     if (seesEl) {
       const copNode = window.mapData?.cop_nodes[state.cop_positions[i]];
       const nb = copNode?.jack_neighbours ?? [];
-      seesEl.textContent = nb.length ? `Sees jack: ${nb.join(", ")}` : "Sees: none";
+      seesEl.textContent = nb.length ? `Sees jack: ${nb.map(n => n + 1).join(", ")}` : "Sees: none";
     }
   }
 }
@@ -235,8 +235,8 @@ function renderAdmin() {
   const s = adminState;
 
   // Jack section
-  setText("adm-jack-pos", s.jack_pos);
-  setText("adm-hideout",  s.hideout);
+  setText("adm-jack-pos", s.jack_pos + 1);
+  setText("adm-hideout",  s.hideout + 1);
 
   // Cops section
   if (s.cop_positions.length !== copRowsBuilt) {

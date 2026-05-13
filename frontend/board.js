@@ -39,7 +39,7 @@ window.refreshBoard = function(state) {
 window.startGameFromState = function(state) {
   document.getElementById("log").innerHTML = "";
   render(state);
-  logEntry(`Forked game ${state.game_id}. Jack at node ${state.jack_pos}, turn ${state.turn}.`, "event-jack");
+  logEntry(`Forked game ${state.game_id}. Jack at node ${state.jack_pos + 1}, turn ${state.turn}.`, "event-jack");
 };
 
 // Render a board state without touching gameId / lastState / adminOnStateUpdate.
@@ -177,7 +177,7 @@ async function startNewGame() {
     const state = await newGame();
     gameId = state.game_id;
     render(state);
-    logEntry(`Game started. Jack begins at node ${state.jack_pos}. Hideout: ${state.hideout}.`, "event-jack");
+    logEntry(`Game started. Jack begins at node ${state.jack_pos + 1}. Hideout: ${state.hideout + 1}.`, "event-jack");
   } catch (e) {
     logEntry(`Error: ${e.message}`, "event-result");
   } finally {
@@ -194,11 +194,11 @@ async function handleJackMove(destination) {
     const state = await jackMove(gameId, destination);
     render(state);
 
-    logEntry(`Turn ${state.turn}: Jack moved to ${state.jack_pos}.`, "event-jack");
+    logEntry(`Turn ${state.turn}: Jack moved to ${state.jack_pos + 1}.`, "event-jack");
     if (state.events) {
       for (const ev of state.events) {
-        const nb = ev.jack_neighbours.join(", ") || "none";
-        logEntry(`  Cop ${ev.cop} → cop-node ${ev.moved_to} (searched: ${nb})`, "event-cop");
+        const nb = ev.jack_neighbours.map(n => n + 1).join(", ") || "none";
+        logEntry(`  Cop ${ev.cop} → cop-node ${ev.moved_to + 1} (searched: ${nb})`, "event-cop");
       }
     }
     if (state.terminated) {
@@ -574,8 +574,8 @@ function updateStatus(state) {
   } else {
     el.innerHTML =
       `Turn <strong>${state.turn + 1}</strong> / ${state.turn_limit}<br>` +
-      `Jack: node <strong>${state.jack_pos}</strong><br>` +
-      `Hideout: node <strong>${state.hideout}</strong><br>` +
+      `Jack: node <strong>${state.jack_pos + 1}</strong><br>` +
+      `Hideout: node <strong>${state.hideout + 1}</strong><br>` +
       `Legal moves: <strong>${state.legal_moves.length}</strong><br>` +
       `Cop-visited: <strong>${state.visited_at.length}</strong>`;
   }

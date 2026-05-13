@@ -333,8 +333,8 @@ function renderCopTrails() {
 function updateSidebar(state) {
   document.getElementById("rc-current").textContent  = state.turn + 1;
   document.getElementById("rc-limit").textContent    = state.turn_limit;
-  document.getElementById("stat-jack").textContent   = state.jack_pos;
-  document.getElementById("stat-hideout").textContent = state.hideout;
+  document.getElementById("stat-jack").textContent   = state.jack_pos + 1;
+  document.getElementById("stat-hideout").textContent = state.hideout + 1;
   document.getElementById("stat-moves").textContent  = state.legal_moves.length;
 }
 
@@ -356,20 +356,20 @@ function updateCopSummary(events) {
     const div = document.createElement("div");
 
     if (ev.action === "search") {
-      const searched = ev.jack_neighbours?.join(", ") || "none";
-      const hits     = ev.search_hits || [];
+      const searched = ev.jack_neighbours?.map(n => n + 1).join(", ") || "none";
+      const hits     = (ev.search_hits || []).map(n => n + 1);
       div.className  = "cop-event searching";
       div.innerHTML  = hits.length > 0
-        ? `<span class="cop-id">Cop ${copIdx + 1}</span> searched ${searched} → <span class="hit">found ${hits.join(", ")}</span>`
-        : `<span class="cop-id">Cop ${copIdx + 1}</span> searched ${searched} → <span class="miss">no finds</span>`;
+        ? `<span class="cop-id">Policjant ${copIdx + 1}</span> poszukiwał na ${searched} → <span class="hit">znalazł ${hits.join(", ")}</span>`
+        : `<span class="cop-id">Policjant ${copIdx + 1}</span> poszukiwał na ${searched} → <span class="miss">nic nie znalazł</span>`;
     } else {
       div.className = ev.arrest_success ? "cop-event arrest-success" : "cop-event arresting";
       const targetDesc = ev.arrest_all
-        ? "all adjacent nodes"
-        : `node ${ev.arrest_target ?? "?"}`;
+        ? "wszystkie sąsiednie pola"
+        : `pole ${ev.arrest_target != null ? ev.arrest_target + 1 : "?"}`;
       div.innerHTML = ev.arrest_success
-        ? `<span class="cop-id">Cop ${copIdx + 1}</span> arrested ${targetDesc} → <span class="hit">CAUGHT</span>`
-        : `<span class="cop-id">Cop ${copIdx + 1}</span> arrested ${targetDesc} → <span class="miss">not found</span>`;
+        ? `<span class="cop-id">Policjant ${copIdx + 1}</span> aresztował ${targetDesc} → <span class="hit">ZŁAPANY</span>`
+        : `<span class="cop-id">Policjant ${copIdx + 1}</span> aresztował ${targetDesc} → <span class="miss">nie znaleziono</span>`;
     }
 
     container.appendChild(div);
@@ -664,14 +664,24 @@ async function handleJackMove(destination) {
   }
 }
 
+// ── Helpers ───────────────────────────────────────────────
+
+function polishRoundPlural(n) {
+  if (n === 1) return "rundę";
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return "rundy";
+  return "rund";
+}
+
 // ── Game over overlay ─────────────────────────────────────
 
 function showGameOver(state) {
   const outcomes = {
-    jack:       { icon: "🌙", title: "You Escaped",  sub: "You slipped through the night and reached your hideout. The police are left with nothing." },
-    cops:       { icon: "🔒", title: "Caught",        sub: "A constable's hand falls on your shoulder. The game is up." },
-    timeout:    { icon: "⏳", title: "Time's Up",     sub: "Dawn breaks over Whitechapel. The police seal every route — there's no way out now." },
-    surrounded: { icon: "🔦", title: "Surrounded",    sub: "Every path is blocked. The police have closed the net." },
+    jack:       { icon: "🌙", title: "Ucieczka",         sub: "Dotarłeś/Dotarłaś do kryjówki. Policja nie zdążyła cię złapać." },
+    cops:       { icon: "🔒", title: "Złapany/Złapana",  sub: "Policjant cię złapał. Koniec gry." },
+    timeout:    { icon: "⏳", title: "Koniec czasu",      sub: "Przekroczono limit rund. Policja wygrała." },
+    surrounded: { icon: "🔦", title: "Otoczony/Otoczona", sub: "Wszystkie drogi są zablokowane. Policja wygrała." },
   };
 
   const o = outcomes[state.winner] || { icon: "?", title: state.winner, sub: "" };
@@ -679,16 +689,16 @@ function showGameOver(state) {
   document.getElementById("gameover-title").textContent = o.title;
   document.getElementById("gameover-sub").textContent   = o.sub;
   document.getElementById("gameover-turns").textContent =
-    `${state.turn} round${state.turn !== 1 ? "s" : ""} played`;
+    `Rozegrano ${state.turn} ${polishRoundPlural(state.turn)}`;
 
   const nextIndex = courseIndex + 1;
   const btn = document.getElementById("gameover-btn");
 
   if (nextIndex < course.length) {
-    btn.textContent = "Next Map →";
+    btn.textContent = "Następna mapa →";
     btn.addEventListener("click", async () => {
       btn.disabled    = true;
-      btn.textContent = "Loading…";
+      btn.textContent = "Ładowanie…";
       const nextEntry   = course[nextIndex];
       const gamingHabit = sessionStorage.getItem("gaming_habit") || "unknown";
       const newState    = await newGame(nextEntry.name, gamingHabit);
@@ -697,7 +707,7 @@ function showGameOver(state) {
       window.location.reload();
     });
   } else {
-    btn.textContent = "Course Complete";
+    btn.textContent = "Kurs ukończony";
     btn.addEventListener("click", () => {
       sessionStorage.clear();
       window.location.href = "index.html";

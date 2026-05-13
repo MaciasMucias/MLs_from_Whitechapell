@@ -217,9 +217,9 @@ function renderInitialPanel() {
   const rec = _replayRecord;
   const lines = [
     `<div class="rpl-section"><strong>Initial state</strong></div>`,
-    `<div class="rpl-row"><span class="rpl-jack">Jack</span> starts at <strong>${rec.initial_jack_pos}</strong></div>`,
-    `<div class="rpl-info">Hideout: ${rec.hideout} &nbsp;·&nbsp; Turn limit: ${rec.turn_limit}</div>`,
-    `<div class="rpl-info">Cops: ${rec.initial_cop_positions.join(", ")}</div>`,
+    `<div class="rpl-row"><span class="rpl-jack">Jack</span> starts at <strong>${rec.initial_jack_pos + 1}</strong></div>`,
+    `<div class="rpl-info">Hideout: ${rec.hideout + 1} &nbsp;·&nbsp; Turn limit: ${rec.turn_limit}</div>`,
+    `<div class="rpl-info">Cops: ${rec.initial_cop_positions.map(n => n + 1).join(", ")}</div>`,
     `<div style="margin-top:8px"><button onclick="forkFromCurrentTurn()" style="font-size:11px;padding:2px 8px">▶ Play from here</button></div>`,
   ];
   el.innerHTML = lines.join("");
@@ -232,7 +232,7 @@ function renderReplayMeta() {
     `<strong>Game ${_replayRecord.game_id}</strong> &nbsp;·&nbsp; ` +
     `${_replayRecord.winner === "jack" ? "Jack escapes" : "Cops win"} &nbsp;·&nbsp; ` +
     `${_replayRecord.turns_survived} turns &nbsp;·&nbsp; ` +
-    `Hideout: ${_replayRecord.hideout}`;
+    `Hideout: ${_replayRecord.hideout + 1}`;
 }
 
 function renderReplayPanel(rnd) {
@@ -244,14 +244,14 @@ function renderReplayPanel(rnd) {
   lines.push(`<div class="rpl-section"><strong>Round ${rnd.turn + 1} · ${subLabel}</strong></div>`);
 
   // Jack section — always shown
-  const via = rnd.jack_via.length ? ` via cop-node ${rnd.jack_via.join(",")}` : "";
+  const via = rnd.jack_via.length ? ` via cop-node ${rnd.jack_via.map(n => n + 1).join(",")}` : "";
   lines.push(
     `<div class="rpl-row"><span class="rpl-jack">Jack</span>` +
-    ` <strong>${rnd.jack_from}</strong> → <strong>${rnd.jack_to}</strong>${via}</div>`
+    ` <strong>${rnd.jack_from + 1}</strong> → <strong>${rnd.jack_to + 1}</strong>${via}</div>`
   );
   if (rnd.jack_legal_moves.length) {
     const alts = rnd.jack_legal_moves.filter(m => m !== rnd.jack_to);
-    lines.push(`<div class="rpl-info">Alternatives: ${alts.join(", ") || "none"}</div>`);
+    lines.push(`<div class="rpl-info">Alternatives: ${alts.map(n => n + 1).join(", ") || "none"}</div>`);
   }
 
   // Cops section — only on sub-step 1
@@ -260,11 +260,11 @@ function renderReplayPanel(rnd) {
       const color = window.COP_COLORS ? window.COP_COLORS[ca.cop_idx % window.COP_COLORS.length] : "#aaa";
       const dot   = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:4px"></span>`;
       const roleTag = ca.role ? `<span class="rpl-role rpl-role-${ca.role}">${ca.role}</span>` : "";
-      lines.push(`<div class="rpl-cop-header">${dot}<strong>Cop ${ca.cop_idx}</strong> ${roleTag} ${ca.from_node} → ${ca.to_node}</div>`);
+      lines.push(`<div class="rpl-cop-header">${dot}<strong>Cop ${ca.cop_idx}</strong> ${roleTag} ${ca.from_node + 1} → ${ca.to_node + 1}</div>`);
 
       if (ca.action === "search") {
-        const hitParts  = ca.search_hits.map(n => `<span class="rpl-hit">${n}</span>`).join(" ");
-        const missParts = ca.search_miss_nodes.map(n => `<span class="rpl-miss">${n}</span>`).join(" ");
+        const hitParts  = ca.search_hits.map(n => `<span class="rpl-hit">${n + 1}</span>`).join(" ");
+        const missParts = ca.search_miss_nodes.map(n => `<span class="rpl-miss">${n + 1}</span>`).join(" ");
         lines.push(
           `<div class="rpl-info">Search: ${hitParts || "—"} hit &nbsp; ${missParts || "—"} miss</div>`
         );
@@ -273,7 +273,7 @@ function renderReplayPanel(rnd) {
           ? `<span class="rpl-hit">SUCCESS</span>`
           : `<span class="rpl-miss">miss</span>`;
         const targets = (Array.isArray(ca.arrest_target) && ca.arrest_target.length)
-          ? ca.arrest_target.join(", ")
+          ? ca.arrest_target.map(n => n + 1).join(", ")
           : "?";
         lines.push(`<div class="rpl-info">Arrest nodes ${targets}: ${outcome}</div>`);
       }
@@ -287,7 +287,7 @@ function renderReplayPanel(rnd) {
     }
 
     if (rnd.visited_after.length) {
-      lines.push(`<div class="rpl-info rpl-visited">Visited: ${rnd.visited_after.join(", ")}</div>`);
+      lines.push(`<div class="rpl-info rpl-visited">Visited: ${rnd.visited_after.map(n => n + 1).join(", ")}</div>`);
     }
   }
 

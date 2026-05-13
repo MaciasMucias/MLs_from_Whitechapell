@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -238,56 +238,54 @@
 </head>
 <body>
   <div class="card">
-    <p class="eyebrow">Research Participation — 1888</p>
     <h1>Letters from <em>Whitechapel</em></h1>
     <div class="rule"></div>
 
     <p class="description">
-      The night is yours. You move unseen through the gaslit streets of Whitechapel,
-      evading the Metropolitan Police as they close in. Reach your hideout before they
-      find you — every move counts, and the net grows tighter with each round.
+      Poruszasz się po ulicach Whitechapel, próbując dotrzeć do swojej kryjówki,
+      zanim policja cię złapie.
     </p>
 
-    <label class="question-label">Have you played Letters from Whitechapel before?</label>
+    <label class="question-label">Czy grałeś/grałaś wcześniej w Letters from Whitechapel?</label>
     <div class="radio-group">
       <label class="radio-option">
-        <input type="radio" name="gaming_habit" value="never_played"> <span>Never played</span>
+        <input type="radio" name="gaming_habit" value="never_played"> <span>Nigdy nie grałem/grałam</span>
       </label>
       <label class="radio-option">
-        <input type="radio" name="gaming_habit" value="played_few"> <span>Played 1–2 times</span>
+        <input type="radio" name="gaming_habit" value="played_few"> <span>Grałem/grałam 1–2 razy</span>
       </label>
       <label class="radio-option">
-        <input type="radio" name="gaming_habit" value="played_many"> <span>Played multiple times</span>
+        <input type="radio" name="gaming_habit" value="played_many"> <span>Grałem/grałam wiele razy</span>
       </label>
     </div>
 
     <details class="tutorial">
-      <summary>How to play</summary>
+      <summary>Jak grać</summary>
       <div class="tutorial-body">
         <div class="tutorial-step">
           <span class="step-num">1</span>
-          <p class="step-text"><strong>Your goal:</strong> Move Jack from his starting position to his <strong style="color:var(--color-hideout)">rose-ringed</strong> hideout before the turn limit expires. Click any <strong style="color:var(--color-legal)">orange-ringed</strong> node to move there — your position glows <strong style="color:var(--color-jack)">green</strong>. A <strong style="color:var(--color-zone-stroke)">purple zone</strong> on the board shows the approximate area where the hideout lies.</p>
+          <p class="step-text"><strong>Cel gry:</strong> Przesuń Kubę Rozpruwacza z pozycji startowej do jego <strong style="color:var(--color-hideout)">kryjówki (różowe kółko)</strong> przed upływem limitu rund. Kliknij dowolne <strong style="color:var(--color-legal)">pomarańczowe pole</strong>, żeby się tam przesunąć — twoja pozycja jest zaznaczona na <strong style="color:var(--color-jack)">zielono</strong>. <strong style="color:var(--color-zone-stroke)">Fioletowa strefa</strong> na planszy pokazuje przybliżony obszar, w którym znajduje się kryjówka.</p>
         </div>
         <div class="tutorial-step">
           <span class="step-num">2</span>
-          <p class="step-text"><strong>Two kinds of node:</strong> Large circular nodes are <em>Jack nodes</em> — the positions you move between. Small squares are <em>cop nodes</em> — the intersections where police stand and act. Each alley between two Jack nodes passes through one or more cop nodes.</p>
+          <p class="step-text"><strong>Dwa rodzaje pól:</strong> Duże okręgi to <em>pola Kuby Rozpruwacza</em> — między nimi się poruszasz. Małe kwadraty to <em>pola policji</em> — skrzyżowania, na których stoją i działają policjanci. Każda uliczka między dwoma polami Kuby Rozpruwacza przechodzi przez jedno lub więcej pól policji.</p>
         </div>
         <div class="tutorial-step">
           <span class="step-num">3</span>
-          <p class="step-text"><strong>Police turn:</strong> After you move, each cop moves up to 2 steps along the police network, then chooses one action. <strong>Search</strong> — they check all Jack nodes adjacent to their position against your trail; confirmed nodes turn <strong style="color:var(--color-visited)">blue</strong> permanently. <strong>Arrest</strong> — they attempt to catch you on those same adjacent nodes. If you are there, the police win. All cops share every discovery instantly.</p>
+          <p class="step-text"><strong>Tura policji:</strong> Po twoim ruchu każdy policjant porusza się maksymalnie o 2 kroki wzdłuż sieci policyjnej, a następnie wybiera jedną akcję. <strong>Poszukiwanie</strong> — policjant sprawdza wszystkie sąsiednie pola Kuby Rozpruwacza i porównuje je z trasą, którą przeszedłeś/przeszłaś w tej grze; pola, na których byłeś/byłaś, zostają trwale zaznaczone na <strong style="color:var(--color-visited)">niebiesko</strong>. <strong>Aresztowanie</strong> — policjant próbuje cię zatrzymać na tych samych sąsiednich polach. Jeśli tam jesteś, policja wygrywa. Wszyscy policjanci natychmiast dzielą się odkryciami.</p>
         </div>
         <div class="tutorial-step" style="flex-direction:column;gap:6px;">
-          <p class="step-text" style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--brass);margin-bottom:4px;">Important details</p>
-          <p class="step-text">• Cops <strong>do not block your movement</strong> — you can walk through any alley regardless of where cops stand.</p>
-          <p class="step-text">• When a cop arrests, they target <strong>all adjacent Jack nodes simultaneously</strong>, not just one.</p>
-          <p class="step-text">• A failed arrest or missed search still tells the police something — they now know you were not on those nodes at that moment.</p>
-          <p class="step-text">• The <strong style="color:var(--color-zone-stroke)">purple-shaded zone</strong> on the board marks the approximate area where your hideout lies — the police know this zone at the start of the game.</p>
+          <p class="step-text" style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--brass);margin-bottom:4px;">Ważne szczegóły</p>
+          <p class="step-text">• Policjanci <strong>nie blokują twojego ruchu</strong> — możesz przejść każdą uliczką niezależnie od tego, gdzie stoją.</p>
+          <p class="step-text">• Podczas aresztowania policjant atakuje <strong>wszystkie sąsiednie pola Kuby Rozpruwacza jednocześnie</strong>, nie tylko jedno.</p>
+          <p class="step-text">• Nieudane aresztowanie lub poszukiwanie bez wyniku też daje policji informację — wiedzą, że w tym momencie cię tam nie było.</p>
+          <p class="step-text">• <strong style="color:var(--color-zone-stroke)">Fioletowa strefa</strong> na planszy oznacza przybliżony obszar, w którym leży twoja kryjówka — policja zna tę strefę od początku gry.</p>
         </div>
       </div>
     </details>
 
-    <button class="start-btn" id="start-btn" disabled>Begin the Night</button>
-    <p class="footnote">Your answers are collected anonymously for academic research.</p>
+    <button class="start-btn" id="start-btn" disabled>Zacznij grę</button>
+    <p class="footnote">Twoje odpowiedzi są zbierane anonimowo na potrzeby badań naukowych.</p>
   </div>
 
   <script src="api.js"></script>
@@ -302,7 +300,7 @@
     document.getElementById('start-btn').addEventListener('click', async () => {
       const btn = document.getElementById('start-btn');
       btn.disabled = true;
-      btn.textContent = 'Loading…';
+      btn.textContent = 'Ładowanie…';
 
       const checked = document.querySelector('input[name="gaming_habit"]:checked');
       const gamingHabit = checked ? checked.value : 'unknown';
@@ -320,8 +318,8 @@
         window.location.href = 'game.html';
       } catch (e) {
         btn.disabled = false;
-        btn.textContent = 'Begin the Night';
-        alert('Could not connect to the server. Please try again.');
+        btn.textContent = 'Zacznij grę';
+        alert('Nie można połączyć się z serwerem. Spróbuj ponownie.');
       }
     });
   </script>

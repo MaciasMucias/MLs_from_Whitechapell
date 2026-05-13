@@ -151,7 +151,7 @@
     details.tutorial {
       border: 1px solid var(--border);
       border-radius: 2px;
-      margin-bottom: 28px;
+      margin-bottom: 20px;
       overflow: hidden;
     }
 
@@ -180,6 +180,44 @@
       flex-direction: column;
       gap: 14px;
     }
+
+    .rules-confirm {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--border-brass);
+      border-radius: 2px;
+      background: rgba(201,148,26,0.06);
+      margin-bottom: 28px;
+      cursor: pointer;
+    }
+    .rules-confirm input[type="checkbox"] {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid var(--brass);
+      border-radius: 2px;
+      flex-shrink: 0;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .rules-confirm input[type="checkbox"]:checked { background: var(--brass); }
+    .rules-confirm input[type="checkbox"]:checked::after {
+      content: '✓';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      color: var(--ink);
+      line-height: 1;
+    }
+    .rules-confirm span {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .rules-confirm:has(input:checked) span { color: var(--text); }
 
     .tutorial-step { display: flex; gap: 14px; align-items: flex-start; }
 
@@ -259,7 +297,7 @@
       </label>
     </div>
 
-    <details class="tutorial">
+    <details class="tutorial" open>
       <summary>Jak grać</summary>
       <div class="tutorial-body">
         <div class="tutorial-step">
@@ -284,18 +322,27 @@
       </div>
     </details>
 
+    <label class="rules-confirm">
+      <input type="checkbox" id="rules-confirmed">
+      <span>Zapoznałem/zapoznałam się z zasadami</span>
+    </label>
+
     <button class="start-btn" id="start-btn" disabled>Zacznij grę</button>
     <p class="footnote">Twoje odpowiedzi są zbierane anonimowo na potrzeby badań naukowych.</p>
   </div>
 
   <script src="api.js"></script>
   <script>
-    // Enable start button only after an experience level is selected
+    function updateStartBtn() {
+      const habitSelected = !!document.querySelector('input[name="gaming_habit"]:checked');
+      const rulesConfirmed = document.getElementById('rules-confirmed').checked;
+      document.getElementById('start-btn').disabled = !(habitSelected && rulesConfirmed);
+    }
+
     document.querySelectorAll('input[name="gaming_habit"]').forEach(r =>
-      r.addEventListener('change', () => {
-        document.getElementById('start-btn').disabled = false;
-      })
+      r.addEventListener('change', updateStartBtn)
     );
+    document.getElementById('rules-confirmed').addEventListener('change', updateStartBtn);
 
     document.getElementById('start-btn').addEventListener('click', async () => {
       const btn = document.getElementById('start-btn');

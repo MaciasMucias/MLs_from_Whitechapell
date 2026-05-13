@@ -59,12 +59,13 @@ class HeuristicCops(CopAgent):
 
     def __init__(
         self,
-        arrest_threshold: float = 0.25,
+        arrest_threshold: float = 0.8,
         min_arrest_fraction: float = 0.4,
         pursuit_fraction: float = 0.4,
         pursuit_weight: float = 0.5,
-        searcher_prox_fraction: float = 0.25,
+        searcher_prox_fraction: float = 0.5,
         arrest_discount: float = 0.0,
+        miss_discount_decay: float = 0.7,
         hideout_blend: float = 0.5,
         n_iterations: int = 30,
         cop_max_steps: int = 2,
@@ -76,6 +77,7 @@ class HeuristicCops(CopAgent):
         self._pursuit_weight = pursuit_weight
         self._searcher_prox_fraction = searcher_prox_fraction
         self._arrest_discount = arrest_discount
+        self._miss_discount_decay = miss_discount_decay
         self._hideout_blend = hideout_blend
         self._n_iterations = n_iterations
         self._cop_max_steps = cop_max_steps
@@ -132,6 +134,7 @@ class HeuristicCops(CopAgent):
         assignment   = self._assign_destinations(
             position_pmf, hideout_pmf, state.cop_positions, game_map,
             frozenset(n for n, _ in state.cop_knowledge.visited_at),
+            tuple(state.cop_knowledge.search_misses),
             effective_threshold=effective_threshold,
             current_depth=current_depth,
         )
@@ -320,6 +323,7 @@ class HeuristicCops(CopAgent):
         cop_positions: tuple[int, ...],
         game_map: Map,
         confirmed_visited: frozenset[int] = frozenset(),
+        search_misses: tuple[tuple[int, int], ...] = (),
         effective_threshold: float = 0.0,
         current_depth: int = 0,
     ) -> list[tuple[int, str, float, float | None]]:
@@ -333,23 +337,44 @@ class HeuristicCops(CopAgent):
         Searcher score:
             coverage only
 
-        proximity_normalised is 1 for the cop node closest to the position PMF
-        centroid and 0 for the furthest. Using the position PMF centroid (not the
-        hideout centroid) means the signal is always meaningful and well-grounded
-        — it rescues cops that drifted into zero-coverage corners by pulling them
-        back toward where Jack is believed to be right now.
+        proximity_normalised is 1 for the cop node closest to the direction target
+        and 0 for the furthest. The direction target is a blend of the frontier
+        centroid (PMF nodes at BFS depth >= current_depth-1, tracking Jack's
+        advancing edge) and the hideout centroid. Using the frontier rather than
+        the full PMF centroid avoids the centroid being dragged back toward the
+        start by high-mass backtracking paths.
         """
-        # Position PMF centroid — probability-weighted mean Jack location.
-        cx = sum(p * game_map.jack_nodes[v].x for v, p in position_pmf.items())
-        cy = sum(p * game_map.jack_nodes[v].y for v, p in position_pmf.items())
+        # Frontier centroid: PMF-weighted centroid of nodes Jack has recently
+        # reached (BFS depth >= current_depth - 1). This tracks Jack's advancing
+        # edge instead of the broad PMF mean, which is dominated by depth-1 and
+        # depth-0 nodes from backtracking paths and drags the centroid back toward
+        # the start even as Jack moves away.
+        frontier_threshold = max(1, current_depth - 1)
+        frontier_pmf = {
+            v: p for v, p in position_pmf.items()
+            if self._jack_start_distances.get(v, 0) >= frontier_threshold
+        }
+        if frontier_pmf:
+            ftotal = sum(frontier_pmf.values())
+            fcx = sum(p * game_map.jack_nodes[v].x for v, p in frontier_pmf.items()) / ftotal
+            fcy = sum(p * game_map.jack_nodes[v].y for v, p in frontier_pmf.items()) / ftotal
+        else:
+            fcx = sum(p * game_map.jack_nodes[v].x for v, p in position_pmf.items())
+            fcy = sum(p * game_map.jack_nodes[v].y for v, p in position_pmf.items())
 
         # Hideout PMF centroid — blend toward likely destination so pursuers
         # intercept Jack's path rather than purely chasing his current position.
+        # Scale the blend with turn progress so that early-game pursuers track
+        # Jack's frontier (blend ≈ 0) and late-game pursuers intercept his path
+        # to the hideout (blend → hideout_blend). Fixed blend causes cops to aim
+        # at the center of the board when Jack is on one side and the hideout is
+        # on the other.
         hx = sum(p * game_map.jack_nodes[h].x for h, p in hideout_pmf.items())
         hy = sum(p * game_map.jack_nodes[h].y for h, p in hideout_pmf.items())
-        blend = self._hideout_blend
-        tx = (1.0 - blend) * cx + blend * hx
-        ty = (1.0 - blend) * cy + blend * hy
+        turn = current_depth - 1
+        blend = self._hideout_blend * turn / max(1, game_map.turn_limit - 1)
+        tx = (1.0 - blend) * fcx + blend * hx
+        ty = (1.0 - blend) * fcy + blend * hy
 
         # Pre-compute each cop's reachable set (same every iteration).
         reachable_sets = [
@@ -377,6 +402,14 @@ class HeuristicCops(CopAgent):
                 for cid, d in all_prox.items()
             }
 
+        # Most-recent miss turn per Jack node — used to compute the history discount
+        # inside the ACO loop. Built once outside the loop since search_misses is
+        # fixed for the entire assignment call.
+        last_searched: dict[int, int] = {}
+        for v, t in search_misses:
+            if v not in last_searched or last_searched[v] < t:
+                last_searched[v] = t
+
         best_score: float = -1.0
         # Default: cops stay put if every iteration is invalid (all reachable nodes occupied).
         best_assignment: list[tuple[int, str, float, float | None]] = [
@@ -396,9 +429,20 @@ class HeuristicCops(CopAgent):
             remaining_arrest: dict[int, float] = {
                 k: v for k, v in position_pmf.items() if k not in confirmed_visited
             }
-            remaining_search: dict[int, float] = {
-                k: v for k, v in position_pmf.items() if k not in confirmed_visited
-            }
+            # remaining_search applies a history discount to nodes that were searched
+            # in previous rounds: weight = PMF[v] * (1 - decay^turns_since_search).
+            # The factor starts low (recently cleared → less worth revisiting) and
+            # recovers toward 1.0 as turns pass (Jack could have returned).
+            remaining_search: dict[int, float] = {}
+            for k, v in position_pmf.items():
+                if k in confirmed_visited:
+                    continue
+                if k in last_searched:
+                    turns_since = current_depth - last_searched[k]
+                    factor = 1.0 - self._miss_discount_decay ** turns_since
+                    remaining_search[k] = v * factor
+                else:
+                    remaining_search[k] = v
             assignment: list[tuple[int, str, float, float | None]] = [
                 (0, "searcher", 0.0, None)
             ] * len(cop_positions)

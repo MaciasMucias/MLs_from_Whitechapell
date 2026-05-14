@@ -214,3 +214,5 @@ __marimo__/
 
 data/replays/*.json
 data/*.sqlite
+
+notes/

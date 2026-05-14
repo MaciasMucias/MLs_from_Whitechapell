@@ -282,6 +282,25 @@ def build_map():
                     queue.append(next_cid)
 
     # --- Find traversal routes for each jack-jack edge ---
+    def remove_dominated_routes(routes: list[tuple[int, ...]]) -> list[tuple[int, ...]]:
+        """
+        Remove routes whose cop-node set is a strict superset of another route's set.
+        Such routes can never provide an alternative when the smaller-set route is blocked,
+        because they share all the same cops plus more.
+        Also deduplicates routes with identical cop-node sets (order irrelevant for blocking).
+        """
+        unique: dict[frozenset, tuple[int, ...]] = {}
+        for r in routes:
+            rs = frozenset(r)
+            if rs not in unique:
+                unique[rs] = r
+        route_sets = list(unique.keys())
+        kept_sets = [
+            rs for rs in route_sets
+            if not any(other < rs for other in route_sets if other != rs)
+        ]
+        return [unique[rs] for rs in kept_sets]
+
     def find_routes(jack_a: int, jack_b: int) -> list[tuple[int, ...]]:
         b_cops = jack_cop_adj[jack_b]
         result: list[tuple[int, ...]] = []
@@ -310,7 +329,7 @@ def build_map():
                 continue
             jack_edges_seen.add(key)
 
-            routes = find_routes(node_id, nb_id)
+            routes = remove_dominated_routes(find_routes(node_id, nb_id))
             if not routes:
                 missing.append((node_id, nb_id))
                 print(f"  WARNING: no route for ({node_id}, {nb_id})", flush=True)

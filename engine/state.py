@@ -17,6 +17,7 @@ class CopKnowledge:
         arrest_misses: Unique (jack_node_id, turn) pairs: Jack absent at exactly
                        this turn.
     """
+
     jack_start: int
     visited_at: tuple[tuple[int, int], ...] = ()
     search_misses: tuple[tuple[int, int], ...] = ()
@@ -55,6 +56,7 @@ class GameState:
                              different results.
         cop_knowledge:  What cops are told — potentially Director-modified.
     """
+
     jack_pos: int
     cop_positions: tuple[int, ...]
     hideout: int

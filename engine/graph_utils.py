@@ -23,7 +23,6 @@ def jack_bfs_distances(start_id: int, game_map: Map) -> dict[int, int]:
     return distances
 
 
-
 def jack_reachable_within(start_id: int, max_hops: int, game_map: Map) -> set[int]:
     """Set of Jack node IDs reachable from start_id in at most max_hops moves."""
     reachable = {start_id}

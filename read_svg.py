@@ -9,7 +9,9 @@ class Node:
 
     def __init__(self, node_type, coordinates, node_id=None):
         if node_id is None:
-            self.id = self.__class__.id  # Jack spots have id corresponding to their numbers
+            self.id = (
+                self.__class__.id
+            )  # Jack spots have id corresponding to their numbers
             self.__class__.id += 1
         else:
             self.id = node_id
@@ -30,7 +32,7 @@ class Node:
     def distance(pos1, pos2):
         dx = pos1[0] - pos2[0]
         dy = pos1[1] - pos2[1]
-        return (dx**2 + dy**2)**0.5
+        return (dx**2 + dy**2) ** 0.5
 
     def new_connection(self, other):
         if self is not other and self not in other.connected_paths:
@@ -39,7 +41,7 @@ class Node:
 
     @classmethod
     def from_path(cls, path):
-        path_string = path.getAttribute('d')
+        path_string = path.getAttribute("d")
         args = path_string.split(" ")
         coordinates = None
         current_mode = ""
@@ -62,8 +64,12 @@ class Node:
                 coordinates.append(values.copy())
             elif current_mode in ["m", "l"]:
                 coordinates.append(coordinates[points_n - 1].copy())
-                coordinates[points_n][0] = round(coordinates[points_n][0] + values[0], 8)
-                coordinates[points_n][1] = round(coordinates[points_n][1] + values[1], 8)
+                coordinates[points_n][0] = round(
+                    coordinates[points_n][0] + values[0], 8
+                )
+                coordinates[points_n][1] = round(
+                    coordinates[points_n][1] + values[1], 8
+                )
             elif current_mode == "H":
                 coordinates.append(coordinates[points_n - 1].copy())
                 coordinates[points_n][0] = values
@@ -79,7 +85,10 @@ class Node:
             else:
                 raise RuntimeError("Unexpected path mode")
             points_n += 1
-        tmp = [list(map(lambda x: round(x, 2), coordinates_set)) for coordinates_set in coordinates]
+        tmp = [
+            list(map(lambda x: round(x, 2), coordinates_set))
+            for coordinates_set in coordinates
+        ]
         return cls("path", tmp)
 
     def purify_paths(self):
@@ -93,21 +102,29 @@ class Node:
 
     @classmethod
     def from_cops_spots(cls, rect):
-        x = float(rect.getAttribute('x')) + float(rect.getAttribute('width')) / 2
-        y = float(rect.getAttribute('y')) + float(rect.getAttribute('height')) / 2
-        node_type = "cops_spawn" if rect.getAttribute("style").find("stroke:#ffff00") != -1 else "cops"
+        x = float(rect.getAttribute("x")) + float(rect.getAttribute("width")) / 2
+        y = float(rect.getAttribute("y")) + float(rect.getAttribute("height")) / 2
+        node_type = (
+            "cops_spawn"
+            if rect.getAttribute("style").find("stroke:#ffff00") != -1
+            else "cops"
+        )
         return cls(node_type, [[round(x, 2), round(y, 2)]])
 
     @classmethod
     def from_jack_spot(cls, jack_spot):
         scale = 0.26458333  # "matrix(0.26458333,0,0,0.26458333,9.26376,-28.409268)"
-        dx = 9.26376        # Hard coded from values in SVG file
+        dx = 9.26376  # Hard coded from values in SVG file
         dy = -28.409268
-        ellipse = jack_spot.getElementsByTagName('ellipse')[0]
-        text = jack_spot.getElementsByTagName('tspan')[0]
-        node_type = "jack_start" if ellipse.getAttribute("style").find("fill:#ff0000") != -1 else "jack"
-        x = round(float(ellipse.getAttribute('cx')) * scale + dx, 2)
-        y = round(float(ellipse.getAttribute('cy')) * scale + dy, 2)
+        ellipse = jack_spot.getElementsByTagName("ellipse")[0]
+        text = jack_spot.getElementsByTagName("tspan")[0]
+        node_type = (
+            "jack_start"
+            if ellipse.getAttribute("style").find("fill:#ff0000") != -1
+            else "jack"
+        )
+        x = round(float(ellipse.getAttribute("cx")) * scale + dx, 2)
+        y = round(float(ellipse.getAttribute("cy")) * scale + dy, 2)
         jack_number = int(text.firstChild.nodeValue)
         return cls(node_type, [[x, y]], node_id=jack_number)
 
@@ -119,7 +136,13 @@ class Node:
         if self.type in ["cops", "cops_spawn"]:
             color = (0, 0, 0) if self.type == "cops" else (255, 255, 0)
             color = color if set_color is None else set_color
-            pygame.draw.rect(screen, color, pygame.Rect(self.coordinates[0][0]-1, self.coordinates[0][1]-1, 4, 4))
+            pygame.draw.rect(
+                screen,
+                color,
+                pygame.Rect(
+                    self.coordinates[0][0] - 1, self.coordinates[0][1] - 1, 4, 4
+                ),
+            )
         if self.type == "path":
             color = (0, 0, 0)
             color = color if set_color is None else set_color
@@ -127,7 +150,9 @@ class Node:
 
     def find_cops(self, searched):
         for node in searched.connected_paths:
-            if node is not self and (searched is self or node not in self.connected_paths):
+            if node is not self and (
+                searched is self or node not in self.connected_paths
+            ):
                 if node.type in ["cops", "cops_spawn"]:
                     self.connected_cops.append(node)
                     return
@@ -144,7 +169,9 @@ class Node:
 
     def find_jack(self, searched):
         for node in searched.connected_paths:
-            if node is not self and (searched is self or node not in self.connected_paths):
+            if node is not self and (
+                searched is self or node not in self.connected_paths
+            ):
                 if node.type in ["jack", "jack_start"]:
                     self.connected_jack.append(node)
                     return
@@ -167,9 +194,13 @@ svg_file = "Mapa_v5.svg"
 doc = minidom.parse(svg_file)  # parseString also exists
 
 
-paths = doc.getElementsByTagName('path')
-cops = doc.getElementsByTagName('rect')
-jack = [spot for spot in doc.getElementsByTagName("g") if spot.getAttribute("id").find("layer") == -1]
+paths = doc.getElementsByTagName("path")
+cops = doc.getElementsByTagName("rect")
+jack = [
+    spot
+    for spot in doc.getElementsByTagName("g")
+    if spot.getAttribute("id").find("layer") == -1
+]
 
 jack_nodes = sorted([Node.from_jack_spot(spot) for spot in jack], key=lambda x: x.id)
 cops_nodes = [Node.from_cops_spots(spot) for spot in cops]
@@ -212,4 +243,4 @@ for node in jack_nodes:
     for connected in node.connected_cops:
         neighbour_matrix[node.id - 1, connected.id - 196] = 1
 
-a=0
+a = 0

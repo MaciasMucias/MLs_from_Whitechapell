@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 
-def hideout_uncertainty(hideout_zone: frozenset[int], position_pmf: dict[int, float]) -> float:
+def hideout_uncertainty(
+    hideout_zone: frozenset[int], position_pmf: dict[int, float]
+) -> float:
     """
     Fraction of hideout zone nodes that still carry nonzero position PMF mass
     at night end. Returns a value in [0, 1].

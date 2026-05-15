@@ -13,12 +13,12 @@ DB_PATH = Path("data/games.sqlite")
 class ParticipantGame:
     game_id: str
     map_name: str
-    gaming_habit: str       # 'never' | 'sometimes' | 'regularly' | 'unknown'
-    outcome: str            # winner string from engine
+    gaming_habit: str  # 'never' | 'sometimes' | 'regularly' | 'unknown'
+    outcome: str  # winner string from engine
     turns_survived: int
     turn_limit: int
     move_sequence: list
-    replay: dict            # full ReplayRecord serialised (asdict)
+    replay: dict  # full ReplayRecord serialised (asdict)
 
 
 def init_db(path: Path = DB_PATH) -> None:

@@ -18,6 +18,7 @@ class RandomJack(JackAgent):
 
 class RandomCops(CopAgent):
     """Always searches; each cop moves to a random reachable node."""
+
     def __init__(self, rng: random.Random | None = None) -> None:
         self._rng = rng or random.Random()
 
@@ -25,7 +26,13 @@ class RandomCops(CopAgent):
         turns = []
         for cop_idx, cop_pos in enumerate(state.cop_positions):
             reachable = list(reachable_cop_nodes(cop_pos, game_map))
-            turns.append(CopTurn(cop_idx=cop_idx, destination=self._rng.choice(reachable), search=True))
+            turns.append(
+                CopTurn(
+                    cop_idx=cop_idx,
+                    destination=self._rng.choice(reachable),
+                    search=True,
+                )
+            )
         return turns, None
 
 

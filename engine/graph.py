@@ -30,9 +30,9 @@ class JackNode:
 @dataclass
 class Map:
     jack_nodes: list[JackNode]  # indexed by id
-    cop_nodes: list[CopNode]    # indexed by id
-    jack_starts: list[int]      # possible Jack starting node IDs
-    cop_starts: list[int]       # pool of cop spawn node IDs
+    cop_nodes: list[CopNode]  # indexed by id
+    jack_starts: list[int]  # possible Jack starting node IDs
+    cop_starts: list[int]  # pool of cop spawn node IDs
     num_cops: int
     turn_limit: int
     hideout_min_distance: int

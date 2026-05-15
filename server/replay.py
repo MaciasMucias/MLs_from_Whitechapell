@@ -4,6 +4,7 @@ Replay storage: 5-slot rotating JSON files in data/replays/.
 index.json tracks metadata for all slots so the list endpoint is fast.
 Full round data is in slot_N.json files.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,18 +27,19 @@ NUM_SLOTS = 5
 # Replay dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ReplayCopAction:
     cop_idx: int
     from_node: int
     to_node: int
-    action: str                    # "search" | "arrest"
-    searched_nodes: list[int]      # adjacent jack nodes (search only)
-    search_hits: list[int]         # searched nodes that Jack visited
-    search_miss_nodes: list[int]   # searched nodes that Jack did NOT visit
+    action: str  # "search" | "arrest"
+    searched_nodes: list[int]  # adjacent jack nodes (search only)
+    search_hits: list[int]  # searched nodes that Jack visited
+    search_miss_nodes: list[int]  # searched nodes that Jack did NOT visit
     arrest_target: list[int]
     arrest_success: bool
-    role: str | None               # from CopDecisionInfo
+    role: str | None  # from CopDecisionInfo
     coverage_score: float | None
     direction_score: float | None
 
@@ -47,13 +49,15 @@ class ReplayRound:
     turn: int
     jack_from: int
     jack_to: int
-    jack_via: list[int]            # cop node IDs traversed (via edge)
-    jack_legal_moves: list[int]    # legal destinations at start of turn
+    jack_via: list[int]  # cop node IDs traversed (via edge)
+    jack_legal_moves: list[int]  # legal destinations at start of turn
     cop_actions: list[ReplayCopAction]
-    position_pmf: dict[str, float] | None    # PMF at cop planning time (before cops act)
-    pmf_after_cops: dict[str, float] | None  # PMF after all cops acted (search misses applied)
+    position_pmf: dict[str, float] | None  # PMF at cop planning time (before cops act)
+    pmf_after_cops: (
+        dict[str, float] | None
+    )  # PMF after all cops acted (search misses applied)
     hideout_pmf: dict[str, float] | None
-    visited_at_after: list[tuple[int, int]]   # each inner list is [node_id, depth]
+    visited_at_after: list[tuple[int, int]]  # each inner list is [node_id, depth]
     search_misses_after: list[tuple[int, int]]
     arrest_misses_after: list[tuple[int, int]]
     terminated: bool
@@ -63,7 +67,7 @@ class ReplayRound:
 @dataclass
 class ReplayRecord:
     game_id: str
-    timestamp: str          # ISO-8601
+    timestamp: str  # ISO-8601
     map_name: str
     winner: str
     turns_survived: int
@@ -81,6 +85,7 @@ class ReplayRecord:
 # Index helpers
 # ---------------------------------------------------------------------------
 
+
 def _read_index() -> dict:
     if not INDEX_PATH.exists():
         return {"next_slot": 0, "slots": []}
@@ -97,6 +102,7 @@ def _write_index(index: dict) -> None:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def list_replays() -> list[dict]:
     """Return metadata for all saved slots (no full round data)."""
@@ -118,9 +124,9 @@ def load_replay(slot: int) -> ReplayRecord | None:
             jack_via=r["jack_via"],
             jack_legal_moves=r["jack_legal_moves"],
             cop_actions=[
-            ReplayCopAction(**{**a, "arrest_target": a.get("arrest_target") or []})
-            for a in r["cop_actions"]
-        ],
+                ReplayCopAction(**{**a, "arrest_target": a.get("arrest_target") or []})
+                for a in r["cop_actions"]
+            ],
             position_pmf=r.get("position_pmf"),
             pmf_after_cops=r.get("pmf_after_cops"),
             hideout_pmf=r.get("hideout_pmf"),
@@ -185,19 +191,25 @@ def build_replay(session: "GameSession") -> ReplayRecord:
     from agents.heuristic_cops import HeuristicCops
 
     gm = session.ctx.game_map
-    effective_limit = session.ctx.turn_limit if session.ctx.turn_limit is not None else gm.turn_limit
+    effective_limit = (
+        session.ctx.turn_limit if session.ctx.turn_limit is not None else gm.turn_limit
+    )
 
     rounds: list[ReplayRound] = []
     for rr in session.ctx.history:
         # Jack info
         jack_from = rr.state_before.jack_pos
-        jack_to   = rr.state_after_jack.jack_pos
-        jack_via  = [cn.id for cn in rr.jack_edge.via]
+        jack_to = rr.state_after_jack.jack_pos
+        jack_via = [cn.id for cn in rr.jack_edge.via]
 
-        legal_moves = list(dict.fromkeys(
-            e.destination.id
-            for e in legal_jack_edges(rr.state_before, gm, blocking=session.ctx.blocking)
-        ))
+        legal_moves = list(
+            dict.fromkeys(
+                e.destination.id
+                for e in legal_jack_edges(
+                    rr.state_before, gm, blocking=session.ctx.blocking
+                )
+            )
+        )
 
         # Cop decision metadata sidecar
         decisions = rr.cop_decisions  # RoundCopDecisions | None
@@ -212,46 +224,51 @@ def build_replay(session: "GameSession") -> ReplayRecord:
             ct = step.cop_turn
             cop_node = gm.cop_nodes[ct.destination]
             searched = list(step.search_results.keys()) if ct.search else []
-            hits   = [n for n, hit in step.search_results.items() if hit]
+            hits = [n for n, hit in step.search_results.items() if hit]
             misses = [n for n, hit in step.search_results.items() if not hit]
 
             if not ct.search:
                 if ct.arrest_all:
                     arrest_nodes = [jn.id for jn in cop_node.jack_neighbours]
                 else:
-                    arrest_nodes = [ct.arrest_target] if ct.arrest_target is not None else []
+                    arrest_nodes = (
+                        [ct.arrest_target] if ct.arrest_target is not None else []
+                    )
             else:
                 arrest_nodes = []
 
             cd = decision_by_idx.get(ct.cop_idx)
-            cop_actions.append(ReplayCopAction(
-                cop_idx=ct.cop_idx,
-                from_node=rr.state_before.cop_positions[ct.cop_idx],
-                to_node=ct.destination,
-                action="search" if ct.search else "arrest",
-                searched_nodes=searched,
-                search_hits=hits,
-                search_miss_nodes=misses,
-                arrest_target=arrest_nodes,
-                arrest_success=(
-                    step.terminated and step.winner == "cops"
-                    and not ct.search
-                ),
-                role=cd.role if cd else None,
-                coverage_score=cd.coverage_score if cd else None,
-                direction_score=cd.direction_score if cd else None,
-            ))
+            cop_actions.append(
+                ReplayCopAction(
+                    cop_idx=ct.cop_idx,
+                    from_node=rr.state_before.cop_positions[ct.cop_idx],
+                    to_node=ct.destination,
+                    action="search" if ct.search else "arrest",
+                    searched_nodes=searched,
+                    search_hits=hits,
+                    search_miss_nodes=misses,
+                    arrest_target=arrest_nodes,
+                    arrest_success=(
+                        step.terminated and step.winner == "cops" and not ct.search
+                    ),
+                    role=cd.role if cd else None,
+                    coverage_score=cd.coverage_score if cd else None,
+                    direction_score=cd.direction_score if cd else None,
+                )
+            )
 
         state_after = rr.state_after_round
         ck = state_after.cop_knowledge
 
         pos_pmf = (
             {str(k): v for k, v in decisions.position_pmf.items()}
-            if decisions is not None else None
+            if decisions is not None
+            else None
         )
         hid_pmf = (
             {str(k): v for k, v in decisions.hideout_pmf.items()}
-            if decisions is not None else None
+            if decisions is not None
+            else None
         )
 
         # PMF after all cops acted — uses final cop step's state which has all
@@ -259,28 +276,36 @@ def build_replay(session: "GameSession") -> ReplayRecord:
         if rr.cop_steps:
             final_state = rr.cop_steps[-1].state_after
             pmf_raw = HeuristicCops.compute_pmf(final_state, gm)
-            pmf_after_cops: dict[str, float] | None = {str(k): v for k, v in pmf_raw.items()}
+            pmf_after_cops: dict[str, float] | None = {
+                str(k): v for k, v in pmf_raw.items()
+            }
         else:
             pmf_after_cops = None
 
-        rounds.append(ReplayRound(
-            turn=rr.turn,
-            jack_from=jack_from,
-            jack_to=jack_to,
-            jack_via=jack_via,
-            jack_legal_moves=legal_moves,
-            cop_actions=cop_actions,
-            position_pmf=pos_pmf,
-            pmf_after_cops=pmf_after_cops,
-            hideout_pmf=hid_pmf,
-            visited_at_after=sorted(ck.visited_at),
-            search_misses_after=[tuple(m) for m in ck.search_misses],
-            arrest_misses_after=[tuple(m) for m in ck.arrest_misses],
-            terminated=rr.terminated,
-            winner=rr.winner,
-        ))
+        rounds.append(
+            ReplayRound(
+                turn=rr.turn,
+                jack_from=jack_from,
+                jack_to=jack_to,
+                jack_via=jack_via,
+                jack_legal_moves=legal_moves,
+                cop_actions=cop_actions,
+                position_pmf=pos_pmf,
+                pmf_after_cops=pmf_after_cops,
+                hideout_pmf=hid_pmf,
+                visited_at_after=sorted(ck.visited_at),
+                search_misses_after=[tuple(m) for m in ck.search_misses],
+                arrest_misses_after=[tuple(m) for m in ck.arrest_misses],
+                terminated=rr.terminated,
+                winner=rr.winner,
+            )
+        )
 
-    initial = session.ctx.history[0].state_before if session.ctx.history else session.ctx.state
+    initial = (
+        session.ctx.history[0].state_before
+        if session.ctx.history
+        else session.ctx.state
+    )
     record = ReplayRecord(
         game_id=session.game_id,
         timestamp=datetime.now(timezone.utc).isoformat(),

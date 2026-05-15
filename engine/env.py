@@ -18,6 +18,7 @@ class CopTurn:
                         False = arrest attempt on arrest_target.
         arrest_target:  Jack node ID to arrest. Required when search=False.
     """
+
     cop_idx: int
     destination: int
     search: bool
@@ -28,6 +29,7 @@ class CopTurn:
 # ---------------------------------------------------------------------------
 # State initialisation
 # ---------------------------------------------------------------------------
+
 
 def make_initial_state(
     game_map: Map,
@@ -51,11 +53,15 @@ def make_initial_state(
     start = rng.choice(game_map.jack_starts)
 
     distances = jack_bfs_distances(start, game_map)
-    base_candidates = [jid for jid, d in distances.items() if d >= game_map.hideout_min_distance]
+    base_candidates = [
+        jid for jid, d in distances.items() if d >= game_map.hideout_min_distance
+    ]
 
     anchor = rng.choice(base_candidates)
     anchor_distances = jack_bfs_distances(anchor, game_map)
-    zone = frozenset(v for v, d in anchor_distances.items() if d <= game_map.zone_radius)
+    zone = frozenset(
+        v for v, d in anchor_distances.items() if d <= game_map.zone_radius
+    )
     zone_candidates = [jid for jid in base_candidates if jid in zone]
     hideout = rng.choice(zone_candidates if zone_candidates else base_candidates)
 
@@ -80,6 +86,7 @@ def make_initial_state(
 # Legal move queries
 # ---------------------------------------------------------------------------
 
+
 def legal_jack_edges(
     state: GameState,
     game_map: Map,
@@ -98,10 +105,10 @@ def legal_jack_edges(
     return [e for e in jack_node.edges if not any(c.id in occupied for c in e.via)]
 
 
-
 # ---------------------------------------------------------------------------
 # Sequential turn steps
 # ---------------------------------------------------------------------------
+
 
 def step_jack(
     state: GameState,
@@ -117,7 +124,12 @@ def step_jack(
     """
     new_trace = state.jack_trace | {jack_edge.destination.id}
     new_path = state.jack_path + (jack_edge.destination.id,)
-    new_state = replace(state, jack_pos=jack_edge.destination.id, jack_trace=new_trace, jack_path=new_path)
+    new_state = replace(
+        state,
+        jack_pos=jack_edge.destination.id,
+        jack_trace=new_trace,
+        jack_path=new_path,
+    )
     if new_state.jack_pos == state.hideout:
         return new_state, True, "jack"
     return new_state, False, None
@@ -175,7 +187,18 @@ def step_cop(
                 arrest_misses=tuple(sorted(arrest_misses)),
                 visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
             )
-            return replace(state, cop_positions=tuple(cop_positions), cop_searched_hits=cop_searched_hits, cop_searched_misses=cop_searched_misses, cop_knowledge=new_knowledge), True, "cops", search_results
+            return (
+                replace(
+                    state,
+                    cop_positions=tuple(cop_positions),
+                    cop_searched_hits=cop_searched_hits,
+                    cop_searched_misses=cop_searched_misses,
+                    cop_knowledge=new_knowledge,
+                ),
+                True,
+                "cops",
+                search_results,
+            )
         for jid in cop_node_neighbours:
             arrest_misses.add((jid, state.turn + 1))
 
@@ -185,7 +208,18 @@ def step_cop(
         arrest_misses=tuple(sorted(arrest_misses)),
         visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
     )
-    return replace(state, cop_positions=tuple(cop_positions), cop_searched_hits=cop_searched_hits, cop_searched_misses=cop_searched_misses, cop_knowledge=new_knowledge), False, None, search_results
+    return (
+        replace(
+            state,
+            cop_positions=tuple(cop_positions),
+            cop_searched_hits=cop_searched_hits,
+            cop_searched_misses=cop_searched_misses,
+            cop_knowledge=new_knowledge,
+        ),
+        False,
+        None,
+        search_results,
+    )
 
 
 def end_of_round(
@@ -216,5 +250,3 @@ def end_of_round(
     if blocking and not legal_jack_edges(new_state, game_map, blocking=True):
         return new_state, True, "cops"
     return new_state, False, None
-
-

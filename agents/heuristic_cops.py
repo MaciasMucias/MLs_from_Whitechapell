@@ -4,7 +4,11 @@ import random
 
 from engine.env import CopTurn
 from engine.graph import Map
-from engine.graph_utils import jack_bfs_distances, jack_reachable_within, reachable_cop_nodes
+from engine.graph_utils import (
+    jack_bfs_distances,
+    jack_reachable_within,
+    reachable_cop_nodes,
+)
 from engine.state import GameState
 from agents.base import CopAgent, CopDecisionInfo, RoundCopDecisions
 
@@ -130,16 +134,21 @@ class HeuristicCops(CopAgent):
         """PMF computed during the most recent act() call. For reward shaping."""
         return self._last_position_pmf
 
-    def act(self, state: GameState, game_map: Map) -> tuple[list[CopTurn], RoundCopDecisions]:
+    def act(
+        self, state: GameState, game_map: Map
+    ) -> tuple[list[CopTurn], RoundCopDecisions]:
         position_pmf = self.compute_pmf(state, game_map)
         self._last_position_pmf = position_pmf
-        hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
+        hideout_pmf = self._compute_hideout_pmf(position_pmf, state, game_map)
         current_depth = state.turn + 1
         remaining_turns = game_map.turn_limit - 1 - state.turn
         t = max(self._min_arrest_fraction, remaining_turns / game_map.turn_limit)
         effective_threshold = self._arrest_threshold * t
-        assignment   = self._assign_destinations(
-            position_pmf, hideout_pmf, state.cop_positions, game_map,
+        assignment = self._assign_destinations(
+            position_pmf,
+            hideout_pmf,
+            state.cop_positions,
+            game_map,
             frozenset(n for n, _ in state.cop_knowledge.visited_at),
             tuple(state.cop_knowledge.search_misses),
             effective_threshold=effective_threshold,
@@ -147,8 +156,11 @@ class HeuristicCops(CopAgent):
         )
         turns = [
             self._decide_action(
-                cop_idx, game_map.cop_nodes[dest], position_pmf,
-                effective_threshold, current_depth,
+                cop_idx,
+                game_map.cop_nodes[dest],
+                position_pmf,
+                effective_threshold,
+                current_depth,
             )
             for cop_idx, (dest, _role, _cov, _dir) in enumerate(assignment)
         ]
@@ -188,7 +200,9 @@ class HeuristicCops(CopAgent):
         negligible compared to the DP itself.
         """
         ck = state.cop_knowledge
-        current_depth = state.turn + 1  # Jack just moved; state.turn not yet incremented
+        current_depth = (
+            state.turn + 1
+        )  # Jack just moved; state.turn not yet incremented
 
         # ------ waypoint index ------
         waypoints = sorted({n for n, _ in ck.visited_at})  # deterministic ordering
@@ -199,7 +213,7 @@ class HeuristicCops(CopAgent):
         # ------ constraint sets ------
         # search_miss (v, T): counts[t][v][*] = 0 for t <= T
         search_exclude: dict[int, int] = {}  # node_id -> max excluded turn (inclusive)
-        for (v, T) in ck.search_misses:
+        for v, T in ck.search_misses:
             if v not in search_exclude or search_exclude[v] < T:
                 search_exclude[v] = T
 
@@ -243,7 +257,9 @@ class HeuristicCops(CopAgent):
                             continue
                         if (v_id, t) in arrest_exclude:
                             continue
-                        new_mask = mask | (1 << wp_idx[v_id]) if v_id in wp_idx else mask
+                        new_mask = (
+                            mask | (1 << wp_idx[v_id]) if v_id in wp_idx else mask
+                        )
                         if (new_mask & req) != req:
                             continue
                         curr[v_id][new_mask] += mass
@@ -263,7 +279,9 @@ class HeuristicCops(CopAgent):
                     raw[v_id] = total
 
         if not raw:
-            return {node.id: 1.0 / len(game_map.jack_nodes) for node in game_map.jack_nodes}
+            return {
+                node.id: 1.0 / len(game_map.jack_nodes) for node in game_map.jack_nodes
+            }
 
         total = sum(raw.values())
         return {v: mass / total for v, mass in raw.items()}
@@ -296,7 +314,9 @@ class HeuristicCops(CopAgent):
         if not candidates:
             # Fallback: recompute if on_episode_start was not called
             distances = jack_bfs_distances(state.cop_knowledge.jack_start, game_map)
-            candidates = {v for v, d in distances.items() if d >= game_map.hideout_min_distance}
+            candidates = {
+                v for v, d in distances.items() if d >= game_map.hideout_min_distance
+            }
 
         # For each position PMF node, compute which candidates are reachable
         # within remaining_hops.  Build candidate -> accumulated weight.
@@ -358,13 +378,20 @@ class HeuristicCops(CopAgent):
         # the start even as Jack moves away.
         frontier_threshold = max(1, current_depth - 1)
         frontier_pmf = {
-            v: p for v, p in position_pmf.items()
+            v: p
+            for v, p in position_pmf.items()
             if self._jack_start_distances.get(v, 0) >= frontier_threshold
         }
         if frontier_pmf:
             ftotal = sum(frontier_pmf.values())
-            fcx = sum(p * game_map.jack_nodes[v].x for v, p in frontier_pmf.items()) / ftotal
-            fcy = sum(p * game_map.jack_nodes[v].y for v, p in frontier_pmf.items()) / ftotal
+            fcx = (
+                sum(p * game_map.jack_nodes[v].x for v, p in frontier_pmf.items())
+                / ftotal
+            )
+            fcy = (
+                sum(p * game_map.jack_nodes[v].y for v, p in frontier_pmf.items())
+                / ftotal
+            )
         else:
             fcx = sum(p * game_map.jack_nodes[v].x for v, p in position_pmf.items())
             fcy = sum(p * game_map.jack_nodes[v].y for v, p in position_pmf.items())
@@ -405,8 +432,7 @@ class HeuristicCops(CopAgent):
             norm_prox: dict[int, float] = {cid: 0.0 for cid in all_prox}
         else:
             norm_prox = {
-                cid: (d - prox_min) / prox_range
-                for cid, d in all_prox.items()
+                cid: (d - prox_min) / prox_range for cid, d in all_prox.items()
             }
 
         # Most-recent miss turn per Jack node — used to compute the history discount
@@ -427,7 +453,9 @@ class HeuristicCops(CopAgent):
             # Random cop ordering and role draw for this iteration
             order = list(range(len(cop_positions)))
             self._rng.shuffle(order)
-            is_pursuer = [self._rng.random() < self._pursuit_fraction for _ in cop_positions]
+            is_pursuer = [
+                self._rng.random() < self._pursuit_fraction for _ in cop_positions
+            ]
 
             # Two separate remaining-mass dicts so that arrest and search coordination
             # don't interfere: an arresting cop zeros remaining_arrest (preventing
@@ -446,7 +474,7 @@ class HeuristicCops(CopAgent):
                     continue
                 if k in last_searched:
                     turns_since = current_depth - last_searched[k]
-                    factor = 1.0 - self._miss_discount_decay ** turns_since
+                    factor = 1.0 - self._miss_discount_decay**turns_since
                     remaining_search[k] = v * factor
                 else:
                     remaining_search[k] = v
@@ -466,13 +494,25 @@ class HeuristicCops(CopAgent):
 
                 def node_score(_cid: int, _pursuer: bool = pursuer) -> float:
                     cn = game_map.cop_nodes[_cid]
-                    if self._would_arrest(cn, position_pmf, effective_threshold, current_depth):
-                        coverage = sum(remaining_arrest.get(jn.id, 0.0) for jn in cn.jack_neighbours)
+                    if self._would_arrest(
+                        cn, position_pmf, effective_threshold, current_depth
+                    ):
+                        coverage = sum(
+                            remaining_arrest.get(jn.id, 0.0)
+                            for jn in cn.jack_neighbours
+                        )
                     else:
-                        coverage = sum(remaining_search.get(jn.id, 0.0) for jn in cn.jack_neighbours)
+                        coverage = sum(
+                            remaining_search.get(jn.id, 0.0)
+                            for jn in cn.jack_neighbours
+                        )
                     # Pursuers: full proximity bonus. Searchers: small tiebreaker
                     # so they drift toward the action when all coverage values are zero.
-                    prox_weight = self._pursuit_weight if _pursuer else self._pursuit_weight * self._searcher_prox_fraction
+                    prox_weight = (
+                        self._pursuit_weight
+                        if _pursuer
+                        else self._pursuit_weight * self._searcher_prox_fraction
+                    )
                     return coverage + prox_weight * norm_prox.get(_cid, 0.0)
 
                 best_node = max(reachable, key=node_score)
@@ -480,16 +520,26 @@ class HeuristicCops(CopAgent):
 
                 cop_node_obj = game_map.cop_nodes[best_node]
                 cop_adj = cop_node_obj.jack_neighbours
-                would_arrest = self._would_arrest(cop_node_obj, position_pmf, effective_threshold, current_depth)
+                would_arrest = self._would_arrest(
+                    cop_node_obj, position_pmf, effective_threshold, current_depth
+                )
 
                 if would_arrest:
-                    plain_coverage = sum(remaining_arrest.get(jn.id, 0.0) for jn in cop_adj)
+                    plain_coverage = sum(
+                        remaining_arrest.get(jn.id, 0.0) for jn in cop_adj
+                    )
                     for jn in cop_adj:
                         if jn.id in remaining_arrest:
                             remaining_arrest[jn.id] *= self._arrest_discount
                 else:
-                    plain_coverage = sum(remaining_search.get(jn.id, 0.0) for jn in cop_adj)
-                    disc = 1.0 / current_depth if current_depth > 0 else _SEARCH_DISC_ZERO_DEPTH_FALLBACK
+                    plain_coverage = sum(
+                        remaining_search.get(jn.id, 0.0) for jn in cop_adj
+                    )
+                    disc = (
+                        1.0 / current_depth
+                        if current_depth > 0
+                        else _SEARCH_DISC_ZERO_DEPTH_FALLBACK
+                    )
                     for jn in cop_adj:
                         if jn.id in remaining_search:
                             remaining_search[jn.id] *= disc
@@ -526,7 +576,8 @@ class HeuristicCops(CopAgent):
             return False
         return zone_mass >= effective_threshold or all(
             self._jack_start_distances.get(jn.id, 0) >= current_depth
-            for jn in adj if pmf.get(jn.id, 0.0) > 0.0
+            for jn in adj
+            if pmf.get(jn.id, 0.0) > 0.0
         )
 
     # ------------------------------------------------------------------
@@ -545,6 +596,8 @@ class HeuristicCops(CopAgent):
             return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=True)
 
         if self._would_arrest(cop_node, pmf, effective_threshold, current_depth):
-            return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=False, arrest_all=True)
+            return CopTurn(
+                cop_idx=cop_idx, destination=cop_node.id, search=False, arrest_all=True
+            )
 
         return CopTurn(cop_idx=cop_idx, destination=cop_node.id, search=True)

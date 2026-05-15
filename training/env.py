@@ -115,7 +115,9 @@ class JackEnv:
                 return self._finish(state, winner, -1.0)
 
         # End-of-round check (turn limit / no legal moves when blocking)
-        state, terminated, winner = end_of_round(state, self._map, blocking=self._blocking)
+        state, terminated, winner = end_of_round(
+            state, self._map, blocking=self._blocking
+        )
         if terminated:
             return self._finish(state, winner, -1.0)
 
@@ -150,7 +152,9 @@ class JackEnv:
             # non-zero position PMF mass (cops uncertain which zone node Jack is in).
             # Naturally 0 early in the game when Jack hasn't entered the zone yet.
             position_pmf = HeuristicCops.compute_pmf(state, self._map)
-            nonzero_in_zone = sum(1 for h in state.hideout_zone if position_pmf.get(h, 0.0) > 0.0)
+            nonzero_in_zone = sum(
+                1 for h in state.hideout_zone if position_pmf.get(h, 0.0) > 0.0
+            )
             reward += self._gamma * (nonzero_in_zone / len(state.hideout_zone))
 
         self._cops.on_episode_end(state, winner)

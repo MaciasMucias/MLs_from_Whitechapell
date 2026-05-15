@@ -19,6 +19,7 @@ from engine.state import GameState
 # History types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CopStepRecord:
     cop_turn: CopTurn
@@ -35,6 +36,7 @@ class RoundRecord:
     Complete record of one round. Sufficient for replay and PPO rollout
     construction. jack_logprob and jack_value are None for non-RL agents.
     """
+
     turn: int
     state_before: GameState
     jack_edge: JackEdge
@@ -64,6 +66,7 @@ class GameRecord:
 # Step context
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class StepContext:
     """
@@ -71,6 +74,7 @@ class StepContext:
     context per HTTP request, projected from GameSession) and run_game()
     (created and owned internally).
     """
+
     game_map: Map
     state: GameState
     terminated: bool
@@ -85,11 +89,12 @@ class StepContext:
 # Core step function
 # ---------------------------------------------------------------------------
 
+
 def step_round(
     ctx: StepContext,
     jack_edge: JackEdge,
-    cop_agent,           # CopAgent
-    director=None,       # Director | None
+    cop_agent,  # CopAgent
+    director=None,  # Director | None
 ) -> tuple[list[dict], bool, str | None]:
     """
     Advance one full round given Jack's chosen edge.
@@ -126,32 +131,47 @@ def step_round(
         # Execute each cop's planned turn
         for cop_turn in cop_turns:
             cop_node = ctx.game_map.cop_nodes[cop_turn.destination]
-            state, terminated, winner, search_results = step_cop(state, cop_turn, ctx.game_map)
-            events.append({
-                "cop": cop_turn.cop_idx,
-                "moved_to": cop_turn.destination,
-                "action": "search" if cop_turn.search else "arrest",
-                "jack_neighbours": [n.id for n in cop_node.jack_neighbours],
-                "arrest_target": cop_turn.arrest_target,
-                "arrest_all": cop_turn.arrest_all,
-                "search_hits": [jn_id for jn_id, hit in search_results.items() if hit],
-                "arrest_success": terminated and winner == "cops" and not cop_turn.search,
-            })
-            cop_steps.append(CopStepRecord(
-                cop_turn=cop_turn,
-                state_after=state,
-                terminated=terminated,
-                winner=winner,
-                search_results=search_results,
-            ))
+            state, terminated, winner, search_results = step_cop(
+                state, cop_turn, ctx.game_map
+            )
+            events.append(
+                {
+                    "cop": cop_turn.cop_idx,
+                    "moved_to": cop_turn.destination,
+                    "action": "search" if cop_turn.search else "arrest",
+                    "jack_neighbours": [n.id for n in cop_node.jack_neighbours],
+                    "arrest_target": cop_turn.arrest_target,
+                    "arrest_all": cop_turn.arrest_all,
+                    "search_hits": [
+                        jn_id for jn_id, hit in search_results.items() if hit
+                    ],
+                    "arrest_success": terminated
+                    and winner == "cops"
+                    and not cop_turn.search,
+                }
+            )
+            cop_steps.append(
+                CopStepRecord(
+                    cop_turn=cop_turn,
+                    state_after=state,
+                    terminated=terminated,
+                    winner=winner,
+                    search_results=search_results,
+                )
+            )
             if terminated:
                 break
 
         # 4. End of round checks (turn limit, blocking)
         if not terminated:
-            effective_limit = ctx.turn_limit if ctx.turn_limit is not None else ctx.game_map.turn_limit
+            effective_limit = (
+                ctx.turn_limit
+                if ctx.turn_limit is not None
+                else ctx.game_map.turn_limit
+            )
             state, terminated, winner = end_of_round(
-                state, ctx.game_map,
+                state,
+                ctx.game_map,
                 blocking=ctx.blocking,
                 turn_limit=effective_limit,
             )
@@ -181,11 +201,12 @@ def step_round(
 # Run-to-completion loop
 # ---------------------------------------------------------------------------
 
+
 def run_game(
     game_map: Map,
-    jack_agent,           # JackAgent
-    cop_agent,            # CopAgent
-    director=None,        # Director | None — defaults to NoOpDirector
+    jack_agent,  # JackAgent
+    cop_agent,  # CopAgent
+    director=None,  # Director | None — defaults to NoOpDirector
     rng: random.Random | None = None,
     blocking: bool = False,
     turn_limit: int | None = None,
@@ -198,6 +219,7 @@ def run_game(
     without re-running inference.
     """
     from agents.random_agents import NoOpDirector  # deferred to avoid circular import
+
     if director is None:
         director = NoOpDirector()
     if rng is None:

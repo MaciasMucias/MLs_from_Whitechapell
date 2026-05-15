@@ -18,8 +18,7 @@ async def lifespan(app: FastAPI):
     course = json.loads(Path("maps/course.json").read_text())
     app.state.course = course
     app.state.game_maps = {
-        entry["name"]: load_map(Path("maps") / entry["file"])
-        for entry in course
+        entry["name"]: load_map(Path("maps") / entry["file"]) for entry in course
     }
     yield
 

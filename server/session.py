@@ -59,7 +59,9 @@ def state_view(session: GameSession) -> dict:
     """Serialise session to a JSON-safe dict for API responses."""
     s = session.ctx.state
     gm = session.ctx.game_map
-    effective_limit = session.ctx.turn_limit if session.ctx.turn_limit is not None else gm.turn_limit
+    effective_limit = (
+        session.ctx.turn_limit if session.ctx.turn_limit is not None else gm.turn_limit
+    )
 
     legal: list[int] = []
     if not session.ctx.terminated:

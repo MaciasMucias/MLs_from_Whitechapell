@@ -41,14 +41,18 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
     if record is None:
         raise HTTPException(status_code=404, detail=f"No replay in slot {slot}")
     if body.turn < -1 or body.turn >= len(record.rounds):
-        raise HTTPException(status_code=400, detail=f"Turn out of range (-1–{len(record.rounds) - 1})")
+        raise HTTPException(
+            status_code=400, detail=f"Turn out of range (-1–{len(record.rounds) - 1})"
+        )
 
     gm = next(iter(request.app.state.game_maps.values()))
 
     # Hideout zone: approximate as BFS neighbourhood around the hideout
     hideout = record.hideout
     hideout_distances = jack_bfs_distances(hideout, gm)
-    hideout_zone = frozenset(v for v, d in hideout_distances.items() if d <= gm.zone_radius)
+    hideout_zone = frozenset(
+        v for v, d in hideout_distances.items() if d <= gm.zone_radius
+    )
 
     if body.turn == -1:
         # Fork from the initial state — no moves have happened yet
@@ -83,7 +87,10 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             for ca in r.cop_actions:
                 cop_searched_hits.update(ca.search_hits)
                 cop_searched_misses.update(ca.search_miss_nodes)
-        jack_path = tuple([record.initial_jack_pos] + [r.jack_to for r in record.rounds[: body.turn + 1]])
+        jack_path = tuple(
+            [record.initial_jack_pos]
+            + [r.jack_to for r in record.rounds[: body.turn + 1]]
+        )
 
         ck = CopKnowledge(
             jack_start=record.initial_jack_pos,

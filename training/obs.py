@@ -4,6 +4,7 @@ from engine.graph import Map
 from engine.graph_utils import jack_bfs_distances
 from engine.state import GameState
 
+
 def precompute_distances(game_map: Map) -> tuple[dict[int, dict[int, int]], int]:
     """
     All-pairs BFS distances on Jack graph. Call once per map load (not per episode —
@@ -13,7 +14,9 @@ def precompute_distances(game_map: Map) -> tuple[dict[int, dict[int, int]], int]
       all_dists[src][dst] = shortest path length in hops
       diameter            = max finite shortest path; used to normalise scalars to [0, 1]
     """
-    all_dists = {node.id: jack_bfs_distances(node.id, game_map) for node in game_map.jack_nodes}
+    all_dists = {
+        node.id: jack_bfs_distances(node.id, game_map) for node in game_map.jack_nodes
+    }
     diameter = max(max(d.values()) for d in all_dists.values())
     return all_dists, diameter
 
@@ -43,7 +46,7 @@ def build_obs(
     All distance scalars are in [0, 1] via division by graph diameter.
     """
     n_jack = len(game_map.jack_nodes)  # 195
-    n_cop = len(game_map.cop_nodes)    # 234
+    n_cop = len(game_map.cop_nodes)  # 234
 
     # --- Jack-node binary / one-hot blocks ---
     jack_pos_oh = np.zeros(n_jack, dtype=np.float32)
@@ -92,10 +95,17 @@ def build_obs(
     cop_j_arr = np.array([p[0] for p in paired], dtype=np.float32)
     cop_h_arr = np.array([p[1] for p in paired], dtype=np.float32)
 
-    return np.concatenate([
-        jack_pos_oh, hideout_oh, zone_bin,
-        visited_bin, hit_bin, miss_bin,
-        cop_pres,
-        [turn_norm, j2h],
-        cop_j_arr, cop_h_arr,
-    ])
+    return np.concatenate(
+        [
+            jack_pos_oh,
+            hideout_oh,
+            zone_bin,
+            visited_bin,
+            hit_bin,
+            miss_bin,
+            cop_pres,
+            [turn_norm, j2h],
+            cop_j_arr,
+            cop_h_arr,
+        ]
+    )

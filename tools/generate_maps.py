@@ -41,6 +41,7 @@ DEBUG_ROUTES_FOR_NODE = None
 # SVG path coordinate parser
 # ---------------------------------------------------------------------------
 
+
 def _parse_path_coordinates(path_elem):
     d = path_elem.getAttribute("d")
     args = d.split(" ")
@@ -89,6 +90,7 @@ def _is_connected(coordinates_a, coordinates_b, threshold=5.0):
 # SVG parsing — builds all adjacency structures
 # ---------------------------------------------------------------------------
 
+
 def _parse_svg(svg_path):
     """
     Returns:
@@ -117,17 +119,25 @@ def _parse_svg(svg_path):
         y = round(float(e.getAttribute("cy")) * scale + dy, 2)
         jack_coordinates[node_id] = (x, y)
         jack_point[node_id] = [[x, y]]
-        jack_types[node_id] = "jack_start" if "fill:#ff0000" in e.getAttribute("style") else "jack"
+        jack_types[node_id] = (
+            "jack_start" if "fill:#ff0000" in e.getAttribute("style") else "jack"
+        )
 
     # --- Cop nodes (<rect> elements, 1-indexed by order) ---
     cop_coordinates, cop_point, cop_types = {}, {}, {}
     for idx, rect in enumerate(doc.getElementsByTagName("rect")):
         cid = idx + 1
-        cx = round(float(rect.getAttribute("x")) + float(rect.getAttribute("width")) / 2, 2)
-        cy = round(float(rect.getAttribute("y")) + float(rect.getAttribute("height")) / 2, 2)
+        cx = round(
+            float(rect.getAttribute("x")) + float(rect.getAttribute("width")) / 2, 2
+        )
+        cy = round(
+            float(rect.getAttribute("y")) + float(rect.getAttribute("height")) / 2, 2
+        )
         cop_coordinates[cid] = (cx, cy)
         cop_point[cid] = [[cx, cy]]
-        cop_types[cid] = "cops_spawn" if "stroke:#ffff00" in rect.getAttribute("style") else "cops"
+        cop_types[cid] = (
+            "cops_spawn" if "stroke:#ffff00" in rect.getAttribute("style") else "cops"
+        )
 
     # --- Path segments ---
     path_coordinates = []
@@ -140,7 +150,9 @@ def _parse_svg(svg_path):
     n_paths = len(path_coordinates)
     n_jack = len(jack_coordinates)
     n_cop = len(cop_coordinates)
-    print(f"  {n_jack} jack nodes, {n_cop} cop nodes, {n_paths} path segments", flush=True)
+    print(
+        f"  {n_jack} jack nodes, {n_cop} cop nodes, {n_paths} path segments", flush=True
+    )
 
     # --- Pre-compute path-path adjacency (once) ---
     print("  Pre-computing path graph...", flush=True)
@@ -153,7 +165,7 @@ def _parse_svg(svg_path):
 
     # --- Pre-compute which nodes each path touches ---
     print("  Pre-computing path-node touches...", flush=True)
-    path_cop  = [set() for _ in range(n_paths)]  # path_index -> set of cop IDs
+    path_cop = [set() for _ in range(n_paths)]  # path_index -> set of cop IDs
     path_jack = [set() for _ in range(n_paths)]  # path_index -> set of jack IDs
 
     for i, pc in enumerate(path_coordinates):
@@ -166,7 +178,7 @@ def _parse_svg(svg_path):
 
     # Build reverse lookups: node -> touching path indices
     jack_paths = {jid: [] for jid in jack_coordinates}
-    cop_paths  = {cid: [] for cid in cop_coordinates}
+    cop_paths = {cid: [] for cid in cop_coordinates}
     for i in range(n_paths):
         for jid in path_jack[i]:
             jack_paths[jid].append(i)
@@ -233,21 +245,42 @@ def _parse_svg(svg_path):
             cop_cop_adj[cid].add(other)
             cop_cop_adj[other].add(cid)
 
-    return jack_coordinates, jack_types, cop_coordinates, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj
+    return (
+        jack_coordinates,
+        jack_types,
+        cop_coordinates,
+        cop_types,
+        jack_cop_adj,
+        cop_cop_adj,
+        cop_jack_adj,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
+
 def build_map():
     print("Parsing SVG...", flush=True)
-    jack_coordinates, jack_types, cop_coordinates, cop_types, jack_cop_adj, cop_cop_adj, cop_jack_adj = _parse_svg(SVG_PATH)
+    (
+        jack_coordinates,
+        jack_types,
+        cop_coordinates,
+        cop_types,
+        jack_cop_adj,
+        cop_cop_adj,
+        cop_jack_adj,
+    ) = _parse_svg(SVG_PATH)
 
     # --- Build node objects ---
-    cop_by_id = {cid: CopNode(id=cid, x=x, y=y) for cid, (x, y) in cop_coordinates.items()}
-    jack_by_id = {jid: JackNode(id=jid, x=x, y=y, node_type=jack_types[jid])
-                  for jid, (x, y) in jack_coordinates.items()}
+    cop_by_id = {
+        cid: CopNode(id=cid, x=x, y=y) for cid, (x, y) in cop_coordinates.items()
+    }
+    jack_by_id = {
+        jid: JackNode(id=jid, x=x, y=y, node_type=jack_types[jid])
+        for jid, (x, y) in jack_coordinates.items()
+    }
 
     # Cop-cop movement edges
     cop_edges_seen = set()
@@ -296,7 +329,8 @@ def build_map():
                 unique[rs] = r
         route_sets = list(unique.keys())
         kept_sets = [
-            rs for rs in route_sets
+            rs
+            for rs in route_sets
             if not any(other < rs for other in route_sets if other != rs)
         ]
         return [unique[rs] for rs in kept_sets]
@@ -305,21 +339,27 @@ def build_map():
         b_cops = jack_cop_adj[jack_b]
         result: list[tuple[int, ...]] = []
         for start_cop in jack_cop_adj[jack_a]:
-            stack: list[tuple[Any, tuple[Any, ...], set]] = [(start_cop, (start_cop,), {start_cop})]
+            stack: list[tuple[Any, tuple[Any, ...], set]] = [
+                (start_cop, (start_cop,), {start_cop})
+            ]
             while stack:
                 current, route, route_visited = stack.pop()
                 if current in b_cops:
                     result.append(route)
                 for next_cop in cop_cop_adj[current]:
                     if next_cop not in route_visited:
-                        stack.append((next_cop, route + (next_cop,), route_visited | {next_cop}))
+                        stack.append(
+                            (next_cop, route + (next_cop,), route_visited | {next_cop})
+                        )
         return result
 
     print("Finding traversal routes...", flush=True)
     jack_edges_seen = set()
     missing = []
 
-    nodes_to_process = {1} if DEBUG_ROUTES_FOR_NODE is not None else set(jack_coordinates)
+    nodes_to_process = (
+        {1} if DEBUG_ROUTES_FOR_NODE is not None else set(jack_coordinates)
+    )
 
     for node_id in nodes_to_process:
         neighbours = jack_jack_adj[node_id]
@@ -337,23 +377,30 @@ def build_map():
 
             for via_ids in routes:
                 via = tuple(cop_by_id[c] for c in via_ids)
-                jack_by_id[node_id].edges.append(JackEdge(destination=jack_by_id[nb_id], via=via))
-                jack_by_id[nb_id].edges.append(JackEdge(destination=jack_by_id[node_id], via=tuple(reversed(via))))
+                jack_by_id[node_id].edges.append(
+                    JackEdge(destination=jack_by_id[nb_id], via=via)
+                )
+                jack_by_id[nb_id].edges.append(
+                    JackEdge(destination=jack_by_id[node_id], via=tuple(reversed(via)))
+                )
 
     if missing:
         print(f"  {len(missing)} edges had no route and were skipped", flush=True)
 
     if DEBUG_ROUTES_FOR_NODE is not None:
-        print(f"\nDebug mode: only processed routes for jack node {DEBUG_ROUTES_FOR_NODE}. Not saving.", flush=True)
+        print(
+            f"\nDebug mode: only processed routes for jack node {DEBUG_ROUTES_FOR_NODE}. Not saving.",
+            flush=True,
+        )
         return
 
     # --- Derive start node lists from SVG types ---
     jack_starts = sorted(jid for jid, t in jack_types.items() if t == "jack_start")
-    cop_starts  = sorted(cid for cid, t in cop_types.items()  if t == "cops_spawn")
+    cop_starts = sorted(cid for cid, t in cop_types.items() if t == "cops_spawn")
 
     # --- Serialise to JSON ---
     jack_nodes = [jack_by_id[jid] for jid in sorted(jack_by_id)]
-    cop_nodes  = [cop_by_id[cid]  for cid  in sorted(cop_by_id)]
+    cop_nodes = [cop_by_id[cid] for cid in sorted(cop_by_id)]
 
     data = {
         "jack_starts": jack_starts,

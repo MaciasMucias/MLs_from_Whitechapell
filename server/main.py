@@ -18,8 +18,7 @@ async def lifespan(app: FastAPI):
     course = json.loads(Path("maps/course.json").read_text())
     app.state.course = course
     app.state.game_maps = {
-        entry["name"]: load_map(Path("maps") / entry["file"])
-        for entry in course
+        entry["name"]: load_map(Path("maps") / entry["file"]) for entry in course
     }
     yield
 
@@ -29,4 +28,6 @@ whitechapel_ui.include_router(router, prefix="/api")
 whitechapel_ui.include_router(admin_router, prefix="/api/admin")
 whitechapel_ui.include_router(replay_router, prefix="/api/replays")
 
-whitechapel_ui.mount("/", StaticFiles(directory="frontend_participant", html=True), name="participant")
+whitechapel_ui.mount(
+    "/", StaticFiles(directory="frontend_participant", html=True), name="participant"
+)

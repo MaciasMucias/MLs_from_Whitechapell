@@ -24,36 +24,46 @@ admin_router = APIRouter()
 # Request bodies
 # ---------------------------------------------------------------------------
 
+
 class TeleportJackBody(BaseModel):
     node: int
+
 
 class TeleportCopBody(BaseModel):
     cop: int
     node: int
 
+
 class CopActionBody(BaseModel):
     cop: int
-    destination: int | None = None   # None = stay at current node
+    destination: int | None = None  # None = stay at current node
     search: bool = True
     arrest_target: int | None = None
+
 
 class CopActionsBody(BaseModel):
     actions: list[CopActionBody]
 
+
 class SetTurnBody(BaseModel):
     turn: int
+
 
 class SetTurnLimitBody(BaseModel):
     turn_limit: int
 
+
 class SetBlockingBody(BaseModel):
     blocking: bool
+
 
 class SetArrestAllBody(BaseModel):
     arrest_all_enabled: bool
 
+
 class InjectNodeBody(BaseModel):
     node: int
+
 
 class SetKnowledgeBody(BaseModel):
     jack_start: int
@@ -61,11 +71,14 @@ class SetKnowledgeBody(BaseModel):
     search_misses: list[tuple[int, int]] = []
     arrest_misses: list[tuple[int, int]] = []
 
+
 class SetTraceBody(BaseModel):
     nodes: list[int]
 
+
 class NewFromStateBody(BaseModel):
     same_hideout: bool = False
+
 
 class NodeInfoBody(BaseModel):
     cop_node: int
@@ -74,6 +87,7 @@ class NodeInfoBody(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _get_or_404(game_id: str) -> GameSession:
     session = get_session(game_id)
@@ -87,7 +101,11 @@ def _run_cop_action(
     action: CopActionBody,
     session: GameSession,
 ) -> tuple[GameState, bool, str | None]:
-    destination = action.destination if action.destination is not None else state.cop_positions[action.cop]
+    destination = (
+        action.destination
+        if action.destination is not None
+        else state.cop_positions[action.cop]
+    )
     cop_turn = CopTurn(
         cop_idx=action.cop,
         destination=destination,
@@ -109,6 +127,7 @@ def _mutate_knowledge(
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 @admin_router.post("/{game_id}/teleport-jack")
 async def teleport_jack(game_id: str, body: TeleportJackBody):
@@ -231,14 +250,15 @@ async def remove_visited(game_id: str, body: InjectNodeBody):
     return state_view(session)
 
 
-
 @admin_router.post("/{game_id}/clear-knowledge")
 async def clear_knowledge(game_id: str):
     session = _get_or_404(game_id)
     push_history(session)
     session.ctx.state = replace(
         session.ctx.state,
-        cop_knowledge=CopKnowledge(jack_start=session.ctx.state.cop_knowledge.jack_start),
+        cop_knowledge=CopKnowledge(
+            jack_start=session.ctx.state.cop_knowledge.jack_start
+        ),
     )
     return state_view(session)
 
@@ -291,12 +311,16 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
         zone = state.hideout_zone
     else:
         distances = jack_bfs_distances(jack_start, gm)
-        base_candidates = [jid for jid, d in distances.items() if d >= gm.hideout_min_distance]
+        base_candidates = [
+            jid for jid, d in distances.items() if d >= gm.hideout_min_distance
+        ]
         anchor = session.rng.choice(base_candidates or list(distances.keys()))
         anchor_distances = jack_bfs_distances(anchor, gm)
         zone = frozenset(v for v, d in anchor_distances.items() if d <= gm.zone_radius)
         zone_candidates = [jid for jid in base_candidates if jid in zone]
-        hideout = session.rng.choice(zone_candidates if zone_candidates else base_candidates)
+        hideout = session.rng.choice(
+            zone_candidates if zone_candidates else base_candidates
+        )
 
     new_state = GameState(
         jack_pos=jack_start,

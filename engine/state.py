@@ -45,10 +45,14 @@ class GameState:
                         (jack_path[0] = start). Preserves chronological order
                         for turn-depth lookups (.index()) and serialisation.
                         In normal gameplay frozenset(jack_path) == jack_trace.
-        cop_searched:   Frozenset of Jack node IDs that cops have searched this
-                        game. Populated directly from search events — never
-                        modified by the Director. Jack's true hits are
-                        jack_trace & cop_searched.
+        cop_searched_hits:   Frozenset of Jack node IDs that cops searched and
+                             found Jack's trace (Jack had been there at search
+                             time). Never modified by the Director.
+        cop_searched_misses: Frozenset of Jack node IDs that cops searched and
+                             found nothing (Jack had not yet visited at search
+                             time). Never modified by the Director. A node can
+                             appear in both sets if searched multiple times with
+                             different results.
         cop_knowledge:  What cops are told — potentially Director-modified.
     """
     jack_pos: int
@@ -59,5 +63,6 @@ class GameState:
     turn: int
     jack_trace: frozenset[int]
     jack_path: tuple[int, ...]  # ordered positions, one per move (jack_path[0] = start)
-    cop_searched: frozenset[int]
+    cop_searched_hits: frozenset[int]
+    cop_searched_misses: frozenset[int]
     cop_knowledge: CopKnowledge

@@ -70,7 +70,8 @@ def make_initial_state(
         turn=0,
         jack_trace=frozenset({start}),
         jack_path=(start,),
-        cop_searched=frozenset(),
+        cop_searched_hits=frozenset(),
+        cop_searched_misses=frozenset(),
         cop_knowledge=CopKnowledge(jack_start=start, visited_at=((start, 0),)),
     )
 
@@ -147,17 +148,19 @@ def step_cop(
     arrest_misses: set[tuple[int, int]] = set(state.cop_knowledge.arrest_misses)
     visited_at_dict: dict[int, int] = dict(state.cop_knowledge.visited_at)
     search_results: dict[int, bool] = {}
-    cop_searched = state.cop_searched
+    cop_searched_hits = state.cop_searched_hits
+    cop_searched_misses = state.cop_searched_misses
 
     if cop_turn.search:
         searched_nodes = frozenset(jack_nb.id for jack_nb in cop_node.jack_neighbours)
-        cop_searched = cop_searched | searched_nodes
         for jid in searched_nodes:
             hit = jid in state.jack_trace
             search_results[jid] = hit
             if hit:
+                cop_searched_hits = cop_searched_hits | {jid}
                 visited_at_dict.setdefault(jid, state.turn + 1)
             else:
+                cop_searched_misses = cop_searched_misses | {jid}
                 search_misses.add((jid, state.turn + 1))
     else:
         if cop_turn.arrest_all:
@@ -172,7 +175,7 @@ def step_cop(
                 arrest_misses=tuple(sorted(arrest_misses)),
                 visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
             )
-            return replace(state, cop_positions=tuple(cop_positions), cop_searched=cop_searched, cop_knowledge=new_knowledge), True, "cops", search_results
+            return replace(state, cop_positions=tuple(cop_positions), cop_searched_hits=cop_searched_hits, cop_searched_misses=cop_searched_misses, cop_knowledge=new_knowledge), True, "cops", search_results
         for jid in cop_node_neighbours:
             arrest_misses.add((jid, state.turn + 1))
 
@@ -182,7 +185,7 @@ def step_cop(
         arrest_misses=tuple(sorted(arrest_misses)),
         visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
     )
-    return replace(state, cop_positions=tuple(cop_positions), cop_searched=cop_searched, cop_knowledge=new_knowledge), False, None, search_results
+    return replace(state, cop_positions=tuple(cop_positions), cop_searched_hits=cop_searched_hits, cop_searched_misses=cop_searched_misses, cop_knowledge=new_knowledge), False, None, search_results
 
 
 def end_of_round(

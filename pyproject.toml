@@ -14,6 +14,9 @@ server = [
 dev = [
     "pytest>=9.0.2",
 ]
+training = [
+    "numpy>=2.4.4",
+]
 
 [dependency-groups]
 dev = [

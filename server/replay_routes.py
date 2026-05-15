@@ -61,7 +61,8 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             turn=0,
             jack_trace=frozenset({record.initial_jack_pos}),
             jack_path=(record.initial_jack_pos,),
-            cop_searched=frozenset(),
+            cop_searched_hits=frozenset(),
+            cop_searched_misses=frozenset(),
             cop_knowledge=CopKnowledge(jack_start=record.initial_jack_pos),
         )
     else:
@@ -75,11 +76,13 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
 
         # Jack trace and path: every node Jack occupied through the requested turn
         jack_trace: set[int] = {record.initial_jack_pos}
-        cop_searched: set[int] = set()
+        cop_searched_hits: set[int] = set()
+        cop_searched_misses: set[int] = set()
         for r in record.rounds[: body.turn + 1]:
             jack_trace.add(r.jack_to)
             for ca in r.cop_actions:
-                cop_searched.update(ca.searched_nodes)
+                cop_searched_hits.update(ca.search_hits)
+                cop_searched_misses.update(ca.search_miss_nodes)
         jack_path = tuple([record.initial_jack_pos] + [r.jack_to for r in record.rounds[: body.turn + 1]])
 
         ck = CopKnowledge(
@@ -98,7 +101,8 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             turn=body.turn + 1,
             jack_trace=frozenset(jack_trace),
             jack_path=jack_path,
-            cop_searched=frozenset(cop_searched),
+            cop_searched_hits=frozenset(cop_searched_hits),
+            cop_searched_misses=frozenset(cop_searched_misses),
             cop_knowledge=ck,
         )
 

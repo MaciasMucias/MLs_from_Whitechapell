@@ -216,3 +216,4 @@ data/replays/*.json
 data/*.sqlite
 
 notes/
+checkpoints/

@@ -307,6 +307,7 @@ async def new_from_state(game_id: str, body: NewFromStateBody):
         turn=0,
         jack_trace=frozenset({jack_start}),
         jack_path=(jack_start,),
+        cop_searched=frozenset(),
         cop_knowledge=CopKnowledge(jack_start=jack_start),
     )
     ctx = StepContext(

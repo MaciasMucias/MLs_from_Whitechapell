@@ -84,6 +84,7 @@ class HeuristicCops(CopAgent):
         self._rng = rng or random.Random()
         self._hideout_candidates: set[int] = set()
         self._jack_start_distances: dict[int, int] = {}
+        self._last_position_pmf: dict[int, float] = {}
 
     # ------------------------------------------------------------------
     # CopAgent interface
@@ -124,8 +125,14 @@ class HeuristicCops(CopAgent):
         # _assign_destinations so cops patrol hideout-likely regions even when
         # the position PMF is flat.
 
+    @property
+    def last_position_pmf(self) -> dict[int, float]:
+        """PMF computed during the most recent act() call. For reward shaping."""
+        return self._last_position_pmf
+
     def act(self, state: GameState, game_map: Map) -> tuple[list[CopTurn], RoundCopDecisions]:
         position_pmf = self.compute_pmf(state, game_map)
+        self._last_position_pmf = position_pmf
         hideout_pmf  = self._compute_hideout_pmf(position_pmf, state, game_map)
         current_depth = state.turn + 1
         remaining_turns = game_map.turn_limit - 1 - state.turn

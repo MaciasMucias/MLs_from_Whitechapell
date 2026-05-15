@@ -70,6 +70,7 @@ def make_initial_state(
         turn=0,
         jack_trace=frozenset({start}),
         jack_path=(start,),
+        cop_searched=frozenset(),
         cop_knowledge=CopKnowledge(jack_start=start, visited_at=((start, 0),)),
     )
 
@@ -146,10 +147,12 @@ def step_cop(
     arrest_misses: set[tuple[int, int]] = set(state.cop_knowledge.arrest_misses)
     visited_at_dict: dict[int, int] = dict(state.cop_knowledge.visited_at)
     search_results: dict[int, bool] = {}
+    cop_searched = state.cop_searched
 
     if cop_turn.search:
-        for jack_nb in cop_node.jack_neighbours:
-            jid = jack_nb.id
+        searched_nodes = frozenset(jack_nb.id for jack_nb in cop_node.jack_neighbours)
+        cop_searched = cop_searched | searched_nodes
+        for jid in searched_nodes:
             hit = jid in state.jack_trace
             search_results[jid] = hit
             if hit:
@@ -169,7 +172,7 @@ def step_cop(
                 arrest_misses=tuple(sorted(arrest_misses)),
                 visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
             )
-            return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), True, "cops", search_results
+            return replace(state, cop_positions=tuple(cop_positions), cop_searched=cop_searched, cop_knowledge=new_knowledge), True, "cops", search_results
         for jid in cop_node_neighbours:
             arrest_misses.add((jid, state.turn + 1))
 
@@ -179,7 +182,7 @@ def step_cop(
         arrest_misses=tuple(sorted(arrest_misses)),
         visited_at=tuple((k, v) for k, v in visited_at_dict.items()),
     )
-    return replace(state, cop_positions=tuple(cop_positions), cop_knowledge=new_knowledge), False, None, search_results
+    return replace(state, cop_positions=tuple(cop_positions), cop_searched=cop_searched, cop_knowledge=new_knowledge), False, None, search_results
 
 
 def end_of_round(

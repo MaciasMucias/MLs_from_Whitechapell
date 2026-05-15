@@ -19,6 +19,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import wandb
 from torch.distributions import Categorical
 from torch.optim import Adam
 
@@ -215,6 +216,15 @@ def train(args: argparse.Namespace) -> None:
         f"obs_dim={obs_dim}  n_actions={n_actions}  n_envs={args.n_envs}  n_workers={args.n_workers}"
     )
 
+    wandb.init(
+        project=args.wandb_project,
+        name=args.wandb_run,
+        mode=args.wandb_mode,
+        config=vars(args),
+    )
+    wandb.define_metric("global_step")
+    wandb.define_metric("*", step_metric="global_step")
+
     agent = Agent(obs_dim, n_actions).to(device)
     optimizer = Adam(agent.parameters(), lr=args.lr, eps=1e-5)
 
@@ -371,6 +381,12 @@ def train(args: argparse.Namespace) -> None:
             recent_wins = ep_wins[-100:]
             mean_return = sum(recent_ret) / len(recent_ret) if recent_ret else 0.0
             win_rate = sum(recent_wins) / len(recent_wins) if recent_wins else 0.0
+            mean_pg = sum(pg_losses) / len(pg_losses)
+            mean_vf = sum(vf_losses) / len(vf_losses)
+            mean_ent = sum(ent_losses) / len(ent_losses)
+            mean_clip = sum(clip_fracs) / len(clip_fracs)
+            current_lr = optimizer.param_groups[0]["lr"]
+
             print(
                 f"update={update}/{n_updates} "
                 f"steps={global_step:,} "
@@ -378,11 +394,25 @@ def train(args: argparse.Namespace) -> None:
                 f"episodes={len(ep_returns)} "
                 f"return={mean_return:.3f} "
                 f"win_rate={win_rate:.3f} "
-                f"pg={sum(pg_losses) / len(pg_losses):.4f} "
-                f"vf={sum(vf_losses) / len(vf_losses):.4f} "
-                f"ent={sum(ent_losses) / len(ent_losses):.4f} "
-                f"clip_frac={sum(clip_fracs) / len(clip_fracs):.3f} "
-                f"lr={optimizer.param_groups[0]['lr']:.2e}"
+                f"pg={mean_pg:.4f} "
+                f"vf={mean_vf:.4f} "
+                f"ent={mean_ent:.4f} "
+                f"clip_frac={mean_clip:.3f} "
+                f"lr={current_lr:.2e}"
+            )
+            wandb.log(
+                {
+                    "charts/win_rate": win_rate,
+                    "charts/mean_return": mean_return,
+                    "charts/episodes": len(ep_returns),
+                    "charts/sps": sps,
+                    "losses/policy": mean_pg,
+                    "losses/value": mean_vf,
+                    "losses/entropy": mean_ent,
+                    "losses/clip_frac": mean_clip,
+                    "train/lr": current_lr,
+                    "global_step": global_step,
+                },
             )
 
             if update % 50 == 0 or update == n_updates:
@@ -401,6 +431,7 @@ def train(args: argparse.Namespace) -> None:
                 )
                 print(f"  checkpoint -> {ckpt_path}")
 
+    wandb.finish()
     print("Training complete.")
 
 
@@ -427,6 +458,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-grad-norm", type=float, default=0.5)
     p.add_argument("--seed", type=int, default=27)
     p.add_argument("--checkpoint-dir", default="checkpoints/")
+    p.add_argument("--wandb-project", default="mls-from-whitechapel")
+    p.add_argument("--wandb-run", default=None)
+    p.add_argument(
+        "--wandb-mode", default="offline", choices=["offline", "online", "disabled"]
+    )
     return p.parse_args()
 
 

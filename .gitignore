@@ -217,3 +217,4 @@ data/*.sqlite
 
 notes/
 checkpoints/
+wandb/

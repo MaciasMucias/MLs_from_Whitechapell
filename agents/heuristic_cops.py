@@ -90,6 +90,8 @@ class HeuristicCops(CopAgent):
         self._cop_max_steps = cop_max_steps
         self._rng = rng or random.Random()
         self._hideout_candidates: set[int] = set()
+        self._hideout_candidate_list: list[int] = []
+        self._hideout_dist_arr: np.ndarray = np.empty((0, 0), dtype=np.int32)
         self._jack_start_distances: dict[int, int] = {}
         self._last_position_pmf: dict[int, float] = {}
 
@@ -102,6 +104,18 @@ class HeuristicCops(CopAgent):
         distances = jack_bfs_distances(state.cop_knowledge.jack_start, game_map)
         self._jack_start_distances = distances
         self._hideout_candidates = state.hideout_zone
+
+        # Precompute distance matrix for _compute_hideout_pmf vectorization.
+        # _hideout_dist_arr[i, v] = BFS distance from candidate i to Jack node v.
+        # Unreachable pairs are set to n_jack (guaranteed > any remaining_hops).
+        candidates_list = sorted(state.hideout_zone)
+        self._hideout_candidate_list = candidates_list
+        n_jack = len(game_map.jack_nodes)
+        dist_arr = np.full((len(candidates_list), n_jack), n_jack, dtype=np.int32)
+        for i, h in enumerate(candidates_list):
+            for v, d in jack_bfs_distances(h, game_map).items():
+                dist_arr[i, v] = d
+        self._hideout_dist_arr = dist_arr
 
         # MULTI-NIGHT EXTENSION POINT
         #
@@ -339,22 +353,27 @@ class HeuristicCops(CopAgent):
                 v for v, d in distances.items() if d >= game_map.hideout_min_distance
             }
 
-        # For each position PMF node, compute which candidates are reachable
-        # within remaining_hops.  Build candidate -> accumulated weight.
-        scores: dict[int, float] = {}
-        for v, prob in position_pmf.items():
-            reachable = jack_reachable_within(v, remaining_hops, game_map)
-            for h in candidates:
-                if h in reachable:
-                    scores[h] = scores.get(h, 0.0) + prob
-
-        if not scores:
-            # All candidates unreachable — constraints have become inconsistent.
-            # Fall back to uniform over original candidates.
+        if not position_pmf:
             return {h: 1.0 / len(candidates) for h in candidates}
 
-        total = sum(scores.values())
-        return {h: s / total for h, s in scores.items()}
+        # Vectorised reachability: _hideout_dist_arr[i, v] = dist from candidate i
+        # to Jack node v.  A candidate reaches v if dist <= remaining_hops.
+        pmf_nodes = np.array(list(position_pmf.keys()), dtype=np.int32)
+        pmf_probs = np.array(list(position_pmf.values()), dtype=np.float64)
+        # reachable_mask shape: (n_candidates, |pmf|)
+        reachable_mask = self._hideout_dist_arr[:, pmf_nodes] <= remaining_hops
+        scores_arr = reachable_mask @ pmf_probs  # (n_candidates,)
+
+        total = float(scores_arr.sum())
+        if total == 0.0:
+            # All candidates unreachable — constraints have become inconsistent.
+            return {h: 1.0 / len(candidates) for h in candidates}
+
+        return {
+            h: float(s) / total
+            for h, s in zip(self._hideout_candidate_list, scores_arr)
+            if s > 0.0
+        }
 
     # ------------------------------------------------------------------
     # Heading estimation

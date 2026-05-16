@@ -56,25 +56,23 @@ def build_obs(
     hideout_oh[state.hideout] = 1.0
 
     zone_bin = np.zeros(n_jack, dtype=np.float32)
-    for jid in state.hideout_zone:
-        zone_bin[jid] = 1.0
+    zone_bin[list(state.hideout_zone)] = 1.0
 
     visited_bin = np.zeros(n_jack, dtype=np.float32)
-    for jid in state.jack_trace:
-        visited_bin[jid] = 1.0
+    if state.jack_trace:
+        visited_bin[list(state.jack_trace)] = 1.0
 
     hit_bin = np.zeros(n_jack, dtype=np.float32)
-    for jid in state.cop_searched_hits:
-        hit_bin[jid] = 1.0
+    if state.cop_searched_hits:
+        hit_bin[list(state.cop_searched_hits)] = 1.0
 
     miss_bin = np.zeros(n_jack, dtype=np.float32)
-    for jid in state.cop_searched_misses:
-        miss_bin[jid] = 1.0
+    if state.cop_searched_misses:
+        miss_bin[list(state.cop_searched_misses)] = 1.0
 
     # --- Cop-node binary block ---
     cop_pres = np.zeros(n_cop, dtype=np.float32)
-    for cid in state.cop_positions:
-        cop_pres[cid] = 1.0
+    cop_pres[list(state.cop_positions)] = 1.0
 
     # --- Scalar features ---
     turn_norm = state.turn / game_map.turn_limit

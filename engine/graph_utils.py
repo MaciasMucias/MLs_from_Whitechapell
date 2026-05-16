@@ -6,15 +6,17 @@ state — they are pure graph queries. Add new BFS/DFS primitives here as
 the heuristic cop PMF and other algorithms require them.
 """
 
+from collections import deque
+
 from engine.graph import Map
 
 
 def jack_bfs_distances(start_id: int, game_map: Map) -> dict[int, int]:
     """BFS distances (in hops) from start_id to all reachable Jack nodes."""
     distances: dict[int, int] = {start_id: 0}
-    queue = [start_id]
+    queue: deque[int] = deque([start_id])
     while queue:
-        node_id = queue.pop(0)
+        node_id = queue.popleft()
         for edge in game_map.jack_nodes[node_id].edges:
             nb_id = edge.destination.id
             if nb_id not in distances:

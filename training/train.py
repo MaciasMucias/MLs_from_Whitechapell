@@ -275,6 +275,7 @@ def train(args: argparse.Namespace) -> None:
 
         global_step = resume_step
         start_time = time.time()
+        last_update_time = time.time()
 
         for update in range(start_update, n_updates + 1):
             # Linear LR annealing to 0 over training
@@ -396,7 +397,10 @@ def train(args: argparse.Namespace) -> None:
                     ent_losses.append(entropy_loss.item())
 
             # -- Logging ---------------------------------------------------
-            sps = int((global_step - resume_step) / (time.time() - start_time))
+            now = time.time()
+            sps = int((global_step - resume_step) / (now - start_time))
+            instant_sps = int(batch_size / (now - last_update_time))
+            last_update_time = now
             recent_ret = ep_returns
             recent_wins = ep_wins
             mean_return = sum(recent_ret) / len(recent_ret) if recent_ret else 0.0
@@ -411,6 +415,7 @@ def train(args: argparse.Namespace) -> None:
                 f"update={update}/{n_updates} "
                 f"steps={global_step:,} "
                 f"sps={sps} "
+                f"instant_sps={instant_sps} "
                 f"episodes={len(ep_returns)} "
                 f"return={mean_return:.3f} "
                 f"win_rate={win_rate:.3f} "
@@ -426,6 +431,7 @@ def train(args: argparse.Namespace) -> None:
                     "charts/mean_return": mean_return,
                     "charts/episodes": len(ep_returns),
                     "charts/sps": sps,
+                    "charts/instant_sps": instant_sps,
                     "losses/policy": mean_pg,
                     "losses/value": mean_vf,
                     "losses/entropy": mean_ent,

@@ -41,6 +41,9 @@ def jack_reachable_within(start_id: int, max_hops: int, game_map: Map) -> set[in
     return reachable
 
 
+_reachable_cop_cache: dict[tuple[int, int, int], set[int]] = {}
+
+
 def reachable_cop_nodes(cop_id: int, game_map: Map, max_steps: int = 2) -> set[int]:
     """BFS: all cop node IDs reachable from cop_id within max_steps moves.
 
@@ -48,7 +51,15 @@ def reachable_cop_nodes(cop_id: int, game_map: Map, max_steps: int = 2) -> set[i
     neighbour (two cop nodes are one step apart if they both border the same
     jack circle). The latter is the dominant movement type on this map — many
     cop nodes have no direct cop edges but are connected through jack circles.
+
+    Results are cached per (cop_id, map identity, max_steps). Map is treated
+    as a long-lived constant within a process, so id(game_map) is stable.
     """
+    key = (cop_id, id(game_map), max_steps)
+    cached = _reachable_cop_cache.get(key)
+    if cached is not None:
+        return cached
+
     # Precompute jack_id -> list of cop_ids that share it (for jack-mediated hops)
     jack_to_cops: dict[int, list[int]] = {}
     for cn in game_map.cop_nodes:
@@ -71,4 +82,6 @@ def reachable_cop_nodes(cop_id: int, game_map: Map, max_steps: int = 2) -> set[i
                         reachable.add(nb_id)
                         next_frontier.add(nb_id)
         frontier = next_frontier
+
+    _reachable_cop_cache[key] = reachable
     return reachable

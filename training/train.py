@@ -12,6 +12,7 @@ import argparse
 import multiprocessing as mp
 import random
 import time
+from collections import deque
 from multiprocessing.connection import Connection
 from pathlib import Path
 
@@ -248,8 +249,8 @@ def train(args: argparse.Namespace) -> None:
         masks = torch.from_numpy(np.stack([i["action_mask"] for i in infos])).to(device)
         dones = torch.zeros(args.n_envs, device=device)
 
-        ep_returns: list[float] = []
-        ep_wins: list[bool] = []
+        ep_returns: deque[float] = deque(maxlen=100)
+        ep_wins: deque[bool] = deque(maxlen=100)
         ep_return_buf = np.zeros(args.n_envs)
         ep_length_buf = np.zeros(args.n_envs, dtype=int)
 
@@ -377,8 +378,8 @@ def train(args: argparse.Namespace) -> None:
 
             # -- Logging ---------------------------------------------------
             sps = int(global_step / (time.time() - start_time))
-            recent_ret = ep_returns[-100:]
-            recent_wins = ep_wins[-100:]
+            recent_ret = ep_returns
+            recent_wins = ep_wins
             mean_return = sum(recent_ret) / len(recent_ret) if recent_ret else 0.0
             win_rate = sum(recent_wins) / len(recent_wins) if recent_wins else 0.0
             mean_pg = sum(pg_losses) / len(pg_losses)

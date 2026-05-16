@@ -1,6 +1,9 @@
 from __future__ import annotations
 import math
 import random
+from collections import defaultdict
+
+import numpy as np
 
 from engine.env import CopTurn
 from engine.graph import Map
@@ -239,49 +242,67 @@ class HeuristicCops(CopAgent):
         jack_start = ck.jack_start
         n = len(game_map.jack_nodes)
 
-        prev: list[list[float]] = [[0.0] * num_masks for _ in range(n)]
+        # Group edges by (v_id, wp_bit) so each group can be handled with one
+        # numpy scatter-add instead of a Python loop over individual masks.
+        # Done once before the time-step loop since the graph is constant.
+        edge_groups: dict[tuple[int, int], list[int]] = defaultdict(list)
+        for u_node in game_map.jack_nodes:
+            for edge in u_node.edges:
+                v_id = edge.destination.id
+                wp_b = (1 << wp_idx[v_id]) if v_id in wp_idx else 0
+                edge_groups[(v_id, wp_b)].append(u_node.id)
+
+        all_m = np.arange(num_masks, dtype=np.int32)
+
+        # Precompute per-group arrays that don't depend on t or req.
+        # target_arr[m] = m | wp_bit (None for non-waypoint groups → identity).
+        group_list = [
+            (v_id, u_arr, (all_m | wp_bit) if wp_bit else None)
+            for (v_id, wp_bit), u_ids in edge_groups.items()
+            for u_arr in [np.array(u_ids, dtype=np.int32)]
+        ]
+
         start_mask = (1 << wp_idx[jack_start]) if jack_start in wp_idx else 0
-        prev[jack_start][start_mask] = 1.0
+        prev = np.zeros((n, num_masks), dtype=np.float64)
+        prev[jack_start, start_mask] = 1.0
 
         for t in range(1, current_depth + 1):
             req = required_masks[t]
-            curr: list[list[float]] = [[0.0] * num_masks for _ in range(n)]
-            for u_id in range(n):
-                for mask in range(num_masks):
-                    mass = prev[u_id][mask]
-                    if mass == 0.0:
-                        continue
-                    for edge in game_map.jack_nodes[u_id].edges:
-                        v_id = edge.destination.id
-                        if search_exclude.get(v_id, -1) >= t:
-                            continue
-                        if (v_id, t) in arrest_exclude:
-                            continue
-                        new_mask = (
-                            mask | (1 << wp_idx[v_id]) if v_id in wp_idx else mask
-                        )
-                        if (new_mask & req) != req:
-                            continue
-                        curr[v_id][new_mask] += mass
+            curr = np.zeros((n, num_masks), dtype=np.float64)
+
+            for v_id, u_arr, target_arr in group_list:
+                if search_exclude.get(v_id, -1) >= t:
+                    continue
+                if (v_id, t) in arrest_exclude:
+                    continue
+
+                # Sum mass from all sources reaching this destination.
+                combined = prev[u_arr].sum(axis=0)  # shape (num_masks,)
+
+                if target_arr is None:
+                    # Non-waypoint: target mask = source mask.
+                    # Valid iff (mask & req) == req.
+                    curr[v_id] += combined * ((all_m & req) == req)
+                else:
+                    # Waypoint: target mask = source mask | wp_bit.
+                    # Valid iff (target & req) == req.
+                    req_valid = (target_arr & req) == req  # (num_masks,) bool
+                    curr[v_id] += np.bincount(
+                        target_arr, weights=combined * req_valid, minlength=num_masks
+                    )
+
             prev = curr
 
         # ------ extract terminal distribution ------
-        raw: dict[int, float] = {}
-        for v_id in range(n):
-            mass = prev[v_id][full_mask]
-            if mass > 0.0:
-                raw[v_id] = mass
+        terminal = prev[:, full_mask]  # (n,)
+        raw = {int(v): float(m) for v, m in enumerate(terminal) if m > 0.0}
 
         if not raw:
-            for v_id in range(n):
-                total = sum(prev[v_id])
-                if total > 0.0:
-                    raw[v_id] = total
+            row_sums = prev.sum(axis=1)  # (n,)
+            raw = {int(v): float(s) for v, s in enumerate(row_sums) if s > 0.0}
 
         if not raw:
-            return {
-                node.id: 1.0 / len(game_map.jack_nodes) for node in game_map.jack_nodes
-            }
+            return {node.id: 1.0 / n for node in game_map.jack_nodes}
 
         total = sum(raw.values())
         return {v: mass / total for v, mass in raw.items()}

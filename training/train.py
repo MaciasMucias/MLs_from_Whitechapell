@@ -273,6 +273,9 @@ def train(args: argparse.Namespace) -> None:
         ep_return_buf = np.zeros(args.n_envs)
         ep_length_buf = np.zeros(args.n_envs, dtype=int)
 
+        ckpt_dir = Path(args.checkpoint_dir) / wandb.run.name
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
+
         global_step = resume_step
         start_time = time.time()
         last_update_time = time.time()
@@ -442,8 +445,6 @@ def train(args: argparse.Namespace) -> None:
             )
 
             if update % 50 == 0 or update == n_updates:
-                ckpt_dir = Path(args.checkpoint_dir)
-                ckpt_dir.mkdir(parents=True, exist_ok=True)
                 ckpt_path = ckpt_dir / f"agent_{global_step:010d}.pt"
                 torch.save(
                     {

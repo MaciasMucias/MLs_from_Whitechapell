@@ -217,11 +217,29 @@ def train(args: argparse.Namespace) -> None:
         f"obs_dim={obs_dim}  n_actions={n_actions}  n_envs={args.n_envs}  n_workers={args.n_workers}"
     )
 
+    batch_size = args.n_steps * args.n_envs
+    n_updates = args.total_steps // batch_size
+
+    ckpt = None
+    resume_step = 0
+    start_update = 1
+    wandb_resume_id = None
+    if args.resume:
+        ckpt = torch.load(args.resume, map_location=device, weights_only=True)
+        resume_step = ckpt["step"]
+        start_update = resume_step // batch_size + 1
+        wandb_resume_id = ckpt.get("wandb_run_id")
+        print(
+            f"Resumed from {args.resume} at step {resume_step:,} (update {start_update}/{n_updates})"
+        )
+
     wandb.init(
         project=args.wandb_project,
         name=args.wandb_run,
         mode=args.wandb_mode,
         config=vars(args),
+        id=wandb_resume_id,
+        resume="must" if wandb_resume_id else None,
     )
     wandb.define_metric("global_step")
     wandb.define_metric("*", step_metric="global_step")
@@ -229,8 +247,9 @@ def train(args: argparse.Namespace) -> None:
     agent = Agent(obs_dim, n_actions).to(device)
     optimizer = Adam(agent.parameters(), lr=args.lr, eps=1e-5)
 
-    batch_size = args.n_steps * args.n_envs
-    n_updates = args.total_steps // batch_size
+    if ckpt is not None:
+        agent.load_state_dict(ckpt["agent"])
+        optimizer.load_state_dict(ckpt["optimizer"])
 
     # Rollout buffers - allocated once, reused every update
     b_obs = torch.zeros(args.n_steps, args.n_envs, obs_dim, device=device)
@@ -254,10 +273,10 @@ def train(args: argparse.Namespace) -> None:
         ep_return_buf = np.zeros(args.n_envs)
         ep_length_buf = np.zeros(args.n_envs, dtype=int)
 
-        global_step = 0
+        global_step = resume_step
         start_time = time.time()
 
-        for update in range(1, n_updates + 1):
+        for update in range(start_update, n_updates + 1):
             # Linear LR annealing to 0 over training
             frac = 1.0 - (update - 1) / n_updates
             optimizer.param_groups[0]["lr"] = args.lr * frac
@@ -377,7 +396,7 @@ def train(args: argparse.Namespace) -> None:
                     ent_losses.append(entropy_loss.item())
 
             # -- Logging ---------------------------------------------------
-            sps = int(global_step / (time.time() - start_time))
+            sps = int((global_step - resume_step) / (time.time() - start_time))
             recent_ret = ep_returns
             recent_wins = ep_wins
             mean_return = sum(recent_ret) / len(recent_ret) if recent_ret else 0.0
@@ -427,6 +446,7 @@ def train(args: argparse.Namespace) -> None:
                         "step": global_step,
                         "obs_dim": obs_dim,
                         "n_actions": n_actions,
+                        "wandb_run_id": wandb.run.id,
                     },
                     ckpt_path,
                 )
@@ -459,6 +479,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-grad-norm", type=float, default=0.5)
     p.add_argument("--seed", type=int, default=27)
     p.add_argument("--checkpoint-dir", default="checkpoints/")
+    p.add_argument("--resume", default=None, metavar="CHECKPOINT")
     p.add_argument("--wandb-project", default="mls-from-whitechapel")
     p.add_argument("--wandb-run", default=None)
     p.add_argument(

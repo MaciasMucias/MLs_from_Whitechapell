@@ -1,6 +1,5 @@
 from __future__ import annotations
 import math
-import random
 from collections import defaultdict
 
 import numpy as np
@@ -44,12 +43,14 @@ class HeuristicCops(CopAgent):
         PMF (which already embeds miss constraints) so search/arrest misses
         propagate into hideout inference automatically.
 
-    Movement (ACO):
-        n_iterations random orderings and role assignments are tried. In each
-        iteration every cop is independently labelled pursuer (prob
-        pursuit_fraction) or searcher. Pursuers score cop nodes by coverage +
-        pursuit_weight * direction_toward_hideout_centroid; searchers by
-        coverage only. The assignment with the highest total score is used.
+    Movement (coordinate ascent):
+        Runs up to max_passes convergence passes. Each pass processes cops in
+        index order; for each cop, holds all others fixed at their current
+        destinations and picks the best response. Stops when no cop changes.
+        Roles are deterministic: the closest round(n * pursuit_fraction) cops
+        to the direction target are pursuers; the rest are searchers. Pursuers
+        score cop nodes by coverage + pursuit_weight * direction_toward_target;
+        searchers by coverage + pursuit_weight * searcher_prox_fraction * direction.
 
     Search vs arrest:
         A cop arrests all adjacent Jack nodes (arrest_all) under two conditions:
@@ -74,9 +75,8 @@ class HeuristicCops(CopAgent):
         arrest_discount: float = 0.0,
         miss_discount_decay: float = 0.7,
         hideout_blend: float = 0.5,
-        n_iterations: int = 30,
+        max_passes: int = 5,
         cop_max_steps: int = 2,
-        rng: random.Random | None = None,
     ) -> None:
         self._arrest_threshold = arrest_threshold
         self._min_arrest_fraction = min_arrest_fraction
@@ -86,9 +86,8 @@ class HeuristicCops(CopAgent):
         self._arrest_discount = arrest_discount
         self._miss_discount_decay = miss_discount_decay
         self._hideout_blend = hideout_blend
-        self._n_iterations = n_iterations
+        self._max_passes = max_passes
         self._cop_max_steps = cop_max_steps
-        self._rng = rng or random.Random()
         self._hideout_candidates: set[int] = set()
         self._hideout_candidate_list: list[int] = []
         self._hideout_dist_arr: np.ndarray = np.empty((0, 0), dtype=np.int32)
@@ -380,7 +379,7 @@ class HeuristicCops(CopAgent):
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
-    # ACO-based destination assignment
+    # Coordinate-ascent destination assignment
     # ------------------------------------------------------------------
 
     def _assign_destinations(
@@ -395,21 +394,18 @@ class HeuristicCops(CopAgent):
         current_depth: int = 0,
     ) -> list[tuple[int, str, float, float | None]]:
         """
-        Runs n_iterations random orderings and per-cop role draws (pursuer vs
-        searcher). Returns the assignment with the highest total score as a list
-        of (destination, role, coverage_score, direction_score) per cop.
+        Coordinate-ascent cop assignment. Runs up to max_passes convergence
+        passes. Each pass processes cops in index order; for each cop, holds
+        all others fixed at their current destinations and finds the best
+        response (coverage + proximity bonus). Stops early when no cop changes.
 
-        Pursuer score for a cop node:
-            coverage + pursuit_weight * proximity_normalised
-        Searcher score:
-            coverage only
+        Pursuer roles are assigned deterministically: the closest
+        round(n * pursuit_fraction) cops to the direction target are pursuers;
+        the rest are searchers.
 
-        proximity_normalised is 1 for the cop node closest to the direction target
-        and 0 for the furthest. The direction target is a blend of the frontier
-        centroid (PMF nodes at BFS depth >= current_depth-1, tracking Jack's
-        advancing edge) and the hideout centroid. Using the frontier rather than
-        the full PMF centroid avoids the centroid being dragged back toward the
-        start by high-mass backtracking paths.
+        The direction target is a time-blended mix of the frontier centroid
+        (PMF nodes at BFS depth >= current_depth - 1) and the hideout centroid,
+        identical to the previous ACO approach.
         """
         # Frontier centroid: PMF-weighted centroid of nodes Jack has recently
         # reached (BFS depth >= current_depth - 1). This tracks Jack's advancing
@@ -450,7 +446,7 @@ class HeuristicCops(CopAgent):
         tx = (1.0 - blend) * fcx + blend * hx
         ty = (1.0 - blend) * fcy + blend * hy
 
-        # Pre-compute each cop's reachable set (same every iteration).
+        # Pre-compute each cop's reachable set (same every pass).
         reachable_sets = [
             reachable_cop_nodes(pos, game_map, max_steps=self._cop_max_steps)
             for pos in cop_positions
@@ -475,79 +471,97 @@ class HeuristicCops(CopAgent):
                 cid: (d - prox_min) / prox_range for cid, d in all_prox.items()
             }
 
-        # Most-recent miss turn per Jack node — used to compute the history discount
-        # inside the ACO loop. Built once outside the loop since search_misses is
-        # fixed for the entire assignment call.
+        # Most-recent miss turn per Jack node — used to compute the history discount.
+        # Built once since search_misses is fixed for the entire assignment call.
         last_searched: dict[int, int] = {}
         for v, t in search_misses:
             if v not in last_searched or last_searched[v] < t:
                 last_searched[v] = t
 
-        best_score: float = -1.0
-        # Default: cops stay put if every iteration is invalid (all reachable nodes occupied).
-        best_assignment: list[tuple[int, str, float, float | None]] = [
-            (pos, "searcher", 0.0, None) for pos in cop_positions
-        ]
+        n_cops = len(cop_positions)
 
-        for _ in range(self._n_iterations):
-            # Random cop ordering and role draw for this iteration
-            order = list(range(len(cop_positions)))
-            self._rng.shuffle(order)
-            is_pursuer = [
-                self._rng.random() < self._pursuit_fraction for _ in cop_positions
-            ]
+        # Deterministic pursuer assignment: closest cops to target = pursuers.
+        order_by_prox = sorted(
+            range(n_cops),
+            key=lambda i: math.hypot(
+                game_map.cop_nodes[cop_positions[i]].x - tx,
+                game_map.cop_nodes[cop_positions[i]].y - ty,
+            ),
+        )
+        n_pursuers = max(1, round(n_cops * self._pursuit_fraction))
+        pursuer_set = set(order_by_prox[:n_pursuers])
+        is_pursuer = [i in pursuer_set for i in range(n_cops)]
 
-            # Two separate remaining-mass dicts so that arrest and search coordination
-            # don't interfere: an arresting cop zeros remaining_arrest (preventing
-            # double-arrest) but leaves remaining_search intact (a search of the same
-            # zone still provides independent visit-history information).
-            remaining_arrest: dict[int, float] = {
+        # Initialise: every cop stays at its current position.
+        dests = list(cop_positions)
+
+        def _build_remaining() -> tuple[dict[int, float], dict[int, float]]:
+            ra: dict[int, float] = {
                 k: v for k, v in position_pmf.items() if k not in confirmed_visited
             }
-            # remaining_search applies a history discount to nodes that were searched
-            # in previous rounds: weight = PMF[v] * (1 - decay^turns_since_search).
-            # The factor starts low (recently cleared → less worth revisiting) and
-            # recovers toward 1.0 as turns pass (Jack could have returned).
-            remaining_search: dict[int, float] = {}
+            rs: dict[int, float] = {}
             for k, v in position_pmf.items():
                 if k in confirmed_visited:
                     continue
                 if k in last_searched:
                     turns_since = current_depth - last_searched[k]
-                    factor = 1.0 - self._miss_discount_decay**turns_since
-                    remaining_search[k] = v * factor
+                    rs[k] = v * (1.0 - self._miss_discount_decay**turns_since)
                 else:
-                    remaining_search[k] = v
-            assignment: list[tuple[int, str, float, float | None]] = [
-                (0, "searcher", 0.0, None)
-            ] * len(cop_positions)
-            iteration_score: float = 0.0
-            occupied: set[int] = set()
-            valid = True
+                    rs[k] = v
+            return ra, rs
 
-            for cop_idx in order:
+        def _apply_deduction(
+            dest_j: int,
+            ra: dict[int, float],
+            rs: dict[int, float],
+        ) -> None:
+            cn_j = game_map.cop_nodes[dest_j]
+            if self._would_arrest(
+                cn_j, position_pmf, effective_threshold, current_depth
+            ):
+                for jn in cn_j.jack_neighbours:
+                    if jn.id in ra:
+                        ra[jn.id] *= self._arrest_discount
+            else:
+                disc = (
+                    1.0 / current_depth
+                    if current_depth > 0
+                    else _SEARCH_DISC_ZERO_DEPTH_FALLBACK
+                )
+                for jn in cn_j.jack_neighbours:
+                    if jn.id in rs:
+                        rs[jn.id] *= disc
+
+        for _pass in range(self._max_passes):
+            changed = False
+
+            for cop_idx in range(n_cops):
                 pursuer = is_pursuer[cop_idx]
-                reachable = reachable_sets[cop_idx] - occupied
-                if not reachable:
-                    valid = False
-                    break
 
-                def node_score(_cid: int, _pursuer: bool = pursuer) -> float:
+                # Build remaining dicts and apply all other cops' deductions.
+                ra, rs = _build_remaining()
+                for j, dest_j in enumerate(dests):
+                    if j != cop_idx:
+                        _apply_deduction(dest_j, ra, rs)
+
+                others_dests = {dests[j] for j in range(n_cops) if j != cop_idx}
+                reachable = reachable_sets[cop_idx] - others_dests
+                if not reachable:
+                    continue
+
+                def node_score(
+                    _cid: int,
+                    _pursuer: bool = pursuer,
+                    _ra: dict[int, float] = ra,
+                    _rs: dict[int, float] = rs,
+                ) -> float:
                     cn = game_map.cop_nodes[_cid]
                     if self._would_arrest(
                         cn, position_pmf, effective_threshold, current_depth
                     ):
-                        coverage = sum(
-                            remaining_arrest.get(jn.id, 0.0)
-                            for jn in cn.jack_neighbours
-                        )
+                        coverage = sum(_ra.get(jn.id, 0.0) for jn in cn.jack_neighbours)
                     else:
-                        coverage = sum(
-                            remaining_search.get(jn.id, 0.0)
-                            for jn in cn.jack_neighbours
-                        )
-                    # Pursuers: full proximity bonus. Searchers: small tiebreaker
-                    # so they drift toward the action when all coverage values are zero.
+                        coverage = sum(_rs.get(jn.id, 0.0) for jn in cn.jack_neighbours)
                     prox_weight = (
                         self._pursuit_weight
                         if _pursuer
@@ -556,46 +570,43 @@ class HeuristicCops(CopAgent):
                     return coverage + prox_weight * norm_prox.get(_cid, 0.0)
 
                 best_node = max(reachable, key=node_score)
-                occupied.add(best_node)
+                if best_node != dests[cop_idx]:
+                    changed = True
+                    dests[cop_idx] = best_node
 
-                cop_node_obj = game_map.cop_nodes[best_node]
-                cop_adj = cop_node_obj.jack_neighbours
-                would_arrest = self._would_arrest(
-                    cop_node_obj, position_pmf, effective_threshold, current_depth
+            if not changed:
+                break
+
+        # Final scoring pass: compute plain coverage and direction scores for
+        # RoundCopDecisions using a single sequential forward pass over converged dests.
+        ra_final, rs_final = _build_remaining()
+        assignment: list[tuple[int, str, float, float | None]] = []
+        for cop_idx in range(n_cops):
+            dest = dests[cop_idx]
+            cn = game_map.cop_nodes[dest]
+            if self._would_arrest(cn, position_pmf, effective_threshold, current_depth):
+                plain_coverage = sum(
+                    ra_final.get(jn.id, 0.0) for jn in cn.jack_neighbours
                 )
+                for jn in cn.jack_neighbours:
+                    if jn.id in ra_final:
+                        ra_final[jn.id] *= self._arrest_discount
+            else:
+                plain_coverage = sum(
+                    rs_final.get(jn.id, 0.0) for jn in cn.jack_neighbours
+                )
+                disc = (
+                    1.0 / current_depth
+                    if current_depth > 0
+                    else _SEARCH_DISC_ZERO_DEPTH_FALLBACK
+                )
+                for jn in cn.jack_neighbours:
+                    if jn.id in rs_final:
+                        rs_final[jn.id] *= disc
+            role = "pursuer" if is_pursuer[cop_idx] else "searcher"
+            assignment.append((dest, role, plain_coverage, norm_prox.get(dest)))
 
-                if would_arrest:
-                    plain_coverage = sum(
-                        remaining_arrest.get(jn.id, 0.0) for jn in cop_adj
-                    )
-                    for jn in cop_adj:
-                        if jn.id in remaining_arrest:
-                            remaining_arrest[jn.id] *= self._arrest_discount
-                else:
-                    plain_coverage = sum(
-                        remaining_search.get(jn.id, 0.0) for jn in cop_adj
-                    )
-                    disc = (
-                        1.0 / current_depth
-                        if current_depth > 0
-                        else _SEARCH_DISC_ZERO_DEPTH_FALLBACK
-                    )
-                    for jn in cop_adj:
-                        if jn.id in remaining_search:
-                            remaining_search[jn.id] *= disc
-
-                dir_score = norm_prox.get(best_node)
-                role = "pursuer" if pursuer else "searcher"
-                # Use plain coverage (no pursuit bonus) to compare iterations so that
-                # iterations drawing more pursuers don't appear better regardless of coverage.
-                iteration_score += plain_coverage
-                assignment[cop_idx] = (best_node, role, plain_coverage, dir_score)
-
-            if valid and iteration_score > best_score:
-                best_score = iteration_score
-                best_assignment = assignment[:]
-
-        return best_assignment
+        return assignment
 
     # ------------------------------------------------------------------
     # Shared arrest decision

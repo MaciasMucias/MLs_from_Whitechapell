@@ -57,7 +57,7 @@ class JackEnv:
         self._n_jack = len(game_map.jack_nodes)
 
         # Separate RNG stream so cop decisions don't consume Jack's seed
-        self._cops = HeuristicCops(rng=random.Random(self._rng.randint(0, 2**31)))
+        self._cops = HeuristicCops()
         self._director = NoOpDirector()
 
         # Per-worker visit counts — intentionally persist across episodes

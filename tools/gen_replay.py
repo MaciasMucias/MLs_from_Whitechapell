@@ -156,7 +156,7 @@ def main(args: argparse.Namespace) -> None:
     rng = random.Random(args.seed)
 
     jack = TrainedJack(agent, all_dists, diameter, n_actions, greedy=args.greedy)
-    cops = HeuristicCops(rng=random.Random(rng.randint(0, 2**31)))
+    cops = HeuristicCops()
     director = NoOpDirector()
 
     record = run_game(game_map, jack, cops, director, rng=rng)

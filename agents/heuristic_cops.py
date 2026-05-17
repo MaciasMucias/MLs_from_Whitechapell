@@ -67,8 +67,8 @@ class HeuristicCops(CopAgent):
 
     def __init__(
         self,
-        arrest_threshold: float = 0.8,
-        min_arrest_fraction: float = 0.4,
+        arrest_threshold: float = 0.25,
+        min_arrest_fraction: float = 0.8,
         pursuit_fraction: float = 0.4,
         pursuit_weight: float = 0.5,
         searcher_prox_fraction: float = 0.5,

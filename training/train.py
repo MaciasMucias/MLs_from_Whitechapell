@@ -27,6 +27,8 @@ from torch.optim import Adam
 from agents.curriculum_director import INITIAL_DIFFICULTY
 from engine.graph import load_map
 from training.env import JackEnv
+from training.eval import eval_policy
+from training.model import Agent
 
 
 # ---------------------------------------------------------------------------
@@ -201,47 +203,6 @@ class AsyncVectorJackEnv:
 
 
 # ---------------------------------------------------------------------------
-# Network
-# ---------------------------------------------------------------------------
-
-
-class Agent(nn.Module):
-    def __init__(self, obs_dim: int, n_actions: int) -> None:
-        super().__init__()
-        self.trunk = nn.Sequential(
-            nn.Linear(obs_dim, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, 256),
-            nn.ReLU(),
-        )
-        self.policy_head = nn.Linear(256, n_actions)
-        self.value_head = nn.Linear(256, 1)
-
-    def get_value(self, x: torch.Tensor) -> torch.Tensor:
-        return self.value_head(self.trunk(x)).squeeze(-1)
-
-    def get_action_and_value(
-        self,
-        x: torch.Tensor,
-        mask: torch.Tensor,
-        action: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        features = self.trunk(x)
-        logits = self.policy_head(features)
-        masked_logits = logits.masked_fill(~mask, float("-inf"))
-        dist = Categorical(logits=masked_logits)
-        if action is None:
-            action = dist.sample()
-        log_prob = dist.log_prob(action)
-        # entropy: 0 * log(0) = nan -> treat as 0 (illegal actions contribute nothing)
-        entropy = dist.entropy().nan_to_num(0.0)
-        value = self.value_head(features).squeeze(-1)
-        return action, log_prob, entropy, value
-
-
-# ---------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------
 
@@ -257,7 +218,7 @@ def train(args: argparse.Namespace) -> None:
     sample_env = JackEnv(game_map)
     sample_obs, _ = sample_env.reset()
     obs_dim = sample_obs.shape[0]
-    del sample_env, game_map
+    del sample_env
     print(
         f"obs_dim={obs_dim}  n_actions={n_actions}  n_envs={args.n_envs}  n_workers={args.n_workers}"
     )
@@ -531,6 +492,36 @@ def train(args: argparse.Namespace) -> None:
                     ckpt_path,
                 )
                 print(f"  checkpoint -> {ckpt_path}")
+                if args.eval_games > 0:
+                    agent.eval()
+                    eval_results = eval_policy(
+                        agent,
+                        game_map,
+                        args.eval_games,
+                        device,
+                        rng=random.Random(args.seed),
+                    )
+                    agent.train()
+                    print(
+                        f"  eval: win_rate={eval_results['win_rate']:.1%} "
+                        f"turns={eval_results['mean_turns']:.1f} "
+                        f"turns(W)={eval_results['mean_turns_on_win']:.1f} "
+                        f"hideout_u={eval_results['mean_hideout_uncert']:.2f}"
+                    )
+                    wandb.log(
+                        {
+                            "eval/win_rate": eval_results["win_rate"],
+                            "eval/mean_turns": eval_results["mean_turns"],
+                            "eval/mean_turns_on_win": eval_results["mean_turns_on_win"],
+                            "eval/mean_turns_on_loss": eval_results[
+                                "mean_turns_on_loss"
+                            ],
+                            "eval/mean_hideout_uncert": eval_results[
+                                "mean_hideout_uncert"
+                            ],
+                            "global_step": global_step,
+                        }
+                    )
 
     wandb.finish()
     print("Training complete.")
@@ -574,6 +565,12 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--curriculum-target-low", type=float, default=0.4)
     p.add_argument("--curriculum-target-high", type=float, default=0.6)
+    p.add_argument(
+        "--eval-games",
+        type=int,
+        default=200,
+        help="Games per eval run on checkpoint save (0 to disable)",
+    )
     p.add_argument("--wandb-project", default="mls-from-whitechapel")
     p.add_argument("--wandb-run", default=None)
     p.add_argument(

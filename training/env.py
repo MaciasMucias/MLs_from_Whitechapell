@@ -5,6 +5,7 @@ import random
 
 import numpy as np
 
+from agents.base import Director
 from agents.heuristic_cops import HeuristicCops
 from agents.random_agents import NoOpDirector
 from engine.env import (
@@ -40,6 +41,7 @@ class JackEnv:
         gamma: float = 0.5,
         blocking: bool = False,
         rng: random.Random | None = None,
+        director: Director | None = None,
     ) -> None:
         self._map = game_map
         self._alpha = alpha
@@ -58,7 +60,7 @@ class JackEnv:
 
         # Separate RNG stream so cop decisions don't consume Jack's seed
         self._cops = HeuristicCops()
-        self._director = NoOpDirector()
+        self._director: Director = director if director is not None else NoOpDirector()
 
         # Per-worker visit counts — intentionally persist across episodes
         self._visit_counts: dict[int, int] = {}
@@ -77,6 +79,7 @@ class JackEnv:
 
         self._state = make_initial_state(self._map, rng=self._rng)
         self._cops.on_episode_start(self._state, self._map)
+        self._director.on_episode_start(self._state, self._map)
         self._pmf = {}
 
         legal = legal_jack_edges(self._state, self._map, blocking=self._blocking)
@@ -158,9 +161,14 @@ class JackEnv:
             reward += self._gamma * (nonzero_in_zone / len(state.hideout_zone))
 
         self._cops.on_episode_end(state, winner)
+        self._director.on_game_end(winner, state.turn)
         self._state = state
         obs = build_obs(state, self._map, self._all_dists, self._diameter)
         return obs, reward, True, False, {"winner": winner}
+
+    def set_director_difficulty(self, value: float) -> None:
+        if hasattr(self._director, "set_difficulty"):
+            self._director.set_difficulty(value)
 
     def _action_mask(self, legal_edges: list) -> np.ndarray:
         mask = np.zeros(self._n_jack, dtype=bool)

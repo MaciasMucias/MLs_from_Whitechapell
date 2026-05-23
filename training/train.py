@@ -2,8 +2,8 @@
 PPO training loop for Jack's RL policy (CleanRL-style, single-file).
 
 Usage:
-    uv run training/train.py
-    uv run training/train.py --total-steps 10_000_000 --n-envs 16
+    uv run python -m training.train
+    uv run python -m training.train --total-steps 10_000_000 --n-envs 16
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ import wandb
 from torch.distributions import Categorical
 from torch.optim import Adam
 
+from agents.curriculum_director import INITIAL_DIFFICULTY
 from engine.graph import load_map
 from training.env import JackEnv
 
@@ -33,7 +34,13 @@ from training.env import JackEnv
 # ---------------------------------------------------------------------------
 
 
-def _worker_fn(conn: Connection, map_path: str, seeds: list[int]) -> None:
+def _worker_fn(
+    conn: Connection,
+    map_path: str,
+    seeds: list[int],
+    use_curriculum: bool = False,
+    initial_difficulty: float = INITIAL_DIFFICULTY,
+) -> None:
     """
     Env worker. Owns len(seeds) independent JackEnv instances and steps them
     sequentially per message. Loads its own map copy (Map is not picklable).
@@ -42,12 +49,24 @@ def _worker_fn(conn: Connection, map_path: str, seeds: list[int]) -> None:
     the same message so the main process never needs a separate round-trip.
 
     Protocol:
-        recv: ("step", [action, ...])  ->  send: [(obs, reward, term, trunc, info), ...]
-        recv: ("reset",)               ->  send: [(obs, info), ...]
-        recv: ("close",)               ->  exit
+        recv: ("step", [action, ...])      ->  send: [(obs, reward, term, trunc, info), ...]
+        recv: ("reset",)                   ->  send: [(obs, info), ...]
+        recv: ("set_difficulty", float)    ->  no response (fire-and-forget)
+        recv: ("close",)                   ->  exit
     """
     game_map = load_map(map_path)
-    envs = [JackEnv(game_map, rng=random.Random(s)) for s in seeds]
+    if use_curriculum:
+        from agents.curriculum_director import CurriculumDirector
+
+        director = CurriculumDirector(
+            initial_difficulty=initial_difficulty,
+            rng=random.Random(seeds[0] + 10_000_000),
+        )
+        envs = [
+            JackEnv(game_map, rng=random.Random(s), director=director) for s in seeds
+        ]
+    else:
+        envs = [JackEnv(game_map, rng=random.Random(s)) for s in seeds]
 
     try:
         while True:
@@ -72,6 +91,12 @@ def _worker_fn(conn: Connection, map_path: str, seeds: list[int]) -> None:
                         results.append((obs, reward, terminated, truncated, info))
                 conn.send(results)
 
+            elif cmd == "set_difficulty":
+                new_d = msg[1]
+                for env in envs:
+                    env.set_director_difficulty(new_d)
+                # fire-and-forget: no conn.send()
+
             elif cmd == "close":
                 break
 
@@ -93,7 +118,15 @@ class AsyncVectorJackEnv:
     letting you keep large batches while leaving CPU cores free.
     """
 
-    def __init__(self, map_path: str, n_envs: int, n_workers: int, seed: int) -> None:
+    def __init__(
+        self,
+        map_path: str,
+        n_envs: int,
+        n_workers: int,
+        seed: int,
+        use_curriculum: bool = False,
+        initial_difficulty: float = INITIAL_DIFFICULTY,
+    ) -> None:
         assert n_envs % n_workers == 0, "n_envs must be divisible by n_workers"
         self.n = n_envs
         self._n_workers = n_workers
@@ -107,7 +140,13 @@ class AsyncVectorJackEnv:
             worker_seeds = [seed + i * self._epw + j for j in range(self._epw)]
             proc = ctx.Process(
                 target=_worker_fn,
-                args=(child_conn, map_path, worker_seeds),
+                args=(
+                    child_conn,
+                    map_path,
+                    worker_seeds,
+                    use_curriculum,
+                    initial_difficulty,
+                ),
                 daemon=True,
             )
             proc.start()
@@ -147,6 +186,12 @@ class AsyncVectorJackEnv:
             proc.join(timeout=5)
             if proc.is_alive():
                 proc.terminate()
+
+    def set_difficulty(self, value: float) -> None:
+        """Broadcast new curriculum difficulty to all workers. Call between rollouts."""
+        for conn in self._conns:
+            conn.send(("set_difficulty", value))
+        # fire-and-forget: no recv()
 
     def __enter__(self) -> AsyncVectorJackEnv:
         return self
@@ -224,11 +269,13 @@ def train(args: argparse.Namespace) -> None:
     resume_step = 0
     start_update = 1
     wandb_resume_id = None
+    curriculum_difficulty: float = INITIAL_DIFFICULTY
     if args.resume:
         ckpt = torch.load(args.resume, map_location=device, weights_only=True)
         resume_step = ckpt["step"]
         start_update = resume_step // batch_size + 1
         wandb_resume_id = ckpt.get("wandb_run_id")
+        curriculum_difficulty = ckpt.get("curriculum_difficulty", INITIAL_DIFFICULTY)
         print(
             f"Resumed from {args.resume} at step {resume_step:,} (update {start_update}/{n_updates})"
         )
@@ -262,7 +309,14 @@ def train(args: argparse.Namespace) -> None:
         args.n_steps, args.n_envs, n_actions, device=device, dtype=torch.bool
     )
 
-    with AsyncVectorJackEnv(args.map, args.n_envs, args.n_workers, args.seed) as envs:
+    with AsyncVectorJackEnv(
+        args.map,
+        args.n_envs,
+        args.n_workers,
+        args.seed,
+        use_curriculum=not args.no_curriculum,
+        initial_difficulty=curriculum_difficulty,
+    ) as envs:
         obs_np, infos = envs.reset()
         obs = torch.from_numpy(obs_np).float().to(device)
         masks = torch.from_numpy(np.stack([i["action_mask"] for i in infos])).to(device)
@@ -273,7 +327,7 @@ def train(args: argparse.Namespace) -> None:
         ep_return_buf = np.zeros(args.n_envs)
         ep_length_buf = np.zeros(args.n_envs, dtype=int)
 
-        ckpt_dir = Path(args.checkpoint_dir) / wandb.run.name
+        ckpt_dir = Path(args.checkpoint_dir) / (wandb.run.name or wandb.run.id)
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
         global_step = resume_step
@@ -422,6 +476,7 @@ def train(args: argparse.Namespace) -> None:
                 f"episodes={len(ep_returns)} "
                 f"return={mean_return:.3f} "
                 f"win_rate={win_rate:.3f} "
+                f"difficulty={curriculum_difficulty:+.3f} "
                 f"pg={mean_pg:.4f} "
                 f"vf={mean_vf:.4f} "
                 f"ent={mean_ent:.4f} "
@@ -440,9 +495,26 @@ def train(args: argparse.Namespace) -> None:
                     "losses/entropy": mean_ent,
                     "losses/clip_frac": mean_clip,
                     "train/lr": current_lr,
+                    "curriculum/difficulty": curriculum_difficulty,
                     "global_step": global_step,
                 },
             )
+
+            # -- Curriculum P-controller update --------------------------------
+            if not args.no_curriculum and len(ep_wins) >= 10:
+                target_centre = (
+                    args.curriculum_target_low + args.curriculum_target_high
+                ) / 2.0
+                if (
+                    win_rate < args.curriculum_target_low
+                    or win_rate > args.curriculum_target_high
+                ):
+                    error = win_rate - target_centre
+                    curriculum_difficulty = max(
+                        -1.0,
+                        min(1.0, curriculum_difficulty + args.curriculum_kp * error),
+                    )
+                    envs.set_difficulty(curriculum_difficulty)
 
             if update % 50 == 0 or update == n_updates:
                 ckpt_path = ckpt_dir / f"agent_{global_step:010d}.pt"
@@ -454,6 +526,7 @@ def train(args: argparse.Namespace) -> None:
                         "obs_dim": obs_dim,
                         "n_actions": n_actions,
                         "wandb_run_id": wandb.run.id,
+                        "curriculum_difficulty": curriculum_difficulty,
                     },
                     ckpt_path,
                 )
@@ -487,6 +560,20 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=27)
     p.add_argument("--checkpoint-dir", default="checkpoints/")
     p.add_argument("--resume", default=None, metavar="CHECKPOINT")
+    p.add_argument(
+        "--no-curriculum",
+        action="store_true",
+        default=False,
+        help="Disable curriculum Director; all envs use NoOpDirector",
+    )
+    p.add_argument(
+        "--curriculum-kp",
+        type=float,
+        default=0.1,
+        help="Proportional gain for difficulty adjustment",
+    )
+    p.add_argument("--curriculum-target-low", type=float, default=0.4)
+    p.add_argument("--curriculum-target-high", type=float, default=0.6)
     p.add_argument("--wandb-project", default="mls-from-whitechapel")
     p.add_argument("--wandb-run", default=None)
     p.add_argument(

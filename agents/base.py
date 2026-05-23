@@ -73,5 +73,9 @@ class Director(ABC):
 
     @abstractmethod
     def filter_knowledge(self, state: GameState, game_map: Map) -> GameState: ...
+
+    def on_episode_start(self, state: GameState, game_map: Map) -> None:
+        pass
+
     def on_game_end(self, winner: str, turns_survived: int) -> None:
         pass

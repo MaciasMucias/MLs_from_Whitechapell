@@ -1,15 +1,4 @@
 const SVG_NS = "http://www.w3.org/2000/svg";
-const COP_COLORS = ["#ffeb3b", "#00bcd4", "#8bc34a", "#ff9800", "#e91e63", "#9c27b0"];
-
-// Game element colors — keep in sync with colors.css
-const COLOR_JACK        = "#22c55e";
-const COLOR_HIDEOUT     = "#f43f5e";
-const COLOR_LEGAL       = "#f97316";
-const COLOR_VISITED     = "#60a5fa";
-const COLOR_COP         = "#ef4444";
-const COLOR_COP_STROKE  = "#ff6659";
-const COLOR_ZONE        = "rgba(168,85,247,0.45)";
-const COLOR_ZONE_STROKE = "#7c3aed";
 
 let mapData      = null;
 let gameId       = null;
@@ -144,6 +133,7 @@ function render(state) {
   renderCopNodes(g, copMap);
   renderJackNodes(g, state, legalSet, visitedSet);
 
+  renderHideoutStar(state);
   renderZoneLayer(state);
   svg.appendChild(g);
   updateSidebar(state);
@@ -161,25 +151,39 @@ function renderCopNodes(g, copMap) {
 
     const copIdx = copMap.get(node.id);
     if (copIdx !== undefined) {
-      rect.setAttribute("fill", COLOR_COP);
-      rect.setAttribute("stroke", COLOR_COP_STROKE);
+      rect.style.fill   = "var(--color-cop)";
+      rect.style.stroke = "var(--color-cop-stroke)";
       rect.setAttribute("stroke-width", 1.5);
       const dot = document.createElementNS(SVG_NS, "circle");
       dot.setAttribute("cx", node.x);
       dot.setAttribute("cy", node.y);
       dot.setAttribute("r", 2.5);
-      dot.setAttribute("fill", COP_COLORS[copIdx % COP_COLORS.length]);
+      dot.style.fill = `var(--color-cop-${copIdx % 6})`;
       const copGroup = document.createElementNS(SVG_NS, "g");
       copGroup.appendChild(rect);
       copGroup.appendChild(dot);
       g.appendChild(copGroup);
       copRectElems.set(copIdx, copGroup);
     } else {
-      rect.setAttribute("fill", "rgba(20,20,20,0.35)");
+      rect.style.fill = "var(--color-cop-node-empty)";
       rect.setAttribute("stroke", "none");
       g.appendChild(rect);
     }
   }
+}
+
+// ── Star helper ───────────────────────────────────────────
+
+function makeStar(cx, cy, outerR, innerR, points) {
+  const coords = [];
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (i * Math.PI) / points - Math.PI / 2;
+    const r = i % 2 === 0 ? outerR : innerR;
+    coords.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+  }
+  const poly = document.createElementNS(SVG_NS, "polygon");
+  poly.setAttribute("points", coords.join(" "));
+  return poly;
 }
 
 // ── Jack node rings ───────────────────────────────────────
@@ -192,15 +196,14 @@ function renderJackNodes(g, state, legalSet, visitedSet) {
     const isVisited = visitedSet.has(node.id);
 
     const segments = [];
-    if (isJack)    segments.push(COLOR_JACK);
-    if (isHideout) segments.push(COLOR_HIDEOUT);
-    if (isLegal)   segments.push(COLOR_LEGAL);
-    if (isVisited) segments.push(COLOR_VISITED);
+    if (isJack)    segments.push("var(--color-jack)");
+    if (isLegal)   segments.push("var(--color-legal)");
+    if (isVisited) segments.push("var(--color-visited)");
 
     if (segments.length === 0) continue;
 
-    const r  = (isJack || isHideout) ? 10 : 9;
-    const sw = (isJack || isHideout) ? 4  : 3;
+    const r  = isJack ? 10 : 9;
+    const sw = isJack ? 4  : 3;
     const n  = segments.length;
     const circumference = 2 * Math.PI * r;
     const segLen = circumference / n;
@@ -215,7 +218,7 @@ function renderJackNodes(g, state, legalSet, visitedSet) {
       c.setAttribute("cy", node.y);
       c.setAttribute("r", r);
       c.setAttribute("fill", "none");
-      c.setAttribute("stroke", segments[i]);
+      c.style.stroke = segments[i];
       c.setAttribute("stroke-width", sw);
       if (n > 1) {
         c.setAttribute("transform", `rotate(-90, ${node.x}, ${node.y})`);
@@ -263,13 +266,37 @@ function renderZoneLayer(state) {
     c.setAttribute("cx", node.x);
     c.setAttribute("cy", node.y);
     c.setAttribute("r", 13);
-    c.setAttribute("fill", COLOR_ZONE);
-    c.setAttribute("stroke", COLOR_ZONE_STROKE);
+    c.style.fill   = "var(--color-zone)";
+    c.style.stroke = "var(--color-zone-stroke)";
     c.setAttribute("stroke-width", "2.5");
     g.appendChild(c);
   }
 
   svg.appendChild(g);
+}
+
+// ── Hideout star layer (behind map image) ─────────────────
+
+function renderHideoutStar(state) {
+  const svg = document.getElementById("board");
+  const old = svg.getElementById("hideout-star-layer");
+  if (old) old.remove();
+
+  const node = jackNodeById?.get(state.hideout);
+  if (!node) return;
+
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("id", "hideout-star-layer");
+  g.setAttribute("pointer-events", "none");
+
+  const star = makeStar(node.x, node.y, 25, 15, 5);
+  star.style.fill   = "var(--color-hideout)";
+  star.style.stroke = "none";
+  g.appendChild(star);
+
+  const image = svg.querySelector("image");
+  if (image) svg.insertBefore(g, image);
+  else svg.prepend(g);
 }
 
 // ── Cop trail layer ───────────────────────────────────────
@@ -292,7 +319,7 @@ function renderCopTrails() {
   // Semi-transparent strokes blend naturally when paths share segments.
   for (const [copIdx, path] of [...roundCopPaths.entries()].sort((a, b) => a[0] - b[0])) {
     if (path.length < 2) continue;  // didn't move
-    const color = COP_COLORS[copIdx % COP_COLORS.length];
+    const color = `var(--color-cop-${copIdx % 6})`;
 
     const coords = path.map(id => {
       const n = copNodeById.get(id);
@@ -302,7 +329,7 @@ function renderCopTrails() {
     const line = document.createElementNS(SVG_NS, "polyline");
     line.setAttribute("points", coords.join(" "));
     line.setAttribute("fill", "none");
-    line.setAttribute("stroke", color);
+    line.style.stroke = color;
     line.setAttribute("stroke-width", "2.5");
     line.setAttribute("stroke-opacity", "0.55");
     line.setAttribute("stroke-linecap", "round");
@@ -316,7 +343,7 @@ function renderCopTrails() {
       dot.setAttribute("cx", n.x);
       dot.setAttribute("cy", n.y);
       dot.setAttribute("r", 3);
-      dot.setAttribute("fill", color);
+      dot.style.fill = color;
       dot.setAttribute("opacity", "0.6");
       g.appendChild(dot);
     }
@@ -462,7 +489,7 @@ async function animateJackMove(srcId, dstId) {
   circ.setAttribute("cy", startNode.y);
   circ.setAttribute("r", 10);
   circ.setAttribute("fill", "none");
-  circ.setAttribute("stroke", COLOR_JACK);
+  circ.style.stroke = "var(--color-jack)";
   circ.setAttribute("stroke-width", 4);
   circ.setAttribute("pointer-events", "none");
   g.appendChild(circ);
@@ -518,15 +545,15 @@ async function animateCopTurn(events) {
       rect.setAttribute("y", startNode.y - 4);
       rect.setAttribute("width", 8);
       rect.setAttribute("height", 8);
-      rect.setAttribute("fill", COLOR_COP);
-      rect.setAttribute("stroke", COLOR_COP_STROKE);
+      rect.style.fill   = "var(--color-cop)";
+      rect.style.stroke = "var(--color-cop-stroke)";
       rect.setAttribute("stroke-width", 1.5);
       rect.setAttribute("pointer-events", "none");
       const dot = document.createElementNS(SVG_NS, "circle");
       dot.setAttribute("cx", startNode.x);
       dot.setAttribute("cy", startNode.y);
       dot.setAttribute("r", 2.5);
-      dot.setAttribute("fill", COP_COLORS[ev.cop % COP_COLORS.length]);
+      dot.style.fill = `var(--color-cop-${ev.cop % 6})`;
       dot.setAttribute("pointer-events", "none");
       g.appendChild(rect);
       g.appendChild(dot);
@@ -588,8 +615,8 @@ async function flashSearchedNodes(ev) {
     c.setAttribute("cx", node.x);
     c.setAttribute("cy", node.y);
     c.setAttribute("r", 11);
-    c.setAttribute("fill",         isHit ? "rgba(239,68,68,0.35)"   : "rgba(103,232,249,0.25)");  // hit=cop-red, miss=cyan
-    c.setAttribute("stroke",       isHit ? COLOR_COP               : "#67e8f9");
+    c.style.fill   = isHit ? "var(--color-search-hit-fill)"    : "var(--color-search-miss-fill)";
+    c.style.stroke = isHit ? "var(--color-cop)"               : "var(--color-search-miss-stroke)";
     c.setAttribute("stroke-width", isHit ? "2.5"                   : "1.5");
     c.setAttribute("pointer-events", "none");
     g.appendChild(c);
@@ -621,8 +648,8 @@ async function flashArrestNodes(ev) {
     pulse.setAttribute("cx", node.x);
     pulse.setAttribute("cy", node.y);
     pulse.setAttribute("r", 13);
-    pulse.setAttribute("fill", "rgba(239,68,68,0.4)");
-    pulse.setAttribute("stroke", COLOR_COP);
+    pulse.style.fill   = "var(--color-arrest-pulse-fill)";
+    pulse.style.stroke = "var(--color-cop)";
     pulse.setAttribute("stroke-width", 3);
     pulse.setAttribute("pointer-events", "none");
     g.appendChild(pulse);

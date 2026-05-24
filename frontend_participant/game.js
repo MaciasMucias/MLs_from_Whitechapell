@@ -387,16 +387,16 @@ function updateCopSummary(events) {
       const hits     = (ev.search_hits || []).map(n => n + 1);
       div.className  = "cop-event searching";
       div.innerHTML  = hits.length > 0
-        ? `<span class="cop-id">Policjant ${copIdx + 1}</span> poszukiwał na ${searched} → <span class="hit">znalazł ${hits.join(", ")}</span>`
-        : `<span class="cop-id">Policjant ${copIdx + 1}</span> poszukiwał na ${searched} → <span class="miss">nic nie znalazł</span>`;
+        ? `<span class="cop-id" style="color:var(--color-cop-${copIdx % 6})">Policjant ${copIdx + 1}</span> poszukiwał na ${searched} → <span class="hit">znalazł ${hits.join(", ")}</span>`
+        : `<span class="cop-id" style="color:var(--color-cop-${copIdx % 6})">Policjant ${copIdx + 1}</span> poszukiwał na ${searched} → <span class="miss">nic nie znalazł</span>`;
     } else {
       div.className = ev.arrest_success ? "cop-event arrest-success" : "cop-event arresting";
       const targetDesc = ev.arrest_all
         ? "wszystkie sąsiednie pola"
         : `pole ${ev.arrest_target != null ? ev.arrest_target + 1 : "?"}`;
       div.innerHTML = ev.arrest_success
-        ? `<span class="cop-id">Policjant ${copIdx + 1}</span> aresztował ${targetDesc} → <span class="hit">ZŁAPANY</span>`
-        : `<span class="cop-id">Policjant ${copIdx + 1}</span> aresztował ${targetDesc} → <span class="miss">nie znaleziono</span>`;
+        ? `<span class="cop-id" style="color:var(--color-cop-${copIdx % 6})">Policjant ${copIdx + 1}</span> aresztował ${targetDesc} → <span class="hit">ZŁAPANY</span>`
+        : `<span class="cop-id" style="color:var(--color-cop-${copIdx % 6})">Policjant ${copIdx + 1}</span> aresztował ${targetDesc} → <span class="miss">nie znaleziono</span>`;
     }
 
     container.appendChild(div);

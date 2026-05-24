@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 from agents import HeuristicCops
 from engine.game import StepContext
-from engine.graph_utils import jack_bfs_distances
 from engine.state import CopKnowledge, GameState
 from server.replay import list_replays, load_replay
 from server.session import GameSession, register_session, state_view
@@ -47,12 +46,9 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
 
     gm = next(iter(request.app.state.game_maps.values()))
 
-    # Hideout zone: approximate as BFS neighbourhood around the hideout
     hideout = record.hideout
-    hideout_distances = jack_bfs_distances(hideout, gm)
-    hideout_zone = frozenset(
-        v for v, d in hideout_distances.items() if d <= gm.zone_radius
-    )
+    hideout_zone_anchor = record.hideout_zone_anchor
+    hideout_zone = frozenset(record.hideout_zone)
 
     if body.turn == -1:
         # Fork from the initial state — no moves have happened yet
@@ -60,7 +56,7 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             jack_pos=record.initial_jack_pos,
             cop_positions=tuple(record.initial_cop_positions),
             hideout=hideout,
-            hideout_zone_anchor=hideout,
+            hideout_zone_anchor=hideout_zone_anchor,
             hideout_zone=hideout_zone,
             turn=0,
             jack_trace=frozenset({record.initial_jack_pos}),
@@ -103,7 +99,7 @@ async def fork_at_turn(slot: int, body: ForkAtTurnBody, request: Request):
             jack_pos=rnd.jack_to,
             cop_positions=tuple(cop_positions),
             hideout=hideout,
-            hideout_zone_anchor=hideout,
+            hideout_zone_anchor=hideout_zone_anchor,
             hideout_zone=hideout_zone,
             turn=body.turn + 1,
             jack_trace=frozenset(jack_trace),

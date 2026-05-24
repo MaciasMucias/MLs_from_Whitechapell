@@ -1,15 +1,24 @@
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from engine.graph import load_map
-from server.admin_routes import admin_router
 from server.database import init_db
-from server.replay_routes import replay_router
-from server.routes import router
+from server.routes import limiter, router
+from server.session import cleanup_old_sessions
+
+
+async def _session_cleanup_loop():
+    while True:
+        await asyncio.sleep(30 * 60)
+        cleanup_old_sessions(4 * 3600)
 
 
 @asynccontextmanager
@@ -20,13 +29,17 @@ async def lifespan(app: FastAPI):
     app.state.game_maps = {
         entry["name"]: load_map(Path("maps") / entry["file"]) for entry in course
     }
+    task = asyncio.create_task(_session_cleanup_loop())
     yield
+    task.cancel()
 
 
 whitechapel_ui = FastAPI(lifespan=lifespan)
+whitechapel_ui.state.limiter = limiter
+whitechapel_ui.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+whitechapel_ui.add_middleware(SlowAPIMiddleware)
+
 whitechapel_ui.include_router(router, prefix="/api")
-whitechapel_ui.include_router(admin_router, prefix="/api/admin")
-whitechapel_ui.include_router(replay_router, prefix="/api/replays")
 
 whitechapel_ui.mount(
     "/", StaticFiles(directory="frontend_participant", html=True), name="participant"

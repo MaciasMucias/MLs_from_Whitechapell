@@ -1,4 +1,5 @@
 import random
+import time
 import uuid
 from dataclasses import dataclass, field
 from agents import HeuristicCops
@@ -14,6 +15,7 @@ class GameSession:
     rng: random.Random
     cop_agent: HeuristicCops
     history: list = field(default_factory=list)  # GameState undo stack (admin panel)
+    created_at: float = field(default_factory=time.time)
 
 
 _sessions: dict[str, GameSession] = {}
@@ -47,6 +49,14 @@ def register_session(session: GameSession) -> None:
 
 def get_session(game_id: str) -> GameSession | None:
     return _sessions.get(game_id)
+
+
+def cleanup_old_sessions(max_age_seconds: int) -> None:
+    cutoff = time.time() - max_age_seconds
+    expired = [gid for gid, s in _sessions.items() if s.created_at < cutoff]
+    for gid in expired:
+        _sessions.pop(gid, None)
+        _participant_meta.pop(gid, None)
 
 
 def push_history(session: GameSession) -> None:

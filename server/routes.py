@@ -1,6 +1,12 @@
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 from engine.env import legal_jack_edges
 from engine.game import step_round
@@ -22,10 +28,13 @@ class JackMoveRequest(BaseModel):
 
 class NewGameRequest(BaseModel):
     map_name: str = "whitechapel"
-    gaming_habit: str = "unknown"
+    gaming_habit: Literal["never_played", "played_few", "played_many", "unknown"] = (
+        "unknown"
+    )
 
 
 @router.post("/game/new")
+@limiter.limit("5/minute")
 async def new_game(body: NewGameRequest, request: Request):
     game_maps = request.app.state.game_maps
     if body.map_name not in game_maps:
@@ -55,6 +64,7 @@ async def get_game(game_id: str):
 
 
 @router.post("/game/{game_id}/jack-move")
+@limiter.limit("60/minute")
 async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
     session = get_session(game_id)
     if session is None:

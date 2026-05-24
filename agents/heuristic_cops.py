@@ -72,6 +72,7 @@ class HeuristicCops(CopAgent):
         pursuit_fraction: float = 0.4,
         pursuit_weight: float = 0.5,
         searcher_prox_fraction: float = 0.5,
+        direction_certainty_threshold: float = 0.15,
         arrest_discount: float = 0.0,
         miss_discount_decay: float = 0.7,
         hideout_blend: float = 0.5,
@@ -83,6 +84,7 @@ class HeuristicCops(CopAgent):
         self._pursuit_fraction = pursuit_fraction
         self._pursuit_weight = pursuit_weight
         self._searcher_prox_fraction = searcher_prox_fraction
+        self._direction_certainty_threshold = direction_certainty_threshold
         self._arrest_discount = arrest_discount
         self._miss_discount_decay = miss_discount_decay
         self._hideout_blend = hideout_blend
@@ -407,30 +409,12 @@ class HeuristicCops(CopAgent):
         (PMF nodes at BFS depth >= current_depth - 1) and the hideout centroid,
         identical to the previous ACO approach.
         """
-        # Frontier centroid: PMF-weighted centroid of nodes Jack has recently
-        # reached (BFS depth >= current_depth - 1). This tracks Jack's advancing
-        # edge instead of the broad PMF mean, which is dominated by depth-1 and
-        # depth-0 nodes from backtracking paths and drags the centroid back toward
-        # the start even as Jack moves away.
-        frontier_threshold = max(1, current_depth - 1)
-        frontier_pmf = {
-            v: p
-            for v, p in position_pmf.items()
-            if self._jack_start_distances.get(v, 0) >= frontier_threshold
-        }
-        if frontier_pmf:
-            ftotal = sum(frontier_pmf.values())
-            fcx = (
-                sum(p * game_map.jack_nodes[v].x for v, p in frontier_pmf.items())
-                / ftotal
-            )
-            fcy = (
-                sum(p * game_map.jack_nodes[v].y for v, p in frontier_pmf.items())
-                / ftotal
-            )
-        else:
-            fcx = sum(p * game_map.jack_nodes[v].x for v, p in position_pmf.items())
-            fcy = sum(p * game_map.jack_nodes[v].y for v, p in position_pmf.items())
+        # Full PMF centroid — weighted mean over all Jack nodes with nonzero
+        # probability. The previous frontier filter (BFS depth >= current_depth-1)
+        # caused the centroid to be dominated by sparse outlier nodes in late turns,
+        # pointing pursuers at the wrong area of the board.
+        fcx = sum(p * game_map.jack_nodes[v].x for v, p in position_pmf.items())
+        fcy = sum(p * game_map.jack_nodes[v].y for v, p in position_pmf.items())
 
         # Hideout PMF centroid — blend toward likely destination so pursuers
         # intercept Jack's path rather than purely chasing his current position.
@@ -470,6 +454,14 @@ class HeuristicCops(CopAgent):
             norm_prox = {
                 cid: (d - prox_min) / prox_range for cid, d in all_prox.items()
             }
+
+        # Direction certainty: scale the proximity bonus by how concentrated the PMF
+        # is.  When cops are right on Jack's tail, one node dominates (high max_p) and
+        # direction guidance is reliable.  When the PMF is flat, max_p is low and the
+        # centroid is unreliable, so the bonus fades smoothly to zero.
+        direction_certainty = min(
+            1.0, max(position_pmf.values()) / self._direction_certainty_threshold
+        )
 
         # Most-recent miss turn per Jack node — used to compute the history discount.
         # Built once since search_misses is fixed for the entire assignment call.
@@ -563,9 +555,11 @@ class HeuristicCops(CopAgent):
                     else:
                         coverage = sum(_rs.get(jn.id, 0.0) for jn in cn.jack_neighbours)
                     prox_weight = (
-                        self._pursuit_weight
+                        self._pursuit_weight * direction_certainty
                         if _pursuer
-                        else self._pursuit_weight * self._searcher_prox_fraction
+                        else self._pursuit_weight
+                        * self._searcher_prox_fraction
+                        * direction_certainty
                     )
                     return coverage + prox_weight * norm_prox.get(_cid, 0.0)
 

@@ -56,15 +56,6 @@
     .card::before { top: 10px; left: 14px; }
     .card::after  { bottom: 10px; right: 14px; }
 
-    .eyebrow {
-      font-family: 'Courier Prime', monospace;
-      font-size: 10px;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      color: var(--brass);
-      margin-bottom: 12px;
-    }
-
     h1 {
       font-family: 'Playfair Display', Georgia, serif;
       font-size: clamp(2rem, 6vw, 2.75rem);
@@ -148,99 +139,6 @@
     .radio-option span { font-size: 0.95rem; color: var(--text-muted); }
     .radio-option:has(input:checked) span { color: var(--text); }
 
-    details.tutorial {
-      border: 1px solid var(--border);
-      border-radius: 2px;
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
-
-    details.tutorial summary {
-      padding: 12px 16px;
-      font-family: 'Courier Prime', monospace;
-      font-size: 11px;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      cursor: pointer;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      user-select: none;
-    }
-    details.tutorial summary::after { content: '▼'; font-size: 9px; }
-    details.tutorial[open] summary::after { content: '▲'; }
-    details.tutorial summary::-webkit-details-marker { display: none; }
-
-    .tutorial-body {
-      padding: 16px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .rules-confirm {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 14px;
-      border: 1px solid var(--border-brass);
-      border-radius: 2px;
-      background: rgba(201,148,26,0.06);
-      margin-bottom: 28px;
-      cursor: pointer;
-    }
-    .rules-confirm input[type="checkbox"] {
-      appearance: none;
-      width: 16px;
-      height: 16px;
-      border: 1.5px solid var(--brass);
-      border-radius: 2px;
-      flex-shrink: 0;
-      position: relative;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .rules-confirm input[type="checkbox"]:checked { background: var(--brass); }
-    .rules-confirm input[type="checkbox"]:checked::after {
-      content: '✓';
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 11px;
-      color: var(--ink);
-      line-height: 1;
-    }
-    .rules-confirm span {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-    }
-    .rules-confirm:has(input:checked) span { color: var(--text); }
-
-    .tutorial-step { display: flex; gap: 14px; align-items: flex-start; }
-
-    .step-num {
-      font-family: 'Courier Prime', monospace;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--brass);
-      background: rgba(201,148,26,0.1);
-      border: 1px solid var(--border-brass);
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    .step-text { font-size: 0.9rem; line-height: 1.6; color: var(--text-muted); }
-    .step-text strong { color: var(--text); font-weight: 600; }
-
     .start-btn {
       width: 100%;
       padding: 14px 24px;
@@ -272,9 +170,207 @@
     @media (max-width: 480px) {
       .card { padding: 32px 24px 28px; }
     }
+
+    /* ── Tutorial overlay ────────────────────────────────── */
+    #tutorial-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 10, 15, 0.93);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px 16px;
+    }
+    #tutorial-overlay.hidden { display: none; }
+
+    #tutorial-card {
+      width: min(660px, 96vw);
+      max-height: 95vh;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border-brass);
+      border-radius: 2px;
+      padding: 36px 44px 32px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    #tutorial-card::before { content: '✦'; position: absolute; top: 10px; left: 14px; color: var(--border-brass); font-size: 10px; opacity: 0.7; }
+    #tutorial-card::after  { content: '✦'; position: absolute; bottom: 10px; right: 14px; color: var(--border-brass); font-size: 10px; opacity: 0.7; }
+
+    #tut-close {
+      position: absolute;
+      top: 12px;
+      right: 16px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 2px;
+      transition: color 0.15s;
+    }
+    #tut-close:hover { color: var(--text); }
+
+    .tut-eyebrow {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--brass);
+      margin-bottom: 6px;
+    }
+
+    #tut-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.55rem;
+      font-weight: 900;
+      color: var(--text);
+      margin-bottom: 18px;
+      line-height: 1.2;
+    }
+
+    #tut-visual {
+      height: 190px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      background: var(--surface-hi);
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    #tut-text {
+      font-size: 0.97rem;
+      line-height: 1.75;
+      color: var(--text-muted);
+      margin-bottom: 22px;
+    }
+    #tut-text strong { color: var(--text); font-weight: 600; }
+    #tut-text em { font-style: italic; }
+    #tut-text .c-jack    { color: #22c55e; font-weight: 600; }
+    #tut-text .c-legal   { color: #f97316; font-weight: 600; }
+    #tut-text .c-visited { color: #60a5fa; font-weight: 600; }
+    #tut-text .c-cop     { color: #ef4444; font-weight: 600; }
+    #tut-text .c-hideout { color: #f43f5e; font-weight: 600; }
+    #tut-text .c-zone    { color: #a855f7; font-weight: 600; }
+
+    .tut-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    #tut-dots {
+      flex: 1;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .tut-segment {
+      flex: 1;
+      height: 5px;
+      border-radius: 3px;
+      background: var(--border);
+      transition: background 0.25s, box-shadow 0.25s;
+    }
+    .tut-segment.active { background: var(--brass-bright); box-shadow: 0 0 6px rgba(201,148,26,0.45); }
+    .tut-segment.done   { background: var(--brass); }
+
+    .tut-btns { display: flex; gap: 10px; }
+
+    .tut-btn {
+      padding: 10px 20px;
+      border-radius: 2px;
+      font-family: 'Courier Prime', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+    }
+    .tut-btn.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .tut-btn.secondary:hover:not(:disabled) { border-color: var(--border-brass); color: var(--text); }
+    .tut-btn.secondary:disabled { opacity: 0.3; cursor: default; }
+    .tut-btn.primary { background: var(--brass); border: none; color: var(--ink); }
+    .tut-btn.primary:hover:not(:disabled) { background: var(--brass-bright); }
+    .tut-btn.primary:disabled { background: #3a3020; color: #6a5a30; cursor: default; }
+
+    /* ── Sidebar mock (slide 7) ─────────────────────────── */
+    .tut-sidebar-mock {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 10px 14px;
+      font-family: 'Courier Prime', monospace;
+      overflow: hidden;
+    }
+    .tut-mock-round {
+      text-align: center;
+      padding: 4px 0 6px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2px;
+    }
+    .tut-mock-round .label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); }
+    .tut-mock-round .counter { font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+    .tut-mock-round .sep   { color: var(--border-brass); font-weight: 400; }
+    .tut-mock-round .lim   { font-size: 1rem; color: var(--text-muted); }
+    .tut-mock-section-label {
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+    .tut-cop-event {
+      font-size: 0.75rem;
+      line-height: 1.45;
+      color: var(--text-muted);
+      padding: 4px 8px;
+      background: var(--surface);
+      border-radius: 2px;
+      border-left: 2px solid var(--border);
+    }
+    .tut-cop-event.searching { border-left-color: #60a5fa; }
+    .tut-cop-event.arresting { border-left-color: #ef4444; }
+    .tut-cop-name { font-weight: 700; }
   </style>
 </head>
 <body>
+
+  <div id="tutorial-overlay" class="hidden">
+    <div id="tutorial-card">
+      <button id="tut-close" type="button" title="Zamknij">×</button>
+      <div class="tut-eyebrow">Samouczek &nbsp;<span id="tut-counter">1 / 8</span></div>
+      <h2 id="tut-title"></h2>
+      <div id="tut-visual"></div>
+      <p id="tut-text"></p>
+      <div class="tut-footer">
+        <div id="tut-dots"></div>
+        <div class="tut-btns">
+          <button class="tut-btn secondary" id="tut-prev">← Wstecz</button>
+          <button class="tut-btn primary" id="tut-next">Dalej →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <h1>Letters from <em>Whitechapel</em></h1>
     <div class="rule"></div>
@@ -297,57 +393,241 @@
       </label>
     </div>
 
-    <details class="tutorial" open>
-      <summary>Jak grać</summary>
-      <div class="tutorial-body">
-        <div class="tutorial-step">
-          <span class="step-num">1</span>
-          <p class="step-text"><strong>Cel gry:</strong> Przesuń Kubę Rozpruwacza z pozycji startowej do jego <strong style="color:var(--color-hideout)">kryjówki (różowe kółko)</strong> przed upływem limitu rund. Kliknij dowolne <strong style="color:var(--color-legal)">pomarańczowe pole</strong>, żeby się tam przesunąć — twoja pozycja jest zaznaczona na <strong style="color:var(--color-jack)">zielono</strong>. <strong style="color:var(--color-zone-stroke)">Fioletowa strefa</strong> na planszy pokazuje przybliżony obszar, w którym znajduje się kryjówka.</p>
-        </div>
-        <div class="tutorial-step">
-          <span class="step-num">2</span>
-          <p class="step-text"><strong>Dwa rodzaje pól:</strong> Duże okręgi to <em>pola Kuby Rozpruwacza</em> — między nimi się poruszasz. Małe kwadraty to <em>pola policji</em> — skrzyżowania, na których stoją i działają policjanci. Każda uliczka między dwoma polami Kuby Rozpruwacza przechodzi przez jedno lub więcej pól policji.</p>
-        </div>
-        <div class="tutorial-step">
-          <span class="step-num">3</span>
-          <p class="step-text"><strong>Tura policji:</strong> Po twoim ruchu każdy policjant porusza się maksymalnie o 2 kroki wzdłuż sieci policyjnej, a następnie wybiera jedną akcję. <strong>Poszukiwanie</strong> — policjant sprawdza wszystkie sąsiednie pola Kuby Rozpruwacza i porównuje je z trasą, którą przeszedłeś/przeszłaś w tej grze; pola, na których byłeś/byłaś, zostają trwale zaznaczone na <strong style="color:var(--color-visited)">niebiesko</strong>. <strong>Aresztowanie</strong> — policjant próbuje cię zatrzymać na tych samych sąsiednich polach. Jeśli tam jesteś, policja wygrywa. Wszyscy policjanci natychmiast dzielą się odkryciami.</p>
-        </div>
-        <div class="tutorial-step" style="flex-direction:column;gap:6px;">
-          <p class="step-text" style="font-family:'Courier Prime',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--brass);margin-bottom:4px;">Ważne szczegóły</p>
-          <p class="step-text">• Policjanci <strong>nie blokują twojego ruchu</strong> — możesz przejść każdą uliczką niezależnie od tego, gdzie stoją.</p>
-          <p class="step-text">• Podczas aresztowania policjant atakuje <strong>wszystkie sąsiednie pola Kuby Rozpruwacza jednocześnie</strong>, nie tylko jedno.</p>
-          <p class="step-text">• Nieudane aresztowanie lub poszukiwanie bez wyniku też daje policji informację — wiedzą, że w tym momencie cię tam nie było.</p>
-          <p class="step-text">• <strong style="color:var(--color-zone-stroke)">Fioletowa strefa</strong> na planszy oznacza przybliżony obszar, w którym leży twoja kryjówka — policja zna tę strefę od początku gry.</p>
-        </div>
-      </div>
-    </details>
-
-    <label class="rules-confirm">
-      <input type="checkbox" id="rules-confirmed">
-      <span>Zapoznałem/zapoznałam się z zasadami</span>
-    </label>
-
     <button class="start-btn" id="start-btn" disabled>Zacznij grę</button>
     <p class="footnote">Twoje odpowiedzi są zbierane anonimowo na potrzeby badań naukowych.</p>
   </div>
 
   <script src="api.js"></script>
   <script>
+    // ── Start button gate ─────────────────────────────────
     function updateStartBtn() {
       const habitSelected = !!document.querySelector('input[name="gaming_habit"]:checked');
-      const rulesConfirmed = document.getElementById('rules-confirmed').checked;
-      document.getElementById('start-btn').disabled = !(habitSelected && rulesConfirmed);
+      document.getElementById('start-btn').disabled = !habitSelected;
     }
 
     document.querySelectorAll('input[name="gaming_habit"]').forEach(r =>
       r.addEventListener('change', updateStartBtn)
     );
-    document.getElementById('rules-confirmed').addEventListener('change', updateStartBtn);
 
-    document.getElementById('start-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('start-btn');
-      btn.disabled = true;
-      btn.textContent = 'Ładowanie…';
+    // ── Tutorial slides ───────────────────────────────────
+    // Node conventions across all SVGs:
+    //   Jack node:          white #f0ede4, stroke #9d8f7a
+    //   Jack (position):    white + thick green stroke #22c55e (ring only, no dot)
+    //   Jack (legal move):  white + orange stroke #f97316
+    //   Jack (visited):     blue tint + blue stroke #60a5fa
+    //   Cop node:           dark #0d0f14, stroke #3a4050 (small square)
+    //   Cop (occupied):     dark square + yellow inner rect #ffeb3b
+    //   Edges:              gray #6b7280
+    const SLIDES = [
+      {
+        title: 'Cel gry',
+        text: `Wcielasz się w <strong>Kubę Rozpruwacza</strong>. Musisz przedostać się ze swojej pozycji startowej do <span class="c-hideout">kryjówki</span> przed upływem limitu rund — wtedy wygrywasz. <span class="c-cop">Policja</span> próbuje cię złapać, zanim tam dotrzesz.`,
+        visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
+          <line x1="106" y1="95" x2="166" y2="95" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="190" y1="95" x2="246" y2="95" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="270" y1="95" x2="326" y2="95" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="350" y1="95" x2="402" y2="95" stroke="#6b7280" stroke-width="1.5"/>
+          <circle cx="178" cy="95" r="10" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2"/>
+          <circle cx="258" cy="95" r="10" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2"/>
+          <circle cx="338" cy="95" r="10" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2"/>
+          <circle cx="88" cy="95" r="15" fill="#f0ede4" stroke="#22c55e" stroke-width="3"/>
+          <polygon points="418,74 423,90 440,90 427,101 432,118 418,109 404,118 409,101 396,90 413,90" fill="#f43f5e"/>
+          <text x="88" y="126" text-anchor="middle" fill="#22c55e" font-size="13" font-family="monospace">Start</text>
+          <text x="258" y="60" text-anchor="middle" fill="#9d8f7a" font-size="13" font-family="monospace">→ cel podróży</text>
+          <text x="418" y="126" text-anchor="middle" fill="#f43f5e" font-size="13" font-family="monospace">Kryjówka</text>
+          <rect x="185" y="152" width="130" height="22" rx="2" fill="rgba(201,148,26,0.1)" stroke="#7a5c10" stroke-width="1"/>
+          <text x="250" y="167" text-anchor="middle" fill="#c9941a" font-size="12" font-family="monospace">⏱ LIMIT RUND</text>
+        </svg>`
+      },
+      {
+        title: 'Dwa rodzaje pól',
+        text: `Na planszy są dwa typy węzłów. <strong>Duże okręgi</strong> to twoje pola — między nimi się poruszasz. <strong>Małe kwadraty</strong> to pola policji — skrzyżowania, na których stoją policjanci. Każda uliczka między dwoma polami Kuby przebiega przez co najmniej jedno pole policyjne.`,
+        visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
+          <circle cx="80" cy="85" r="21" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2.5"/>
+          <line x1="101" y1="85" x2="240" y2="85" stroke="#6b7280" stroke-width="1.5"/>
+          <rect x="240" y="76" width="18" height="18" rx="1" fill="#0d0f14" stroke="#3a4050" stroke-width="1.5"/>
+          <line x1="258" y1="85" x2="399" y2="85" stroke="#6b7280" stroke-width="1.5"/>
+          <circle cx="420" cy="85" r="21" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2.5"/>
+          <text x="80" y="132" text-anchor="middle" fill="#e8dcc8" font-size="14" font-family="serif">Pole Kuby</text>
+          <text x="80" y="146" text-anchor="middle" fill="#9d8f7a" font-size="12" font-family="monospace">duży okrąg</text>
+          <text x="249" y="132" text-anchor="middle" fill="#e8dcc8" font-size="14" font-family="serif">Pole policji</text>
+          <text x="249" y="146" text-anchor="middle" fill="#9d8f7a" font-size="12" font-family="monospace">mały kwadrat</text>
+          <text x="420" y="132" text-anchor="middle" fill="#9d8f7a" font-size="12" font-family="monospace">(kolejne</text>
+          <text x="420" y="146" text-anchor="middle" fill="#9d8f7a" font-size="12" font-family="monospace">pole Kuby)</text>
+          <text x="165" y="72" text-anchor="middle" fill="#9d8f7a" font-size="12" font-family="monospace">uliczka</text>
+          <text x="330" y="72" text-anchor="middle" fill="#9d8f7a" font-size="12" font-family="monospace">uliczka</text>
+        </svg>`
+      },
+      {
+        title: 'Jak się poruszać',
+        text: `Twoja aktualna pozycja oznaczona jest <span class="c-jack">zielonym wskaźnikiem</span> na białym kółku. <span class="c-legal">Pomarańczowe kółka</span> to dozwolone ruchy w tej turze — kliknij wybrane, by się tam przenieść. Możesz wykonać dokładnie <strong>jeden ruch na turę</strong>.`,
+        visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
+          <line x1="250" y1="95" x2="125" y2="46" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="95" x2="375" y2="46" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="95" x2="375" y2="144" stroke="#6b7280" stroke-width="1.5"/>
+          <circle cx="125" cy="46" r="14" fill="#f0ede4" stroke="#f97316" stroke-width="3"/>
+          <circle cx="375" cy="46" r="14" fill="#f0ede4" stroke="#f97316" stroke-width="3"/>
+          <circle cx="375" cy="144" r="14" fill="#f0ede4" stroke="#f97316" stroke-width="3"/>
+          <circle cx="250" cy="95" r="16" fill="#f0ede4" stroke="#22c55e" stroke-width="3.5"/>
+          <circle cx="50" cy="162" r="8" fill="#f0ede4" stroke="#22c55e" stroke-width="2.5"/>
+          <text x="65" y="166" fill="#22c55e" font-size="13" font-family="monospace">Twoja pozycja</text>
+          <circle cx="238" cy="162" r="8" fill="#f0ede4" stroke="#f97316" stroke-width="2"/>
+          <text x="253" y="166" fill="#f97316" font-size="13" font-family="monospace">Dozwolony ruch</text>
+        </svg>`
+      },
+      {
+        title: 'Strefa kryjówki',
+        text: `Twoja kryjówka leży gdzieś wewnątrz <span class="c-zone">fioletowej strefy</span> widocznej na planszy. Policja zna granice tej strefy od samego początku. Twoim celem jest konkretny węzeł oznaczony <span class="c-hideout">różową gwiazdą</span> — musisz na nim stanąć, żeby wygrać.`,
+        visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
+          <ellipse cx="252" cy="90" rx="154" ry="66" fill="rgba(168,85,247,0.12)" stroke="#7c3aed" stroke-width="2" stroke-dasharray="7,4"/>
+          <text x="252" y="23" text-anchor="middle" fill="#a855f7" font-size="13" font-family="monospace">STREFA KRYJÓWKI</text>
+          <circle cx="278" cy="115" r="12" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2.5"/>
+          <circle cx="328" cy="72" r="12" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2.5"/>
+          <circle cx="185" cy="72" r="13" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2.5"/>
+          <polygon points="185,60 187,67 194,67 189,71 191,78 185,74 179,78 181,71 176,67 183,67" fill="#f43f5e"/>
+          <polygon points="60,158 62,165 69,165 63,169 65,176 60,172 55,176 57,169 51,165 58,165" fill="#f43f5e"/>
+          <text x="76" y="170" fill="#f43f5e" font-size="13" font-family="monospace">Kryjówka (konkretny węzeł)</text>
+          <line x1="260" y1="168" x2="278" y2="168" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5,3"/>
+          <text x="284" y="172" fill="#a855f7" font-size="13" font-family="monospace">Granica strefy</text>
+        </svg>`
+      },
+      {
+        title: 'Tura policji — Poszukiwanie',
+        text: `Po twoim ruchu każdy policjant przesuwa się maksymalnie 2 kroki, a następnie wybiera akcję. <strong>Poszukiwanie</strong>: sprawdza wszystkie sąsiednie pola Kuby i porównuje z twoją trasą. Pola, na których <em>byłeś</em>, zostają trwale zaznaczone na <span class="c-visited">niebiesko</span>.`,
+        visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
+          <line x1="250" y1="100" x2="130" y2="48" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="100" x2="370" y2="48" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="100" x2="130" y2="152" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="100" x2="370" y2="152" stroke="#6b7280" stroke-width="1.5"/>
+          <circle cx="130" cy="48" r="13" fill="#f0ede4" stroke="#60a5fa" stroke-width="3"/>
+          <text x="130" y="53" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa" font-size="15">✓</text>
+          <circle cx="370" cy="48" r="13" fill="#f0ede4" stroke="#60a5fa" stroke-width="3"/>
+          <text x="370" y="53" text-anchor="middle" dominant-baseline="middle" fill="#60a5fa" font-size="15">✓</text>
+          <circle cx="130" cy="152" r="13" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2.5"/>
+          <circle cx="370" cy="152" r="13" fill="#f0ede4" stroke="#9d8f7a" stroke-width="2.5"/>
+          <rect x="241" y="91" width="18" height="18" rx="1" fill="#0d0f14" stroke="#3a4050" stroke-width="1.5"/>
+          <rect x="244" y="94" width="12" height="12" rx="1" fill="#ffeb3b" opacity="0.9"/>
+          <circle cx="48" cy="172" r="7" fill="#f0ede4" stroke="#60a5fa" stroke-width="2"/>
+          <text x="62" y="176" fill="#60a5fa" font-size="13" font-family="monospace">Byłeś tutaj (hit)</text>
+          <circle cx="225" cy="172" r="7" fill="#f0ede4" stroke="#9d8f7a" stroke-width="1.5"/>
+          <text x="239" y="176" fill="#9d8f7a" font-size="13" font-family="monospace">Nie byłeś (miss)</text>
+        </svg>`
+      },
+      {
+        title: 'Tura policji — Aresztowanie',
+        text: `<strong>Aresztowanie</strong>: policjant sprawdza <em>wszystkie</em> sąsiednie pola Kuby jednocześnie — nie jedno, lecz wszystkie naraz. Jeśli <em>teraz</em> jesteś na którymkolwiek z nich, policja wygrywa. Wszyscy policjanci natychmiast dzielą się odkryciami.`,
+        visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
+          <line x1="250" y1="100" x2="130" y2="48" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="100" x2="370" y2="48" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="100" x2="130" y2="152" stroke="#6b7280" stroke-width="1.5"/>
+          <line x1="250" y1="100" x2="370" y2="152" stroke="#6b7280" stroke-width="1.5"/>
+          <circle cx="130" cy="48" r="13" fill="#f0ede4" stroke="#ef4444" stroke-width="2" stroke-dasharray="4,2"/>
+          <text x="130" y="53" text-anchor="middle" dominant-baseline="middle" fill="#ef4444" font-size="16">?</text>
+          <circle cx="130" cy="152" r="13" fill="#f0ede4" stroke="#ef4444" stroke-width="2" stroke-dasharray="4,2"/>
+          <text x="130" y="157" text-anchor="middle" dominant-baseline="middle" fill="#ef4444" font-size="16">?</text>
+          <circle cx="370" cy="152" r="13" fill="#f0ede4" stroke="#ef4444" stroke-width="2" stroke-dasharray="4,2"/>
+          <text x="370" y="157" text-anchor="middle" dominant-baseline="middle" fill="#ef4444" font-size="16">?</text>
+          <circle cx="370" cy="48" r="13" fill="#f0ede4" stroke="#22c55e" stroke-width="3.5"/>
+          <text x="394" y="36" fill="#22c55e" font-size="13" font-family="monospace">← JESTEŚ!</text>
+          <rect x="241" y="91" width="18" height="18" rx="1" fill="#0d0f14" stroke="#3a4050" stroke-width="1.5"/>
+          <rect x="244" y="94" width="12" height="12" rx="1" fill="#ffeb3b" opacity="0.9"/>
+          <text x="250" y="178" text-anchor="middle" fill="#9d8f7a" font-size="12" font-family="monospace">Wszystkie sąsiednie pola sprawdzane jednocześnie</text>
+        </svg>`
+      },
+      {
+        title: 'Panel informacyjny',
+        text: `Po prawej stronie ekranu widoczny jest <strong>panel boczny</strong>. Pokazuje aktualną rundę i limit. Sekcja <em>Ostatnia runda</em> pokazuje akcje policji: <span class="c-visited">niebieski</span> pasek = poszukiwanie, <span class="c-cop">czerwony</span> = aresztowanie. Kolor nazwy policjanta odpowiada jego kolorowi na planszy. <strong>Najedź kursorem na wpis</strong>, by zobaczyć szczegóły na planszy.`,
+        visual: () => `<div class="tut-sidebar-mock">
+          <div class="tut-mock-round">
+            <div class="label">RUNDA</div>
+            <div class="counter"><span>3</span><span class="sep"> / </span><span class="lim">15</span></div>
+          </div>
+          <div class="tut-mock-section-label">OSTATNIA RUNDA</div>
+          <div class="tut-cop-event searching">
+            <span class="tut-cop-name" style="color:#ffeb3b">Policjant 1</span> — <span style="color:#9d8f7a">poszukiwanie</span><br>
+            <span style="color:#60a5fa;font-size:0.82em">✓ Znaleziono ślad na polu #47</span>
+          </div>
+          <div class="tut-cop-event arresting">
+            <span class="tut-cop-name" style="color:#00bcd4">Policjant 2</span> — <span style="color:#9d8f7a">aresztowanie</span><br>
+            <span style="color:#9d8f7a;font-size:0.82em">— Nieudane (nie było cię w zasięgu)</span>
+          </div>
+          <div class="tut-cop-event searching">
+            <span class="tut-cop-name" style="color:#8bc34a">Policjant 3</span> — <span style="color:#9d8f7a">poszukiwanie</span><br>
+            <span style="color:#9d8f7a;font-size:0.82em">— Brak śladów w zasięgu</span>
+          </div>
+        </div>`
+      },
+      {
+        title: 'Ważne szczegóły',
+        text: `Ostatnie zasady: policjanci <strong>nie blokują twojego ruchu</strong> — zawsze możesz przejść każdą uliczką. Nieudane akcje też dają policji informację: wiedzą, gdzie <em>cię nie było</em>. Twoja pozycja startowa jest ujawniana policji na początku każdej gry.`,
+        visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
+          <rect x="22" y="16" width="456" height="44" rx="2" fill="rgba(201,148,26,0.06)" stroke="#2a3040" stroke-width="1"/>
+          <text x="44" y="36" fill="#22c55e" font-size="18" font-family="sans-serif">✓</text>
+          <text x="72" y="35" fill="#e8dcc8" font-size="15" font-family="serif">Policjanci nie blokują twojego ruchu</text>
+          <text x="72" y="51" fill="#9d8f7a" font-size="13" font-family="monospace">zawsze możesz przejść każdą uliczką</text>
+          <rect x="22" y="73" width="456" height="44" rx="2" fill="rgba(201,148,26,0.06)" stroke="#2a3040" stroke-width="1"/>
+          <text x="44" y="93" fill="#c9941a" font-size="20" font-family="sans-serif">!</text>
+          <text x="72" y="92" fill="#e8dcc8" font-size="15" font-family="serif">Nieudane akcje dają informację policji</text>
+          <text x="72" y="108" fill="#9d8f7a" font-size="13" font-family="monospace">wiedzą, gdzie cię nie było</text>
+          <rect x="22" y="130" width="456" height="44" rx="2" fill="rgba(201,148,26,0.06)" stroke="#2a3040" stroke-width="1"/>
+          <text x="44" y="150" fill="#c9941a" font-size="16" font-family="sans-serif">⚑</text>
+          <text x="72" y="149" fill="#e8dcc8" font-size="15" font-family="serif">Pozycja startowa jest ujawniana policji</text>
+          <text x="72" y="165" fill="#9d8f7a" font-size="13" font-family="monospace">tylko na początku każdej gry</text>
+        </svg>`
+      }
+    ];
+
+    let currentSlide = 0;
+
+    function renderSlide(n) {
+      const slide = SLIDES[n];
+      document.getElementById('tut-counter').textContent = `${n + 1} / ${SLIDES.length}`;
+      document.getElementById('tut-title').textContent = slide.title;
+      document.getElementById('tut-text').innerHTML = slide.text;
+      document.getElementById('tut-visual').innerHTML = slide.visual();
+
+      const dotsEl = document.getElementById('tut-dots');
+      dotsEl.innerHTML = '';
+      SLIDES.forEach((_, i) => {
+        const d = document.createElement('div');
+        d.className = 'tut-segment' + (i < n ? ' done' : i === n ? ' active' : '');
+        dotsEl.appendChild(d);
+      });
+
+      document.getElementById('tut-prev').disabled = n === 0;
+      const next = document.getElementById('tut-next');
+      next.disabled = false;
+      next.textContent = n === SLIDES.length - 1 ? 'Zagrajmy!' : 'Dalej →';
+    }
+
+    function openTutorial() {
+      currentSlide = 0;
+      document.getElementById('tutorial-overlay').classList.remove('hidden');
+      renderSlide(0);
+    }
+
+    document.getElementById('tut-close').addEventListener('click', () => {
+      document.getElementById('tutorial-overlay').classList.add('hidden');
+    });
+
+    document.getElementById('tut-prev').addEventListener('click', () => {
+      if (currentSlide > 0) { currentSlide--; renderSlide(currentSlide); }
+    });
+
+    document.getElementById('tut-next').addEventListener('click', () => {
+      if (currentSlide < SLIDES.length - 1) {
+        currentSlide++;
+        renderSlide(currentSlide);
+      } else {
+        startGame();
+      }
+    });
+
+    // ── Game start (triggered by final tutorial slide) ────
+    async function startGame() {
+      const nextBtn = document.getElementById('tut-next');
+      nextBtn.disabled = true;
+      nextBtn.textContent = 'Ładowanie…';
 
       const checked = document.querySelector('input[name="gaming_habit"]:checked');
       const gamingHabit = checked ? checked.value : 'unknown';
@@ -364,11 +644,14 @@
 
         window.location.href = 'game.html';
       } catch (e) {
-        btn.disabled = false;
-        btn.textContent = 'Zacznij grę';
+        nextBtn.disabled = false;
+        nextBtn.textContent = 'Zagrajmy!';
         alert('Nie można połączyć się z serwerem. Spróbuj ponownie.');
       }
-    });
+    }
+
+    // ── "Zacznij grę" opens tutorial, which starts the game
+    document.getElementById('start-btn').addEventListener('click', openTutorial);
   </script>
 </body>
 </html>

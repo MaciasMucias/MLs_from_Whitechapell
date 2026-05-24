@@ -43,10 +43,9 @@ async function init() {
 
   renderProgress();
 
-  mapData = await fetchMap(course[courseIndex]?.name);
-  buildLookups();
-
   const state = await fetchGame(gameId);
+  mapData = await fetchMap(state.map_name);
+  buildLookups();
   render(state);
 }
 
@@ -819,9 +818,8 @@ function showGameOver(state) {
     btn.addEventListener("click", async () => {
       btn.disabled    = true;
       btn.textContent = "Ładowanie…";
-      const nextEntry   = course[nextIndex];
       const gamingHabit = sessionStorage.getItem("gaming_habit") || "unknown";
-      const newState    = await newGame(nextEntry.name, gamingHabit);
+      const newState    = await newGame(gamingHabit);
       sessionStorage.setItem("course_index", String(nextIndex));
       sessionStorage.setItem("game_id", newState.game_id);
       window.location.reload();

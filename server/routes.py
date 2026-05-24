@@ -27,7 +27,6 @@ class JackMoveRequest(BaseModel):
 
 
 class NewGameRequest(BaseModel):
-    map_name: str = "whitechapel"
     gaming_habit: Literal["never_played", "played_few", "played_many", "unknown"] = (
         "unknown"
     )
@@ -36,14 +35,13 @@ class NewGameRequest(BaseModel):
 @router.post("/game/new")
 @limiter.limit("5/minute")
 async def new_game(body: NewGameRequest, request: Request):
-    game_maps = request.app.state.game_maps
-    if body.map_name not in game_maps:
-        raise HTTPException(status_code=400, detail=f"Unknown map: {body.map_name}")
-    session = new_session(game_maps[body.map_name])
+    map_name, scenario_order = request.app.state.course_queue.next()
+    session = new_session(request.app.state.game_maps[map_name], map_name=map_name)
     set_participant_meta(
         session.game_id,
         {
-            "map_name": body.map_name,
+            "map_name": map_name,
+            "scenario_order": scenario_order,
             "gaming_habit": body.gaming_habit,
         },
     )
@@ -96,6 +94,7 @@ async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
             ParticipantGame(
                 game_id=session.game_id,
                 map_name=meta.get("map_name", "unknown"),
+                scenario_order=meta.get("scenario_order", -1),
                 gaming_habit=meta.get("gaming_habit", "unknown"),
                 outcome=ctx.winner or "unknown",
                 turns_survived=len(ctx.history),

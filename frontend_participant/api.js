@@ -17,11 +17,11 @@ async function fetchGame(gameId) {
   return r.json();
 }
 
-async function newGame(mapName, gamingHabit) {
+async function newGame(gamingHabit) {
   const r = await fetch("/api/game/new", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ map_name: mapName, gaming_habit: gamingHabit }),
+    body: JSON.stringify({ gaming_habit: gamingHabit }),
   });
   if (!r.ok) throw new Error("Nie udało się rozpocząć gry");
   return r.json();

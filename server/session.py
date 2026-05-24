@@ -14,6 +14,7 @@ class GameSession:
     ctx: StepContext
     rng: random.Random
     cop_agent: HeuristicCops
+    map_name: str = ""
     history: list = field(default_factory=list)  # GameState undo stack (admin panel)
     created_at: float = field(default_factory=time.time)
 
@@ -30,7 +31,9 @@ def pop_participant_meta(game_id: str) -> dict:
     return _participant_meta.pop(game_id, {})
 
 
-def new_session(game_map: Map, rng: random.Random | None = None) -> GameSession:
+def new_session(
+    game_map: Map, map_name: str = "", rng: random.Random | None = None
+) -> GameSession:
     if rng is None:
         rng = random.Random()
     game_id = str(uuid.uuid4())[:8]
@@ -38,7 +41,9 @@ def new_session(game_map: Map, rng: random.Random | None = None) -> GameSession:
     ctx = StepContext(game_map=game_map, state=state, terminated=False, winner=None)
     cop_agent = HeuristicCops()
     cop_agent.on_episode_start(state, game_map)
-    session = GameSession(game_id=game_id, ctx=ctx, rng=rng, cop_agent=cop_agent)
+    session = GameSession(
+        game_id=game_id, ctx=ctx, rng=rng, cop_agent=cop_agent, map_name=map_name
+    )
     _sessions[game_id] = session
     return session
 
@@ -84,6 +89,7 @@ def state_view(session: GameSession) -> dict:
 
     return {
         "game_id": session.game_id,
+        "map_name": session.map_name,
         "jack_pos": s.jack_pos,
         "cop_positions": list(s.cop_positions),
         "hideout": s.hideout,

@@ -13,6 +13,7 @@ DB_PATH = Path("data/games.sqlite")
 class ParticipantGame:
     game_id: str
     map_name: str
+    scenario_order: int  # position in permutation cycle (0 to N-1)
     gaming_habit: str  # 'never' | 'sometimes' | 'regularly' | 'unknown'
     outcome: str  # winner string from engine
     turns_survived: int
@@ -29,6 +30,7 @@ def init_db(path: Path = DB_PATH) -> None:
                 id             INTEGER PRIMARY KEY AUTOINCREMENT,
                 game_id        TEXT    NOT NULL,
                 map_name       TEXT    NOT NULL,
+                scenario_order INTEGER NOT NULL,
                 gaming_habit   TEXT    NOT NULL,
                 outcome        TEXT    NOT NULL,
                 turns_survived INTEGER NOT NULL,
@@ -44,11 +46,12 @@ def save_game(record: ParticipantGame, path: Path = DB_PATH) -> None:
     with sqlite3.connect(path) as conn:
         conn.execute(
             "INSERT INTO games "
-            "(game_id, map_name, gaming_habit, outcome, turns_survived, turn_limit, move_sequence, replay, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "(game_id, map_name, scenario_order, gaming_habit, outcome, turns_survived, turn_limit, move_sequence, replay, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 record.game_id,
                 record.map_name,
+                record.scenario_order,
                 record.gaming_habit,
                 record.outcome,
                 record.turns_survived,

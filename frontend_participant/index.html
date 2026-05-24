@@ -635,8 +635,7 @@
 
       try {
         const course = await fetchCourse();
-        const firstMap = course[0];
-        const state = await newGame(firstMap.name, gamingHabit);
+        const state = await newGame(gamingHabit);
 
         sessionStorage.setItem('course', JSON.stringify(course));
         sessionStorage.setItem('course_index', '0');

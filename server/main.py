@@ -10,6 +10,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from engine.graph import load_map
+from server.course_queue import CourseQueue
 from server.database import init_db
 from server.routes import limiter, router
 from server.session import cleanup_old_sessions
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     app.state.game_maps = {
         entry["name"]: load_map(Path("maps") / entry["file"]) for entry in course
     }
+    app.state.course_queue = CourseQueue(map_names=[entry["name"] for entry in course])
     task = asyncio.create_task(_session_cleanup_loop())
     yield
     task.cancel()

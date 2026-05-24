@@ -21,6 +21,10 @@ let copRectElems = new Map();  // cop_idx → SVG <g> element
 // Paths taken this round (for trail drawing)
 let roundCopPaths = new Map();  // cop_idx → [cop node ids]
 
+// Hover state
+let lastEvents    = [];   // events from the most recent cop turn
+let hoveredCopIdx = null; // cop currently highlighted via hover
+
 // ── Init ──────────────────────────────────────────────────
 
 async function init() {
@@ -162,6 +166,9 @@ function renderCopNodes(g, copMap) {
       const copGroup = document.createElementNS(SVG_NS, "g");
       copGroup.appendChild(rect);
       copGroup.appendChild(dot);
+      copGroup.style.cursor = "pointer";
+      copGroup.addEventListener("mouseenter", () => { if (!busy) showCopHoverOverlay(copIdx); });
+      copGroup.addEventListener("mouseleave", clearCopHoverOverlay);
       g.appendChild(copGroup);
       copRectElems.set(copIdx, copGroup);
     } else {
@@ -381,6 +388,7 @@ function updateCopSummary(events) {
   for (const [copIdx, evs] of byCop.entries()) {
     const ev  = evs[evs.length - 1];
     const div = document.createElement("div");
+    div.dataset.copIdx = copIdx;
 
     if (ev.action === "search") {
       const searched = ev.jack_neighbours?.map(n => n + 1).join(", ") || "none";
@@ -399,6 +407,8 @@ function updateCopSummary(events) {
         : `<span class="cop-id" style="color:var(--color-cop-${copIdx % 6})">Policjant ${copIdx + 1}</span> aresztował ${targetDesc} → <span class="miss">nie znaleziono</span>`;
     }
 
+    div.addEventListener("mouseenter", () => { if (!busy) showCopHoverOverlay(copIdx); });
+    div.addEventListener("mouseleave", clearCopHoverOverlay);
     container.appendChild(div);
   }
 }
@@ -660,6 +670,88 @@ async function flashArrestNodes(ev) {
   pulses.forEach(p => p.remove());
 }
 
+// ── Hover cross-highlight ─────────────────────────────────
+
+function showCopHoverOverlay(copIdx) {
+  clearCopHoverOverlay();
+  if (!lastState) return;
+  hoveredCopIdx = copIdx;
+
+  const svg = document.getElementById("board");
+  const g   = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("id", "cop-hover-overlay");
+  g.setAttribute("pointer-events", "none");
+
+  // Ring at cop's current board position
+  const posNodeId = lastState.cop_positions[copIdx];
+  const posNode   = posNodeId !== undefined ? copNodeById.get(posNodeId) : null;
+  if (posNode) {
+    const ring = document.createElementNS(SVG_NS, "circle");
+    ring.setAttribute("cx", posNode.x);
+    ring.setAttribute("cy", posNode.y);
+    ring.setAttribute("r", 9);
+    ring.setAttribute("fill", "none");
+    ring.style.stroke = `var(--color-cop-${copIdx % 6})`;
+    ring.setAttribute("stroke-width", "2.5");
+    ring.setAttribute("opacity", "0.9");
+    g.appendChild(ring);
+  }
+
+  // Search / arrest indicator circles for this cop's last event
+  for (const ev of lastEvents) {
+    if (ev.cop !== copIdx) continue;
+    if (ev.action === "search") {
+      for (const nodeId of (ev.jack_neighbours || [])) {
+        const node  = jackNodeById.get(nodeId);
+        if (!node) continue;
+        const isHit = (ev.search_hits || []).includes(nodeId);
+        const c = document.createElementNS(SVG_NS, "circle");
+        c.setAttribute("cx", node.x);
+        c.setAttribute("cy", node.y);
+        c.setAttribute("r", 11);
+        c.style.fill   = isHit ? "var(--color-search-hit-fill)"  : "var(--color-search-miss-fill)";
+        c.style.stroke = isHit ? "var(--color-cop)"              : "var(--color-search-miss-stroke)";
+        c.setAttribute("stroke-width", isHit ? "2.5" : "1.5");
+        g.appendChild(c);
+      }
+    } else {
+      const targets = ev.arrest_all
+        ? (ev.jack_neighbours || [])
+        : (ev.arrest_target != null ? [ev.arrest_target] : []);
+      for (const nodeId of targets) {
+        const node = jackNodeById.get(nodeId);
+        if (!node) continue;
+        const pulse = document.createElementNS(SVG_NS, "circle");
+        pulse.setAttribute("cx", node.x);
+        pulse.setAttribute("cy", node.y);
+        pulse.setAttribute("r", 13);
+        pulse.style.fill   = "var(--color-arrest-pulse-fill)";
+        pulse.style.stroke = "var(--color-cop)";
+        pulse.setAttribute("stroke-width", "3");
+        g.appendChild(pulse);
+      }
+    }
+  }
+
+  svg.appendChild(g);
+
+  // Highlight the log entry
+  const logDiv = document.querySelector(`#cop-summary [data-cop-idx="${copIdx}"]`);
+  if (logDiv) logDiv.style.boxShadow = `inset 3px 0 0 var(--color-cop-${copIdx % 6})`;
+}
+
+function clearCopHoverOverlay() {
+  const svg = document.getElementById("board");
+  const old = svg?.getElementById("cop-hover-overlay");
+  if (old) old.remove();
+
+  if (hoveredCopIdx !== null) {
+    const logDiv = document.querySelector(`#cop-summary [data-cop-idx="${hoveredCopIdx}"]`);
+    if (logDiv) logDiv.style.boxShadow = "";
+  }
+  hoveredCopIdx = null;
+}
+
 // ── Jack move handler ─────────────────────────────────────
 
 async function handleJackMove(destination) {
@@ -677,6 +769,7 @@ async function handleJackMove(destination) {
     ]);
 
     const events = state.events || [];
+    lastEvents = events;
     await animateCopTurn(events);
     renderCopTrails();
     updateCopSummary(events);

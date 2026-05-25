@@ -76,6 +76,7 @@ class HeuristicCops(CopAgent):
         arrest_discount: float = 0.0,
         miss_discount_decay: float = 0.7,
         hideout_blend: float = 0.5,
+        hideout_blend_floor: float = 0.330,
         max_passes: int = 5,
         cop_max_steps: int = 2,
     ) -> None:
@@ -88,6 +89,7 @@ class HeuristicCops(CopAgent):
         self._arrest_discount = arrest_discount
         self._miss_discount_decay = miss_discount_decay
         self._hideout_blend = hideout_blend
+        self._hideout_blend_floor = hideout_blend_floor
         self._max_passes = max_passes
         self._cop_max_steps = cop_max_steps
         self._hideout_candidates: set[int] = set()
@@ -426,7 +428,9 @@ class HeuristicCops(CopAgent):
         hx = sum(p * game_map.jack_nodes[h].x for h, p in hideout_pmf.items())
         hy = sum(p * game_map.jack_nodes[h].y for h, p in hideout_pmf.items())
         turn = current_depth - 1
-        blend = self._hideout_blend * turn / max(1, game_map.turn_limit - 1)
+        blend = self._hideout_blend_floor + (
+            self._hideout_blend - self._hideout_blend_floor
+        ) * turn / max(1, game_map.turn_limit - 1)
         tx = (1.0 - blend) * fcx + blend * hx
         ty = (1.0 - blend) * fcy + blend * hy
 
@@ -541,11 +545,37 @@ class HeuristicCops(CopAgent):
                 if not reachable:
                     continue
 
+                # Spread scores: reward nodes that are far from other cops'
+                # current destinations.  Normalised within this cop's reachable
+                # set so the signal is always on the same scale as norm_prox.
+                # Applies equally to pursuers and searchers — encirclement needs
+                # every cop approaching from a different angle.
+                if others_dests and direction_certainty < 1.0:
+                    raw_spread = {
+                        cid: min(
+                            math.hypot(
+                                game_map.cop_nodes[cid].x - game_map.cop_nodes[oc].x,
+                                game_map.cop_nodes[cid].y - game_map.cop_nodes[oc].y,
+                            )
+                            for oc in others_dests
+                        )
+                        for cid in reachable
+                    }
+                    sp_max = max(raw_spread.values())
+                    norm_spread_local: dict[int, float] = (
+                        {cid: v / sp_max for cid, v in raw_spread.items()}
+                        if sp_max > _PROX_RANGE_EPS
+                        else {cid: 0.0 for cid in reachable}
+                    )
+                else:
+                    norm_spread_local = {}
+
                 def node_score(
                     _cid: int,
                     _pursuer: bool = pursuer,
                     _ra: dict[int, float] = ra,
                     _rs: dict[int, float] = rs,
+                    _norm_spread: dict[int, float] = norm_spread_local,
                 ) -> float:
                     cn = game_map.cop_nodes[_cid]
                     if self._would_arrest(
@@ -561,7 +591,14 @@ class HeuristicCops(CopAgent):
                         * self._searcher_prox_fraction
                         * direction_certainty
                     )
-                    return coverage + prox_weight * norm_prox.get(_cid, 0.0)
+                    spread_weight = self._pursuit_weight * (1.0 - direction_certainty)
+                    return (
+                        coverage
+                        + prox_weight * norm_prox.get(_cid, 0.0)
+                        + spread_weight
+                        * _norm_spread.get(_cid, 0.0)
+                        * norm_prox.get(_cid, 0.0)
+                    )
 
                 best_node = max(reachable, key=node_score)
                 if best_node != dests[cop_idx]:

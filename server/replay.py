@@ -309,7 +309,7 @@ def build_replay(session: "GameSession") -> ReplayRecord:
     record = ReplayRecord(
         game_id=session.game_id,
         timestamp=datetime.now(timezone.utc).isoformat(),
-        map_name=getattr(gm, "name", "whitechapel"),
+        map_name=session.map_name or "whitechapel",
         winner=session.ctx.winner or "unknown",
         turns_survived=len(session.ctx.history),
         initial_jack_pos=initial.jack_pos,

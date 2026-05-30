@@ -358,7 +358,9 @@ def build_map():
     missing = []
 
     nodes_to_process = (
-        {1} if DEBUG_ROUTES_FOR_NODE is not None else set(jack_coordinates)
+        {DEBUG_ROUTES_FOR_NODE}
+        if DEBUG_ROUTES_FOR_NODE is not None
+        else set(jack_coordinates)
     )
 
     for node_id in nodes_to_process:

@@ -42,6 +42,17 @@ def init_db(path: Path = DB_PATH) -> None:
         """)
 
 
+def load_replay_from_db(db_id: int, path: Path = DB_PATH) -> dict | None:
+    """Return the raw replay JSON dict for the given row id, or None if not found."""
+    if not path.exists():
+        return None
+    with sqlite3.connect(path) as conn:
+        row = conn.execute("SELECT replay FROM games WHERE id = ?", (db_id,)).fetchone()
+    if row is None:
+        return None
+    return json.loads(row[0])
+
+
 def save_game(record: ParticipantGame, path: Path = DB_PATH) -> None:
     with sqlite3.connect(path) as conn:
         conn.execute(

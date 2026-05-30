@@ -409,6 +409,18 @@
     <!-- Replay tab -->
     <div id="tab-replay" class="tab-content">
       <div id="replay-meta">No replay loaded.</div>
+      <details style="margin-bottom:6px">
+        <summary style="cursor:pointer;font-size:11px">Load from DB</summary>
+        <div class="adm-row" style="margin-top:4px">
+          <input type="text" id="replay-db-path" placeholder="data/games.sqlite"
+                 value="data/games.sqlite" style="flex:1;font-size:11px">
+        </div>
+        <div class="adm-row">
+          <input type="number" id="replay-db-id" placeholder="Row ID" min="1"
+                 style="width:80px;font-size:11px">
+          <button class="adm-btn" id="replay-db-load-btn">Load</button>
+        </div>
+      </details>
       <div class="adm-row" style="gap:4px;flex-wrap:wrap">
         <select id="replay-list" style="flex:1"><option disabled selected>— select —</option></select>
         <button class="adm-btn" id="replay-refresh-btn">Refresh</button>

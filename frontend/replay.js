@@ -7,6 +7,9 @@ let _replayRecord  = null;  // full ReplayRecord currently loaded
 let _replayRound   = -1;    // -1 = initial state; 0+ = index into _replayRecord.rounds
 let _replaySubStep = 0;     // 0 = after Jack moved, 1 = after all cops acted
 let _replayPmf     = false; // whether PMF overlay is active in replay
+let _replaySource  = 'slot'; // 'slot' | 'db'
+let _replayDbPath  = '';
+let _replayDbId    = null;
 
 // ── Init ────────────────────────────────────────────────────
 
@@ -27,25 +30,56 @@ async function initReplay() {
     window.setPmfLayerEnabled(_replayPmf);
     renderReplayRound();
   });
+  document.getElementById("replay-db-load-btn").addEventListener("click", () => {
+    const path = document.getElementById("replay-db-path").value.trim();
+    const id   = parseInt(document.getElementById("replay-db-id").value);
+    if (path && !isNaN(id)) loadReplayFromDb(path, id);
+  });
 }
 
 // ── Load list ────────────────────────────────────────────────
 
 async function forkFromCurrentTurn() {
   if (!_replayRecord) return;
-  const slot = parseInt(document.getElementById("replay-list").value);
-  if (isNaN(slot)) return;
+  let url, bodyObj;
+  if (_replaySource === 'db') {
+    url     = "/api/replays/fork-from-db";
+    bodyObj = { db_path: _replayDbPath, db_id: _replayDbId, turn: _replayRound };
+  } else {
+    const slot = parseInt(document.getElementById("replay-list").value);
+    if (isNaN(slot)) return;
+    url     = `/api/replays/${slot}/fork-at-turn`;
+    bodyObj = { turn: _replayRound };
+  }
   try {
-    const r = await fetch(`/api/replays/${slot}/fork-at-turn`, {
+    const r = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ turn: _replayRound }),
+      body: JSON.stringify(bodyObj),
     });
-    if (!r.ok) { console.error("fork-at-turn: HTTP", r.status); return; }
-    const state = await r.json();
-    window.startGameFromState(state);
+    if (!r.ok) { console.error("fork: HTTP", r.status); return; }
+    window.startGameFromState(await r.json());
   } catch (e) {
     console.error("forkFromCurrentTurn:", e);
+  }
+}
+
+async function loadReplayFromDb(dbPath, dbId) {
+  try {
+    const r = await fetch("/api/replays/load-from-db", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ db_path: dbPath, db_id: dbId }),
+    });
+    if (!r.ok) { console.error("load-from-db: HTTP", r.status); return; }
+    _replayRecord = await r.json();
+    _replaySource = 'db';
+    _replayDbPath = dbPath;
+    _replayDbId   = dbId;
+    gotoStep(-1, 0);
+    renderReplayMeta();
+  } catch (e) {
+    console.error("loadReplayFromDb:", e);
   }
 }
 

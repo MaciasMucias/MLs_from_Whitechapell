@@ -110,12 +110,7 @@ def list_replays() -> list[dict]:
     return index.get("slots", [])
 
 
-def load_replay(slot: int) -> ReplayRecord | None:
-    path = REPLAY_DIR / f"slot_{slot}.json"
-    if not path.exists():
-        return None
-    with path.open() as f:
-        data = json.load(f)
+def _deserialize_record(data: dict) -> ReplayRecord:
     rounds = [
         ReplayRound(
             turn=r["turn"],
@@ -153,6 +148,15 @@ def load_replay(slot: int) -> ReplayRecord | None:
         hideout_zone=data["hideout_zone"],
         rounds=rounds,
     )
+
+
+def load_replay(slot: int) -> ReplayRecord | None:
+    path = REPLAY_DIR / f"slot_{slot}.json"
+    if not path.exists():
+        return None
+    with path.open() as f:
+        data = json.load(f)
+    return _deserialize_record(data)
 
 
 def save_replay(record: ReplayRecord) -> int:

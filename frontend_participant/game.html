@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Letters from Whitechapel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400;1,700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="colors.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      background: var(--ink);
+      font-family: 'Crimson Pro', Georgia, serif;
+      color: var(--text);
+    }
+
+    /* ── Board ───────────────────────────────────────────── */
+    #board-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: radial-gradient(ellipse at center, var(--board-bg-warm) 0%, var(--board-bg-deep) 100%);
+      position: relative;
+      padding: 4%;
+    }
+
+    #board { max-width: 100%; max-height: 100%; display: block; }
+
+    #board-wrapper.busy::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      cursor: not-allowed;
+      z-index: 5;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    #sidebar {
+      width: 300px;
+      min-width: 300px;
+      background: var(--surface);
+      border-left: 1px solid var(--border-brass);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #map-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--brass);
+      margin-bottom: 8px;
+    }
+
+    #map-progress {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
+
+    .progress-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .progress-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: transparent;
+      border: 1.5px solid rgba(201, 148, 26, 0.35);
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .progress-dot.done   { background: var(--brass); border-color: var(--brass); }
+    .progress-dot.active { background: transparent; border-color: var(--brass); box-shadow: 0 0 4px var(--brass); }
+
+    /* ── Round counter ───────────────────────────────────── */
+    #round-section {
+      padding: 20px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+
+    #round-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    #round-counter {
+      font-family: 'Courier Prime', monospace;
+      font-size: 2.4rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    #round-counter .sep   { color: var(--border-brass); font-weight: 400; }
+    #round-counter .limit { color: var(--text-muted); font-size: 1.5rem; }
+
+    /* ── Score display ───────────────────────────────────── */
+    #score-section {
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+
+    #score-label-text {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    #score-value {
+      font-family: 'Courier Prime', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--brass);
+      line-height: 1;
+    }
+
+    .score-subtext {
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.72rem;
+      color: var(--border-brass);
+      margin-top: 2px;
+    }
+
+    /* ── Status ──────────────────────────────────────────── */
+    #status-section {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .stat-row { display: flex; justify-content: space-between; align-items: center; }
+
+    .stat-key {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .stat-val {
+      font-family: 'Courier Prime', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* ── Cop summary ─────────────────────────────────────── */
+    #cop-section {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    #cop-section-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    #cop-summary { display: flex; flex-direction: column; gap: 6px; }
+
+    .cop-event {
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--text-muted);
+      padding: 7px 10px;
+      background: var(--surface-hi);
+      border-radius: 2px;
+      border-left: 2px solid var(--border);
+    }
+    .cop-event .cop-id { font-family: 'Courier Prime', monospace; color: var(--text); font-weight: 700; }
+    .cop-event .hit    { color: var(--color-cop); font-weight: 600; }
+    .cop-event .miss   { color: var(--text-muted); }
+    .cop-event.searching     { border-left-color: var(--color-visited); }
+    .cop-event.arresting     { border-left-color: var(--color-cop); }
+    .cop-event.arrest-success { border-left-color: var(--color-cop); background: var(--color-arrest-bg); }
+
+    #police-moving {
+      font-style: italic;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      display: none;
+    }
+    #police-moving.visible { display: block; }
+
+    /* ── Legend ──────────────────────────────────────────── */
+    #legend-section { padding: 12px 20px; }
+
+    #legend {
+      display: grid;
+      grid-template-columns: 14px 1fr 14px 1fr;
+      gap: 5px 10px;
+      align-items: center;
+    }
+
+    .swatch {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+    .swatch.square { border-radius: 2px; }
+
+    .legend-label {
+      font-family: 'Courier Prime', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ── Game-over overlay ───────────────────────────────── */
+    #gameover-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--overlay-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+    #gameover-overlay.visible { opacity: 1; pointer-events: all; }
+
+    #gameover-card {
+      background: var(--surface);
+      border: 1px solid var(--border-brass);
+      padding: 48px 56px;
+      text-align: center;
+      max-width: 480px;
+      width: 90%;
+    }
+
+    #gameover-icon   { font-size: 2.5rem; margin-bottom: 16px; display: block; }
+    #gameover-title  { font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; font-weight: 900; color: var(--text); margin-bottom: 8px; }
+    #gameover-sub    { font-size: 1rem; color: var(--text-muted); font-style: italic; margin-bottom: 20px; line-height: 1.6; }
+
+    #gameover-score-block { margin-bottom: 6px; }
+    .go-score-label { font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    #gameover-score-value { font-family: 'Courier Prime', monospace; font-size: 3rem; font-weight: 700; color: var(--brass); line-height: 1.1; }
+    .go-score-max { font-family: 'Courier Prime', monospace; font-size: 0.85rem; color: var(--border-brass); }
+    #gameover-thanks { font-size: 0.9rem; color: var(--text-muted); font-style: italic; margin-top: 10px; margin-bottom: 10px; }
+
+    #gameover-turns  { font-family: 'Courier Prime', monospace; font-size: 0.85rem; color: var(--border-brass); margin-bottom: 32px; letter-spacing: 0.1em; }
+
+    #gameover-btn {
+      padding: 12px 32px;
+      background: var(--brass);
+      border: none;
+      border-radius: 2px;
+      color: var(--ink);
+      font-family: 'Courier Prime', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #gameover-btn:hover { background: var(--brass-bright); }
+    #gameover-btn:disabled { background: #3a3020; color: #6a5a30; cursor: default; }
+
+    /* ── Results overlay ─────────────────────────────────── */
+    #results-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--overlay-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 110;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+    #results-overlay.visible { opacity: 1; pointer-events: all; }
+
+    #results-card {
+      background: var(--surface);
+      border: 1px solid var(--border-brass);
+      padding: 48px 56px;
+      text-align: center;
+      max-width: 480px;
+      width: 90%;
+    }
+
+    #results-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--text);
+      margin-bottom: 32px;
+    }
+
+    #results-table {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 36px;
+      text-align: left;
+    }
+
+    .results-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      align-items: baseline;
+      padding: 10px 14px;
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+    }
+
+    .results-name {
+      font-family: 'Courier Prime', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .results-score {
+      font-family: 'Courier Prime', monospace;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--brass);
+    }
+
+    .results-max {
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.75rem;
+      color: var(--border-brass);
+    }
+
+    #results-btn {
+      padding: 12px 32px;
+      background: var(--brass);
+      border: none;
+      border-radius: 2px;
+      color: var(--ink);
+      font-family: 'Courier Prime', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #results-btn:hover { background: var(--brass-bright); }
+
+    /* ── Mobile ──────────────────────────────────────────── */
+    @media (max-width: 700px) {
+      body { flex-direction: column; }
+      #board-wrapper { flex: 1; min-height: 0; }
+      #sidebar {
+        width: 100%; min-width: unset; height: auto;
+        flex-direction: row; flex-wrap: wrap; overflow-x: auto;
+        border-left: none; border-top: 1px solid var(--border-brass);
+      }
+      #sidebar-header, #round-section, #status-section {
+        padding: 10px 14px; border-bottom: none; border-right: 1px solid var(--border);
+      }
+      #round-counter { font-size: 1.6rem; }
+      #cop-section { display: none; }
+      #legend-section { padding: 10px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="board-wrapper">
+    <svg
+      id="board"
+      viewBox="0 0 1434.5061 965.09717"
+      xmlns="http://www.w3.org/2000/svg"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      overflow="visible"
+    >
+      <image href="/api/map-svg" x="0" y="0" width="1434.5061" height="965.09717"/>
+    </svg>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div id="map-title">Whitechapel</div>
+      <div id="map-progress">
+        <span class="progress-label">Mapa</span>
+      </div>
+    </div>
+
+    <div id="round-section">
+      <div id="round-label">Runda</div>
+      <div id="round-counter">
+        <span id="rc-current">—</span><span class="sep"> / </span><span id="rc-limit" class="limit">—</span>
+      </div>
+    </div>
+
+    <div id="score-section">
+      <div id="score-label-text">Wynik</div>
+      <div id="score-value">0</div>
+      <div class="score-subtext">/ 15 000</div>
+    </div>
+
+    <div id="status-section">
+      <div class="stat-row">
+        <span class="stat-key">Twoje pole</span>
+        <span class="stat-val" id="stat-jack">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-key">Kryjówka</span>
+        <span class="stat-val" id="stat-hideout">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-key">Dostępne ruchy</span>
+        <span class="stat-val" id="stat-moves">—</span>
+      </div>
+    </div>
+
+    <div id="cop-section">
+      <div id="cop-section-label">Ostatnia runda</div>
+      <div id="police-moving">Policja się porusza…</div>
+      <div id="cop-summary"></div>
+    </div>
+
+    <div id="legend-section">
+      <div id="legend">
+        <div class="swatch" style="border-color:var(--color-jack);border-width:2.5px"></div>
+        <span class="legend-label">Twoja pozycja</span>
+        <svg width="14" height="14" viewBox="-7 -7 14 14" xmlns="http://www.w3.org/2000/svg" style="display:block">
+          <polygon points="0,-6 1.47,-2.02 5.71,-1.85 2.38,0.77 3.53,4.85 0,2.5 -3.53,4.85 -2.38,0.77 -5.71,-1.85 -1.47,-2.02" style="fill:var(--color-hideout)"/>
+        </svg>
+        <span class="legend-label">Kryjówka</span>
+        <div class="swatch" style="border-color:var(--color-legal);border-width:2.5px"></div>
+        <span class="legend-label">Dozwolony ruch</span>
+        <div class="swatch" style="border-color:var(--color-visited);border-width:2.5px"></div>
+        <span class="legend-label">Sprawdzony</span>
+        <div class="swatch square" style="background:var(--color-cop)"></div>
+        <span class="legend-label">Policjant</span>
+        <div class="swatch" style="background:var(--color-zone);border:2px solid var(--color-zone-stroke)"></div>
+        <span class="legend-label">Strefa kryjówki</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="results-overlay">
+    <div id="results-card">
+      <h2 id="results-title">Dziękuję za udział w badaniu!</h2>
+      <div id="results-table"></div>
+      <button id="results-btn">Zakończ</button>
+    </div>
+  </div>
+
+  <div id="gameover-overlay">
+    <div id="gameover-card">
+      <span id="gameover-icon"></span>
+      <h2 id="gameover-title"></h2>
+      <p id="gameover-sub"></p>
+      <div id="gameover-score-block">
+        <div class="go-score-label">Twój najlepszy wynik</div>
+        <div id="gameover-score-value">—</div>
+        <div class="go-score-max">/ 15 000</div>
+      </div>
+      <p id="gameover-turns"></p>
+      <button id="gameover-btn"></button>
+    </div>
+  </div>
+
+  <script src="api.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

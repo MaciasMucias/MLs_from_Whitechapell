@@ -1,0 +1,45 @@
+:root {
+  /* ── UI theme ─────────────────────────────────────────── */
+  --ink:          #0d0f14;
+  --surface:      #161a23;
+  --surface-hi:   #1e2433;
+  --border:       #2a3040;
+  --border-brass: #7a5c10;
+  --brass:        #c9941a;
+  --brass-bright: #e8a820;
+  --text:         #e8dcc8;
+  --text-muted:   #9d8f7a;
+
+  /* ── Board background ─────────────────────────────────── */
+  --board-bg-warm: #b1986a;
+  --board-bg-deep: #bd9976;
+
+  /* ── Overlays ─────────────────────────────────────────── */
+  --overlay-bg: rgba(8, 10, 15, 0.92);
+
+  /* ── Game element colors (read by game.js via CSS vars) ── */
+  --color-jack:        #22c55e;
+  --color-hideout:     #f43f5e;
+  --color-legal:       #f97316;
+  --color-visited:     #60a5fa;
+  --color-cop:         #ef4444;
+  --color-cop-stroke:  #ff6659;
+  --color-zone:        rgba(168, 85, 247, 0.45);
+  --color-zone-stroke: #7c3aed;
+
+  /* ── Per-cop accent colors ────────────────────────────── */
+  --color-cop-0: #ffeb3b;
+  --color-cop-1: #00bcd4;
+  --color-cop-2: #8bc34a;
+  --color-cop-3: #ff9800;
+  --color-cop-4: #e91e63;
+  --color-cop-5: #9c27b0;
+
+  /* ── Flash / derived ──────────────────────────────────── */
+  --color-search-hit-fill:    rgba(239, 68, 68, 0.35);
+  --color-search-miss-fill:   rgba(103, 232, 249, 0.25);
+  --color-search-miss-stroke: #67e8f9;
+  --color-arrest-pulse-fill:  rgba(239, 68, 68, 0.4);
+  --color-arrest-bg:          rgba(239, 68, 68, 0.08);
+  --color-cop-node-empty:     rgba(20, 20, 20, 0.35);
+}

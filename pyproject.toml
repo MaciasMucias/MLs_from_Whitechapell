@@ -1,0 +1,34 @@
+[project]
+name = "mls-from-whitechapel"
+version = "0.1.0"
+description = ""
+readme = "DESIGN_REQUIREMENTS.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.optional-dependencies]
+server = [
+    "fastapi>=0.135.3",
+    "slowapi>=0.1.9",
+    "uvicorn[standard]>=0.43.0",
+]
+dev = [
+    "pytest>=9.0.2",
+]
+training = [
+    "numpy>=2.4.4",
+    "torch>=2.11.0",
+    "wandb>=0.27.0",
+]
+
+[dependency-groups]
+dev = [
+    "optuna>=4.8.0",
+    "pytest>=9.0.2",
+]
+
+[[tool.uv.index]]
+url = "https://download.pytorch.org/whl/cu128"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

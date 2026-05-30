@@ -230,12 +230,16 @@ async def inject_visited(game_id: str, body: InjectNodeBody):
     state = session.ctx.state
     if body.node not in state.jack_trace:
         raise HTTPException(status_code=400, detail="Node not on Jack's path")
+    path = state.jack_path
+    if body.node not in path:
+        raise HTTPException(
+            status_code=400,
+            detail="Node in trace but not in path — cannot determine depth",
+        )
     push_history(session)
     k = state.cop_knowledge
     existing = dict(k.visited_at)
-    path = state.jack_path
-    depth = path.index(body.node) if body.node in path else len(path) - 1
-    existing.setdefault(body.node, depth)
+    existing.setdefault(body.node, path.index(body.node))
     _mutate_knowledge(session, visited_at=tuple(existing.items()))
     return state_view(session)
 

@@ -69,7 +69,7 @@ class CurriculumDirector(Director):
             # sorted() for deterministic RNG consumption given a seed
             undiscovered = sorted(state.jack_trace - known_nodes)
             injected = tuple(
-                (node, state.jack_path.index(node) + 1)
+                (node, state.jack_path.index(node))
                 for node in undiscovered
                 if self._rng.random() < d
             )

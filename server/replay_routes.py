@@ -94,11 +94,12 @@ def _build_session_from_replay(record: ReplayRecord, turn: int, app) -> dict:
             cop_knowledge=ck,
         )
 
+    is_terminal_fork = turn >= 0 and record.rounds[turn].terminated
     ctx = StepContext(
         game_map=gm,
         state=state,
-        terminated=False,
-        winner=None,
+        terminated=is_terminal_fork,
+        winner=record.rounds[turn].winner if is_terminal_fork else None,
         blocking=record.blocking,
         turn_limit=record.turn_limit,
     )

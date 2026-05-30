@@ -57,7 +57,11 @@ def make_initial_state(
         jid for jid, d in distances.items() if d >= game_map.hideout_min_distance
     ]
 
-    anchor = rng.choice(base_candidates)
+    anchor = (
+        game_map.zone_anchor
+        if game_map.zone_anchor is not None
+        else rng.choice(base_candidates)
+    )
     anchor_distances = jack_bfs_distances(anchor, game_map)
     zone = frozenset(
         v for v, d in anchor_distances.items() if d <= game_map.zone_radius

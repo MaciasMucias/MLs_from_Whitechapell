@@ -37,6 +37,7 @@ class Map:
     turn_limit: int
     hideout_min_distance: int
     zone_radius: int
+    zone_anchor: int | None = None
 
 
 def load_map(path: str | Path) -> Map:
@@ -87,4 +88,5 @@ def load_map(path: str | Path) -> Map:
         turn_limit=cfg["turn_limit"],
         hideout_min_distance=cfg["hideout_min_distance"],
         zone_radius=cfg["zone_radius"],
+        zone_anchor=cfg["zone_anchor"] - 1 if "zone_anchor" in cfg else None,
     )

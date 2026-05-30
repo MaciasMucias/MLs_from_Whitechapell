@@ -133,7 +133,7 @@ def _mutate_knowledge(
 async def teleport_jack(game_id: str, body: TeleportJackBody):
     session = _get_or_404(game_id)
     gm = session.ctx.game_map
-    if body.node < 1 or body.node > len(gm.jack_nodes):
+    if body.node < 0 or body.node >= len(gm.jack_nodes):
         raise HTTPException(status_code=400, detail="Invalid jack node")
     push_history(session)
     session.ctx.state = replace(
@@ -150,7 +150,7 @@ async def teleport_cop(game_id: str, body: TeleportCopBody):
     gm = session.ctx.game_map
     if body.cop < 0 or body.cop >= gm.num_cops:
         raise HTTPException(status_code=400, detail="Invalid cop index")
-    if body.node < 1 or body.node > len(gm.cop_nodes):
+    if body.node < 0 or body.node >= len(gm.cop_nodes):
         raise HTTPException(status_code=400, detail="Invalid cop node")
     push_history(session)
     positions = list(session.ctx.state.cop_positions)

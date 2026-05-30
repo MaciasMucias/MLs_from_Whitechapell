@@ -6,6 +6,7 @@ let busy         = false;
 let lastState    = null;
 let course       = [];
 let courseIndex  = 0;
+let maxScore     = 0;
 
 // Precomputed lookups (built after mapData loads)
 let copNodeById  = null;   // Map<id, {id,x,y,edges,jack_neighbours}>
@@ -95,6 +96,17 @@ function findCopPath(fromId, toId) {
   }
 
   return [fromId, toId]; // fallback: destination unreachable in ≤2 hops
+}
+
+// ── Score ─────────────────────────────────────────────────
+
+function computeDistanceScore(normDist) {
+  return Math.round((1 - normDist) * 10000);
+}
+
+function renderScore() {
+  const el = document.getElementById("score-value");
+  if (el) el.textContent = maxScore.toLocaleString("pl-PL");
 }
 
 // ── Progress dots ─────────────────────────────────────────
@@ -767,6 +779,15 @@ async function handleJackMove(destination) {
       animateJackMove(srcId, destination),
     ]);
 
+    if (state.score_info?.normalized_distance !== undefined) {
+      const distScore = computeDistanceScore(state.score_info.normalized_distance);
+      maxScore = Math.max(maxScore, distScore);
+    }
+    if (state.terminated && state.winner === "jack" && state.score_info?.hideout_uncertainty !== undefined) {
+      maxScore += Math.round(state.score_info.hideout_uncertainty * 5000);
+    }
+    renderScore();
+
     const events = state.events || [];
     lastEvents = events;
     await animateCopTurn(events);
@@ -795,6 +816,36 @@ function polishRoundPlural(n) {
 
 // ── Game over overlay ─────────────────────────────────────
 
+function saveMapScore(state) {
+  const scores = JSON.parse(sessionStorage.getItem("map_scores") || "[]");
+  scores[courseIndex] = { map_name: state.map_name, score: maxScore };
+  sessionStorage.setItem("map_scores", JSON.stringify(scores));
+}
+
+function showResults() {
+  const scores = JSON.parse(sessionStorage.getItem("map_scores") || "[]");
+  const table = document.getElementById("results-table");
+  table.innerHTML = "";
+  scores.forEach(s => {
+    const row = document.createElement("div");
+    row.className = "results-row";
+    row.innerHTML =
+      `<span class="results-name">${s.map_name}</span>` +
+      `<span class="results-score">${s.score.toLocaleString("pl-PL")}</span>` +
+      `<span class="results-max">/ 15 000</span>`;
+    table.appendChild(row);
+  });
+
+  document.getElementById("results-btn").addEventListener("click", () => {
+    sessionStorage.clear();
+    window.location.href = "index.html";
+  });
+
+  requestAnimationFrame(() => {
+    document.getElementById("results-overlay").classList.add("visible");
+  });
+}
+
 function showGameOver(state) {
   const outcomes = {
     jack:       { icon: "🌙", title: "Ucieczka",         sub: "Dotarłeś/Dotarłaś do kryjówki. Policja nie zdążyła cię złapać." },
@@ -803,10 +854,13 @@ function showGameOver(state) {
     surrounded: { icon: "🔦", title: "Otoczony/Otoczona", sub: "Wszystkie drogi są zablokowane. Policja wygrała." },
   };
 
+  saveMapScore(state);
+
   const o = outcomes[state.winner] || { icon: "?", title: state.winner, sub: "" };
-  document.getElementById("gameover-icon").textContent  = o.icon;
-  document.getElementById("gameover-title").textContent = o.title;
-  document.getElementById("gameover-sub").textContent   = o.sub;
+  document.getElementById("gameover-icon").textContent        = o.icon;
+  document.getElementById("gameover-title").textContent       = o.title;
+  document.getElementById("gameover-sub").textContent         = o.sub;
+  document.getElementById("gameover-score-value").textContent = maxScore.toLocaleString("pl-PL");
   document.getElementById("gameover-turns").textContent =
     `Rozegrano ${state.turn} ${polishRoundPlural(state.turn)}`;
 
@@ -825,10 +879,10 @@ function showGameOver(state) {
       window.location.reload();
     });
   } else {
-    btn.textContent = "Kurs ukończony";
+    btn.textContent = "Zobacz wyniki →";
     btn.addEventListener("click", () => {
-      sessionStorage.clear();
-      window.location.href = "index.html";
+      document.getElementById("gameover-overlay").classList.remove("visible");
+      showResults();
     });
   }
 

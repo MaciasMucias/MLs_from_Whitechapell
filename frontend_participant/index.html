@@ -421,6 +421,11 @@
     //   Edges:              gray #6b7280
     const SLIDES = [
       {
+        title: 'Witaj!',
+        text: `Dziękuję bardzo za pomoc w zbieraniu danych na potrzeby mojej pracy magisterskiej.<br><br>Rozegrane partie będą wykorzystane, żeby uzyskać punkt odniesienia do oceny sprawności algorytmu, który jest przedmiotem pracy.<br><br>Wzięcie udziału powinno zająć <strong>10–15 minut</strong> i będzie składało się z <strong>trzech partii</strong>.`,
+        visual: () => ``
+      },
+      {
         title: 'Cel gry',
         text: `Wcielasz się w <strong>Kubę Rozpruwacza</strong>. Musisz przedostać się ze swojej pozycji startowej do <span class="c-hideout">kryjówki</span> przed upływem limitu rund — wtedy wygrywasz. <span class="c-cop">Policja</span> próbuje cię złapać, zanim tam dotrzesz.`,
         visual: () => `<svg viewBox="0 0 500 190" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;max-height:100%;padding:8px">
@@ -575,6 +580,11 @@
           <text x="72" y="149" fill="#e8dcc8" font-size="15" font-family="serif">Pozycja startowa jest ujawniana policji</text>
           <text x="72" y="165" fill="#9d8f7a" font-size="13" font-family="monospace">tylko na początku każdej gry</text>
         </svg>`
+      },
+      {
+        title: 'System punktacji',
+        text: `Twój <strong>wynik</strong> rośnie z każdym krokiem w stronę <span class="c-hideout">kryjówki</span> — im bliżej, tym więcej punktów (maks. 10 000).<br><br>Jeśli uciekniesz, dostaniesz <strong>bonus za niepewność policji co do lokalizacji kryjówki</strong>: im mniej pól ze strefy kryjówki zdołają wykluczyć, tym wyższy.<br><br>Pamiętaj — dotarcie zbyt szybko samo w sobie eliminuje odległe kandydatury. Warto czasem <strong>nie iść najkrótszą ścieżką</strong> albo <strong>celowo zwlekać w okolicy kryjówki</strong>.`,
+        visual: () => ``
       }
     ];
 
@@ -585,7 +595,10 @@
       document.getElementById('tut-counter').textContent = `${n + 1} / ${SLIDES.length}`;
       document.getElementById('tut-title').textContent = slide.title;
       document.getElementById('tut-text').innerHTML = slide.text;
-      document.getElementById('tut-visual').innerHTML = slide.visual();
+      const visualContent = slide.visual();
+      const visualEl = document.getElementById('tut-visual');
+      visualEl.innerHTML = visualContent;
+      visualEl.style.display = visualContent.trim() ? '' : 'none';
 
       const dotsEl = document.getElementById('tut-dots');
       dotsEl.innerHTML = '';

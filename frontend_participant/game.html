@@ -66,7 +66,13 @@
       margin-bottom: 8px;
     }
 
-    #map-progress { display: flex; align-items: center; gap: 6px; }
+    #map-progress {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
 
     .progress-label {
       font-family: 'Courier Prime', monospace;
@@ -80,9 +86,9 @@
     .progress-dot {
       width: 7px; height: 7px;
       border-radius: 50%;
-      background: var(--border);
-      border: 1px solid var(--border);
-      transition: background 0.2s;
+      background: transparent;
+      border: 1.5px solid rgba(201, 148, 26, 0.35);
+      transition: background 0.2s, border-color 0.2s;
     }
     .progress-dot.done   { background: var(--brass); border-color: var(--brass); }
     .progress-dot.active { background: transparent; border-color: var(--brass); box-shadow: 0 0 4px var(--brass); }
@@ -112,6 +118,37 @@
     }
     #round-counter .sep   { color: var(--border-brass); font-weight: 400; }
     #round-counter .limit { color: var(--text-muted); font-size: 1.5rem; }
+
+    /* ── Score display ───────────────────────────────────── */
+    #score-section {
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+
+    #score-label-text {
+      font-family: 'Courier Prime', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    #score-value {
+      font-family: 'Courier Prime', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--brass);
+      line-height: 1;
+    }
+
+    .score-subtext {
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.72rem;
+      color: var(--border-brass);
+      margin-top: 2px;
+    }
 
     /* ── Status ──────────────────────────────────────────── */
     #status-section {
@@ -234,7 +271,14 @@
 
     #gameover-icon   { font-size: 2.5rem; margin-bottom: 16px; display: block; }
     #gameover-title  { font-family: 'Playfair Display', Georgia, serif; font-size: 2rem; font-weight: 900; color: var(--text); margin-bottom: 8px; }
-    #gameover-sub    { font-size: 1rem; color: var(--text-muted); font-style: italic; margin-bottom: 8px; line-height: 1.6; }
+    #gameover-sub    { font-size: 1rem; color: var(--text-muted); font-style: italic; margin-bottom: 20px; line-height: 1.6; }
+
+    #gameover-score-block { margin-bottom: 6px; }
+    .go-score-label { font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    #gameover-score-value { font-family: 'Courier Prime', monospace; font-size: 3rem; font-weight: 700; color: var(--brass); line-height: 1.1; }
+    .go-score-max { font-family: 'Courier Prime', monospace; font-size: 0.85rem; color: var(--border-brass); }
+    #gameover-thanks { font-size: 0.9rem; color: var(--text-muted); font-style: italic; margin-top: 10px; margin-bottom: 10px; }
+
     #gameover-turns  { font-family: 'Courier Prime', monospace; font-size: 0.85rem; color: var(--border-brass); margin-bottom: 32px; letter-spacing: 0.1em; }
 
     #gameover-btn {
@@ -253,6 +297,92 @@
     }
     #gameover-btn:hover { background: var(--brass-bright); }
     #gameover-btn:disabled { background: #3a3020; color: #6a5a30; cursor: default; }
+
+    /* ── Results overlay ─────────────────────────────────── */
+    #results-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--overlay-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 110;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+    }
+    #results-overlay.visible { opacity: 1; pointer-events: all; }
+
+    #results-card {
+      background: var(--surface);
+      border: 1px solid var(--border-brass);
+      padding: 48px 56px;
+      text-align: center;
+      max-width: 480px;
+      width: 90%;
+    }
+
+    #results-title {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--text);
+      margin-bottom: 32px;
+    }
+
+    #results-table {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 36px;
+      text-align: left;
+    }
+
+    .results-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 12px;
+      align-items: baseline;
+      padding: 10px 14px;
+      background: var(--surface-hi);
+      border: 1px solid var(--border);
+    }
+
+    .results-name {
+      font-family: 'Courier Prime', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .results-score {
+      font-family: 'Courier Prime', monospace;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--brass);
+    }
+
+    .results-max {
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.75rem;
+      color: var(--border-brass);
+    }
+
+    #results-btn {
+      padding: 12px 32px;
+      background: var(--brass);
+      border: none;
+      border-radius: 2px;
+      color: var(--ink);
+      font-family: 'Courier Prime', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #results-btn:hover { background: var(--brass-bright); }
 
     /* ── Mobile ──────────────────────────────────────────── */
     @media (max-width: 700px) {
@@ -301,6 +431,12 @@
       </div>
     </div>
 
+    <div id="score-section">
+      <div id="score-label-text">Wynik</div>
+      <div id="score-value">0</div>
+      <div class="score-subtext">/ 15 000</div>
+    </div>
+
     <div id="status-section">
       <div class="stat-row">
         <span class="stat-key">Twoje pole</span>
@@ -342,11 +478,24 @@
     </div>
   </div>
 
+  <div id="results-overlay">
+    <div id="results-card">
+      <h2 id="results-title">Dziękuję za udział w badaniu!</h2>
+      <div id="results-table"></div>
+      <button id="results-btn">Zakończ</button>
+    </div>
+  </div>
+
   <div id="gameover-overlay">
     <div id="gameover-card">
       <span id="gameover-icon"></span>
       <h2 id="gameover-title"></h2>
       <p id="gameover-sub"></p>
+      <div id="gameover-score-block">
+        <div class="go-score-label">Twój najlepszy wynik</div>
+        <div id="gameover-score-value">—</div>
+        <div class="go-score-max">/ 15 000</div>
+      </div>
       <p id="gameover-turns"></p>
       <button id="gameover-btn"></button>
     </div>

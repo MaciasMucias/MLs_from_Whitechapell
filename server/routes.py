@@ -8,9 +8,11 @@ from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
 
+from agents.heuristic_cops import HeuristicCops
 from engine.env import legal_jack_edges
 from engine.game import step_round
 from engine.graph import Map
+from engine.graph_utils import jack_bfs_distances
 from server.session import (
     get_session,
     new_session,
@@ -95,8 +97,23 @@ async def _jack_move_impl(game_id: str, body: JackMoveRequest, request: Request)
             )
         )
 
+    _state = session.ctx.state
+    _game_map = session.ctx.game_map
+    _bfs = jack_bfs_distances(_state.hideout, _game_map)
+    _max_dist = max(_bfs.values()) if _bfs else 1
+    _curr_dist = _bfs.get(_state.jack_pos, _max_dist)
+    _norm_dist = _curr_dist / _max_dist if _max_dist > 0 else 0.0
+    score_info: dict = {"normalized_distance": _norm_dist}
+    if terminated and winner == "jack":
+        _pmf = HeuristicCops.compute_pmf(_state, _game_map)
+        _zone = _state.hideout_zone
+        if _zone:
+            _nonzero = sum(1 for h in _zone if _pmf.get(h, 0.0) > 0.0)
+            score_info["hideout_uncertainty"] = _nonzero / len(_zone)
+
     view = state_view(session)
     view["events"] = events
+    view["score_info"] = score_info
     return view
 
 

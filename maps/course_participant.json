@@ -6,13 +6,13 @@
     "file": "course_1.json"
   },
   {
-    "name": "whitechapel",
+    "name": "course_2",
     "display_name": "Whitechapel",
     "description": "The streets of Whitechapel, 1888.",
     "file": "course_2.json"
   },
   {
-    "name": "whitechapel",
+    "name": "course_3",
     "display_name": "Whitechapel",
     "description": "The streets of Whitechapel, 1888.",
     "file": "course_3.json"

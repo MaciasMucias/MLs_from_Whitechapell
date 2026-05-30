@@ -20,6 +20,7 @@ from server.session import (
 )
 
 router = APIRouter()
+debug_router = APIRouter()
 
 
 class JackMoveRequest(BaseModel):
@@ -32,9 +33,7 @@ class NewGameRequest(BaseModel):
     )
 
 
-@router.post("/game/new")
-@limiter.limit("5/minute")
-async def new_game(body: NewGameRequest, request: Request):
+async def _new_game_impl(body: NewGameRequest, request: Request):
     map_name, scenario_order = request.app.state.course_queue.next()
     session = new_session(request.app.state.game_maps[map_name], map_name=map_name)
     set_participant_meta(
@@ -48,22 +47,7 @@ async def new_game(body: NewGameRequest, request: Request):
     return state_view(session)
 
 
-@router.get("/course")
-async def get_course(request: Request):
-    return request.app.state.course
-
-
-@router.get("/game/{game_id}")
-async def get_game(game_id: str):
-    session = get_session(game_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Game not found")
-    return state_view(session)
-
-
-@router.post("/game/{game_id}/jack-move")
-@limiter.limit("60/minute")
-async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
+async def _jack_move_impl(game_id: str, body: JackMoveRequest, request: Request):
     session = get_session(game_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -116,7 +100,45 @@ async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
     return view
 
 
+@router.post("/game/new")
+@limiter.limit("5/minute")
+async def new_game(body: NewGameRequest, request: Request):
+    return await _new_game_impl(body, request)
+
+
+@debug_router.post("/game/new")
+async def debug_new_game(body: NewGameRequest, request: Request):
+    return await _new_game_impl(body, request)
+
+
+@router.post("/game/{game_id}/jack-move")
+@limiter.limit("60/minute")
+async def jack_move(game_id: str, body: JackMoveRequest, request: Request):
+    return await _jack_move_impl(game_id, body, request)
+
+
+@debug_router.post("/game/{game_id}/jack-move")
+async def debug_jack_move(game_id: str, body: JackMoveRequest, request: Request):
+    return await _jack_move_impl(game_id, body, request)
+
+
+@router.get("/course")
+@debug_router.get("/course")
+async def get_course(request: Request):
+    return request.app.state.course
+
+
+@router.get("/game/{game_id}")
+@debug_router.get("/game/{game_id}")
+async def get_game(game_id: str):
+    session = get_session(game_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return state_view(session)
+
+
 @router.get("/map")
+@debug_router.get("/map")
 async def get_map(request: Request, map_name: str | None = None):
     gm_dict: dict[str, Map] = request.app.state.game_maps
     gm: Map = (
@@ -153,5 +175,6 @@ async def get_map(request: Request, map_name: str | None = None):
 
 
 @router.get("/map-svg")
+@debug_router.get("/map-svg")
 async def get_map_svg():
     return FileResponse("Mapa_v5.svg", media_type="image/svg+xml")

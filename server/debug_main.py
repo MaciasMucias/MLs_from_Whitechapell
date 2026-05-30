@@ -10,7 +10,7 @@ from server.admin_routes import admin_router
 from server.course_queue import CourseQueue
 from server.database import init_db
 from server.replay_routes import replay_router
-from server.routes import router
+from server.routes import debug_router
 
 
 @asynccontextmanager
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
 
 debug_ui = FastAPI(lifespan=lifespan)
-debug_ui.include_router(router, prefix="/api")
+debug_ui.include_router(debug_router, prefix="/api")
 debug_ui.include_router(admin_router, prefix="/api/admin")
 debug_ui.include_router(replay_router, prefix="/api/replays")
 debug_ui.mount("/", StaticFiles(directory="frontend", html=True), name="debug")

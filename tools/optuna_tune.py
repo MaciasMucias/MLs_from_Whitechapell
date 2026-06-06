@@ -3,6 +3,11 @@ Optimise cop heuristic parameters with Optuna against a fixed game pool.
 
 Multi-objective: maximise both mean search hits and cop win rate (Pareto front).
 
+Searches all 11 float/int parameters of HeuristicCops:
+    arrest_threshold, min_arrest_fraction, pursuit_fraction, pursuit_weight,
+    searcher_prox_fraction, direction_certainty_threshold, arrest_discount,
+    miss_discount_decay, hideout_blend_floor, hideout_blend (via delta), max_passes.
+
 Pool games are generated once with a fixed seed (common random numbers).
 
 With --jack-checkpoint: Jack plays a trained policy and reacts to each cop
@@ -36,12 +41,22 @@ from tools.scripted_sim import run_policy_game, run_scripted_game
 MAP_PATH = "maps/whitechapel.json"
 POOL_SEED = 42
 
-PARAM_RANGES = {
-    "hideout_blend_floor": (0.0, 0.5),
-    "direction_certainty_threshold": (0.05, 0.6),
+FLOAT_PARAMS = {
+    "arrest_threshold": (0.05, 0.6),
+    "min_arrest_fraction": (0.3, 1.0),
+    "pursuit_fraction": (0.2, 0.6),
     "pursuit_weight": (0.1, 1.2),
     "searcher_prox_fraction": (0.1, 0.8),
-    "pursuit_fraction": (0.2, 0.6),
+    "direction_certainty_threshold": (0.05, 0.6),
+    "arrest_discount": (0.0, 0.5),
+    "miss_discount_decay": (0.1, 1.0),
+    "hideout_blend_floor": (0.0, 0.5),
+    # hideout_blend = hideout_blend_floor + delta, guaranteeing blend >= floor.
+    "hideout_blend_delta": (0.0, 0.5),
+}
+
+INT_PARAMS = {
+    "max_passes": (1, 10),
 }
 
 
@@ -104,10 +119,17 @@ def make_live_pool(game_map, seed: int, size: int) -> list[dict]:
 
 
 def _suggest_params(trial: optuna.Trial) -> dict:
-    return {
+    params: dict = {
         name: trial.suggest_float(name, lo, hi)
-        for name, (lo, hi) in PARAM_RANGES.items()
+        for name, (lo, hi) in FLOAT_PARAMS.items()
     }
+    params.update(
+        {name: trial.suggest_int(name, lo, hi) for name, (lo, hi) in INT_PARAMS.items()}
+    )
+    params["hideout_blend"] = (
+        params.pop("hideout_blend_delta") + params["hideout_blend_floor"]
+    )
+    return params
 
 
 def build_scripted_objective(pool: list[dict], game_map):
@@ -216,19 +238,29 @@ def main() -> None:
 
     print(f"\nPareto front ({len(pareto)} trials) — sorted by win rate then hits:")
     print(
-        f"{'#':>4}  {'hits':>6}  {'win%':>6}  {'floor':>6}  {'cert':>6}  {'p_wt':>5}  {'spf':>5}  {'p_fr':>5}"
+        f"{'#':>4}  {'hits':>6}  {'win%':>6}"
+        f"  {'a_thr':>5}  {'ma_fr':>5}  {'p_fr':>5}  {'p_wt':>5}"
+        f"  {'s_prx':>5}  {'cert':>5}  {'a_dis':>5}  {'m_dec':>5}"
+        f"  {'h_fl':>5}  {'h_bl':>5}  {'pass':>4}"
     )
-    print("-" * 62)
+    print("-" * 100)
     for t in pareto:
         hits, win_rate = t.values
         p = t.params
+        h_blend = p["hideout_blend_floor"] + p.get("hideout_blend_delta", 0.0)
         print(
             f"{t.number:>4}  {hits:>6.3f}  {win_rate * 100:>5.1f}%"
-            f"  {p['hideout_blend_floor']:>6.3f}"
-            f"  {p['direction_certainty_threshold']:>6.3f}"
+            f"  {p['arrest_threshold']:>5.3f}"
+            f"  {p['min_arrest_fraction']:>5.3f}"
+            f"  {p['pursuit_fraction']:>5.3f}"
             f"  {p['pursuit_weight']:>5.3f}"
             f"  {p['searcher_prox_fraction']:>5.3f}"
-            f"  {p['pursuit_fraction']:>5.3f}"
+            f"  {p['direction_certainty_threshold']:>5.3f}"
+            f"  {p['arrest_discount']:>5.3f}"
+            f"  {p['miss_discount_decay']:>5.3f}"
+            f"  {p['hideout_blend_floor']:>5.3f}"
+            f"  {h_blend:>5.3f}"
+            f"  {p['max_passes']:>4}"
         )
 
 

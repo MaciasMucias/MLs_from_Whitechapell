@@ -28,8 +28,9 @@ class JackEnv:
                    Action i = move to Jack node i. Only legal neighbours are
                    unmasked; all others must be set to -inf before softmax.
     Observation:   1,416-dim float32 vector (see training/obs.py).
-    Reward:        Terminal ±1.0 dominant; shaped by distance progress, PMF
-                   potential delta, and count-based exploration bonus.
+    Reward:        Terminal ±1.0 dominant; shaped by hideout-distance progress,
+                   cop-distance delta, PMF potential delta, and count-based
+                   exploration bonus.
     """
 
     def __init__(
@@ -39,6 +40,7 @@ class JackEnv:
         beta: float = 0.05,
         delta: float = 0.01,
         gamma: float = 0.5,
+        zeta: float = 0.1,
         blocking: bool = False,
         rng: random.Random | None = None,
         director: Director | None = None,
@@ -48,6 +50,7 @@ class JackEnv:
         self._beta = beta
         self._delta = delta
         self._gamma = gamma
+        self._zeta = zeta
         self._blocking = blocking  # EXTEND(blocking): _all_dists is topology-only (no cop positions);
         # with blocking enabled it underestimates true distance when cops wall off the short route.
         # Action masking enforces blocking correctly — this is a known reward-shaping approximation.
@@ -93,6 +96,11 @@ class JackEnv:
         prev_pos = state.jack_pos
         prev_dist = self._all_dists[prev_pos].get(state.hideout, self._diameter)
         prev_pmf_at_prev = self._pmf.get(prev_pos, 0.0)
+        prev_min_cop_dist = min(
+            self._all_dists[prev_pos].get(jn.id, self._diameter)
+            for cp in state.cop_positions
+            for jn in self._map.cop_nodes[cp].jack_neighbours
+        )
 
         # Resolve action index → JackEdge
         legal = legal_jack_edges(state, self._map, blocking=self._blocking)
@@ -128,10 +136,16 @@ class JackEnv:
         curr_pos = state.jack_pos
         curr_dist = self._all_dists[curr_pos].get(state.hideout, self._diameter)
         curr_pmf_at_curr = curr_pmf.get(curr_pos, 0.0)
+        curr_min_cop_dist = min(
+            self._all_dists[curr_pos].get(jn.id, self._diameter)
+            for cp in state.cop_positions
+            for jn in self._map.cop_nodes[cp].jack_neighbours
+        )
 
         reward = 0.0
         reward += self._alpha * (prev_dist - curr_dist) / self._diameter
         reward += self._beta * (prev_pmf_at_prev - curr_pmf_at_curr)
+        reward += self._zeta * (curr_min_cop_dist - prev_min_cop_dist) / self._diameter
         self._visit_counts[curr_pos] = self._visit_counts.get(curr_pos, 0) + 1
         reward += self._delta / math.sqrt(self._visit_counts[curr_pos])
 

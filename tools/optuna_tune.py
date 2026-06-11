@@ -132,7 +132,17 @@ def _suggest_params(trial: optuna.Trial) -> dict:
     return params
 
 
-def build_scripted_objective(pool: list[dict], game_map):
+def _run_diagnostic(
+    trial: optuna.Trial, diagnostic_game: dict, params: dict, game_map
+) -> None:
+    dr = run_scripted_game(**diagnostic_game, cop_params=params, game_map=game_map)
+    trial.set_user_attr("diag_winner", dr["winner"] or "none")
+    trial.set_user_attr("diag_hits", dr["search_hits_total"])
+
+
+def build_scripted_objective(
+    pool: list[dict], game_map, diagnostic_game: dict | None = None
+):
     def objective(trial: optuna.Trial) -> tuple[float, float]:
         params = _suggest_params(trial)
         total_hits = cop_wins = 0
@@ -141,12 +151,16 @@ def build_scripted_objective(pool: list[dict], game_map):
             total_hits += r["search_hits_total"]
             if r["winner"] == "cops":
                 cop_wins += 1
+        if diagnostic_game is not None:
+            _run_diagnostic(trial, diagnostic_game, params, game_map)
         return total_hits / len(pool), cop_wins / len(pool)
 
     return objective
 
 
-def build_policy_objective(pool: list[dict], game_map, jack_agent):
+def build_policy_objective(
+    pool: list[dict], game_map, jack_agent, diagnostic_game: dict | None = None
+):
     def objective(trial: optuna.Trial) -> tuple[float, float]:
         params = _suggest_params(trial)
         total_hits = cop_wins = 0
@@ -157,6 +171,8 @@ def build_policy_objective(pool: list[dict], game_map, jack_agent):
             total_hits += r["search_hits_total"]
             if r["winner"] == "cops":
                 cop_wins += 1
+        if diagnostic_game is not None:
+            _run_diagnostic(trial, diagnostic_game, params, game_map)
         return total_hits / len(pool), cop_wins / len(pool)
 
     return objective
@@ -193,10 +209,24 @@ def main() -> None:
         help="Path to a .pt checkpoint file or directory (uses latest .pt); "
         "omit to use random Jack",
     )
+    parser.add_argument(
+        "--diagnostic",
+        default=None,
+        help="Path to a JSON file describing a fixed diagnostic game (e.g. a known "
+        "walkaround scenario); reported as extra columns but not optimised",
+    )
     args = parser.parse_args()
 
     print("Loading map...")
     game_map = load_map(MAP_PATH)
+
+    diagnostic_game: dict | None = None
+    if args.diagnostic:
+        import json
+
+        diagnostic_game = json.loads(Path(args.diagnostic).read_text())
+        diagnostic_game.setdefault("turn_limit", game_map.turn_limit)
+        print(f"Diagnostic game loaded from {args.diagnostic}")
 
     if args.jack_checkpoint:
         import torch
@@ -213,20 +243,29 @@ def main() -> None:
             f"Generating live pool of {args.pool} initial states (seed={args.seed})..."
         )
         pool = make_live_pool(game_map, seed=args.seed, size=args.pool)
-        objective_fn = build_policy_objective(pool, game_map, jack_agent)
+        objective_fn = build_policy_objective(
+            pool, game_map, jack_agent, diagnostic_game
+        )
         mode = "policy Jack"
     else:
         print(f"Generating scripted pool of {args.pool} games (seed={args.seed})...")
         pool = make_scripted_pool(game_map, seed=args.seed, size=args.pool)
-        objective_fn = build_scripted_objective(pool, game_map)
+        objective_fn = build_scripted_objective(pool, game_map, diagnostic_game)
         mode = "random Jack"
 
     print(
         f"Running {args.trials} trials [{mode}, multi-objective: hits + win rate]...\n"
     )
+    constraint_fn = (
+        (lambda t: [0.0 if t.user_attrs.get("diag_winner") == "cops" else 1.0])
+        if diagnostic_game is not None
+        else None
+    )
     study = optuna.create_study(
         directions=["maximize", "maximize"],
-        sampler=optuna.samplers.NSGAIISampler(seed=args.seed),
+        sampler=optuna.samplers.NSGAIISampler(
+            seed=args.seed, constraints_func=constraint_fn
+        ),
     )
     study.optimize(objective_fn, n_trials=args.trials, show_progress_bar=True)
 
@@ -236,21 +275,29 @@ def main() -> None:
         reverse=True,
     )
 
+    has_diag = diagnostic_game is not None
     print(f"\nPareto front ({len(pareto)} trials) — sorted by win rate then hits:")
     print(
         f"{'#':>4}  {'hits':>6}  {'win%':>6}"
-        f"  {'a_thr':>5}  {'ma_fr':>5}  {'p_fr':>5}  {'p_wt':>5}"
+        + (f"  {'d_win':>5}  {'d_hit':>5}" if has_diag else "")
+        + f"  {'a_thr':>5}  {'ma_fr':>5}  {'p_fr':>5}  {'p_wt':>5}"
         f"  {'s_prx':>5}  {'cert':>5}  {'a_dis':>5}  {'m_dec':>5}"
         f"  {'h_fl':>5}  {'h_bl':>5}  {'pass':>4}"
     )
-    print("-" * 100)
+    print("-" * (100 + (14 if has_diag else 0)))
     for t in pareto:
         hits, win_rate = t.values
         p = t.params
         h_blend = p["hideout_blend_floor"] + p.get("hideout_blend_delta", 0.0)
+        diag_cols = ""
+        if has_diag:
+            dw = t.user_attrs.get("diag_winner", "N/A")
+            dh = t.user_attrs.get("diag_hits", -1)
+            diag_cols = f"  {dw:>5}  {dh:>5}"
         print(
             f"{t.number:>4}  {hits:>6.3f}  {win_rate * 100:>5.1f}%"
-            f"  {p['arrest_threshold']:>5.3f}"
+            + diag_cols
+            + f"  {p['arrest_threshold']:>5.3f}"
             f"  {p['min_arrest_fraction']:>5.3f}"
             f"  {p['pursuit_fraction']:>5.3f}"
             f"  {p['pursuit_weight']:>5.3f}"

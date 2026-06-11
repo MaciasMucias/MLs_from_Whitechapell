@@ -67,17 +67,17 @@ class HeuristicCops(CopAgent):
 
     def __init__(
         self,
-        arrest_threshold: float = 0.25,
-        min_arrest_fraction: float = 0.8,
-        pursuit_fraction: float = 0.238,
-        pursuit_weight: float = 0.207,
-        searcher_prox_fraction: float = 0.579,
-        direction_certainty_threshold: float = 0.499,
-        arrest_discount: float = 0.0,
-        miss_discount_decay: float = 0.7,
-        hideout_blend: float = 0.5,
-        hideout_blend_floor: float = 0.330,
-        max_passes: int = 5,
+        arrest_threshold: float = 0.209,
+        min_arrest_fraction: float = 0.357,
+        pursuit_fraction: float = 0.271,
+        pursuit_weight: float = 1.049,
+        searcher_prox_fraction: float = 0.339,
+        direction_certainty_threshold: float = 0.573,
+        arrest_discount: float = 0.287,
+        miss_discount_decay: float = 0.420,
+        hideout_blend: float = 0.434,
+        hideout_blend_floor: float = 0.076,
+        max_passes: int = 7,
         cop_max_steps: int = 2,
     ) -> None:
         self._arrest_threshold = arrest_threshold

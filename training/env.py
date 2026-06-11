@@ -112,6 +112,15 @@ class JackEnv:
         if terminated:
             return self._finish(state, winner, +1.0)
 
+        # Terminate early if Jack cannot mathematically reach the hideout in time.
+        # After step_jack, state.turn is still T (end_of_round hasn't run yet), so
+        # Jack has turn_limit - 1 - T remaining moves after this one.
+        dist_to_hideout = self._all_dists[state.jack_pos].get(
+            state.hideout, self._diameter
+        )
+        if dist_to_hideout > self._map.turn_limit - 1 - state.turn:
+            return self._finish(state, "cops", -1.0)
+
         # Director intercepts cop knowledge (no-op for now)
         state = self._director.filter_knowledge(state, self._map)
 

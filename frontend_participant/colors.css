@@ -24,8 +24,12 @@
   --color-visited:     #60a5fa;
   --color-cop:         #ef4444;
   --color-cop-stroke:  #ff6659;
+  --color-cop-marker-stroke: #1a1a1a;  /* dark outline giving triangles a crisp edge on the warm board */
+  --color-cop-label:       #ffffff;    /* cop number fill */
+  --color-cop-label-halo:  #1a1a1a;    /* dark halo (paint-order stroke) so the number reads on any accent fill */
   --color-zone:        rgba(168, 85, 247, 0.45);
   --color-zone-stroke: #7c3aed;
+  --color-ring-halo:   rgba(10, 10, 14, 0.55);  /* dark backing behind node-state rings for contrast */
 
   /* ── Per-cop accent colors ────────────────────────────── */
   --color-cop-0: #ffeb3b;
@@ -41,5 +45,5 @@
   --color-search-miss-stroke: #67e8f9;
   --color-arrest-pulse-fill:  rgba(239, 68, 68, 0.4);
   --color-arrest-bg:          rgba(239, 68, 68, 0.08);
-  --color-cop-node-empty:     rgba(20, 20, 20, 0.35);
+  --color-cop-node-empty:     rgba(20, 20, 20, 0.28);  /* faint background pip — clearly not a police piece */
 }

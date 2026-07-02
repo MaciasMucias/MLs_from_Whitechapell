@@ -26,6 +26,11 @@ let roundCopPaths = new Map();  // cop_idx → [cop node ids]
 let lastEvents    = [];   // events from the most recent cop turn
 let hoveredCopIdx = null; // cop currently highlighted via hover
 
+// ── Piece dimensions (SVG user units; shared by static + animation paths) ──
+const COP_MARKER_R   = 18;   // triangle circumradius (large enough to fully cover the ~6.6px map square)
+const COP_LABEL_SIZE = 22;   // cop-number font size (fits inside the triangle's incircle)
+const EMPTY_NODE_R    = 2.2;  // faint empty-cop-node pip radius
+
 // ── Init ──────────────────────────────────────────────────
 
 async function init() {
@@ -158,36 +163,65 @@ function render(state) {
 
 function renderCopNodes(g, copMap) {
   for (const node of mapData.cop_nodes) {
-    const rect = document.createElementNS(SVG_NS, "rect");
-    rect.setAttribute("x", node.x - 4);
-    rect.setAttribute("y", node.y - 4);
-    rect.setAttribute("width", 8);
-    rect.setAttribute("height", 8);
-
     const copIdx = copMap.get(node.id);
     if (copIdx !== undefined) {
-      rect.style.fill   = "var(--color-cop)";
-      rect.style.stroke = "var(--color-cop-stroke)";
-      rect.setAttribute("stroke-width", 1.5);
-      const dot = document.createElementNS(SVG_NS, "circle");
-      dot.setAttribute("cx", node.x);
-      dot.setAttribute("cy", node.y);
-      dot.setAttribute("r", 2.5);
-      dot.style.fill = `var(--color-cop-${copIdx % 6})`;
-      const copGroup = document.createElementNS(SVG_NS, "g");
-      copGroup.appendChild(rect);
-      copGroup.appendChild(dot);
-      copGroup.style.cursor = "pointer";
-      copGroup.addEventListener("mouseenter", () => { if (!busy) showCopHoverOverlay(copIdx); });
-      copGroup.addEventListener("mouseleave", clearCopHoverOverlay);
-      g.appendChild(copGroup);
-      copRectElems.set(copIdx, copGroup);
+      const marker = makeCopMarker(node.x, node.y, copIdx);
+      marker.style.cursor = "pointer";
+      marker.addEventListener("mouseenter", () => { if (!busy) showCopHoverOverlay(copIdx); });
+      marker.addEventListener("mouseleave", clearCopHoverOverlay);
+      g.appendChild(marker);
+      copRectElems.set(copIdx, marker);
     } else {
-      rect.style.fill = "var(--color-cop-node-empty)";
-      rect.setAttribute("stroke", "none");
-      g.appendChild(rect);
+      // Faint background pip — clearly an empty junction, not a police piece.
+      const pip = document.createElementNS(SVG_NS, "circle");
+      pip.setAttribute("cx", node.x);
+      pip.setAttribute("cy", node.y);
+      pip.setAttribute("r", EMPTY_NODE_R);
+      pip.style.fill = "var(--color-cop-node-empty)";
+      pip.setAttribute("stroke", "none");
+      g.appendChild(pip);
     }
   }
+}
+
+// Build a cop piece: an upward triangle in the cop's accent colour with the
+// cop number (1-based) printed inside. Geometry is centred on the origin and
+// positioned via a translate transform so the whole marker can be moved as a
+// unit during the cop-turn animation.
+function makeCopMarker(cx, cy, copIdx) {
+  const g = document.createElementNS(SVG_NS, "g");
+  g.setAttribute("transform", `translate(${cx}, ${cy})`);
+
+  const r = COP_MARKER_R;
+  const pts = [
+    [0, -r],
+    [r * 0.866, r * 0.5],
+    [-r * 0.866, r * 0.5],
+  ].map(p => p.join(",")).join(" ");
+  const tri = document.createElementNS(SVG_NS, "polygon");
+  tri.setAttribute("points", pts);
+  tri.style.fill   = `var(--color-cop-${copIdx % 6})`;
+  tri.style.stroke = "var(--color-cop-marker-stroke)";
+  tri.setAttribute("stroke-width", 1.5);
+  tri.setAttribute("stroke-linejoin", "round");
+  g.appendChild(tri);
+
+  const label = document.createElementNS(SVG_NS, "text");
+  label.setAttribute("x", 0);
+  label.setAttribute("y", 0);          // centred on the node (= triangle centroid)
+  label.setAttribute("text-anchor", "middle");
+  label.setAttribute("dominant-baseline", "central");
+  label.setAttribute("font-size", COP_LABEL_SIZE);
+  label.setAttribute("font-weight", "700");
+  label.style.fill   = "var(--color-cop-label)";
+  label.style.stroke = "var(--color-cop-label-halo)";
+  label.setAttribute("stroke-width", 2.5);
+  label.setAttribute("paint-order", "stroke");
+  label.setAttribute("pointer-events", "none");
+  label.textContent = String(copIdx + 1);
+  g.appendChild(label);
+
+  return g;
 }
 
 // ── Star helper ───────────────────────────────────────────
@@ -220,8 +254,8 @@ function renderJackNodes(g, state, legalSet, visitedSet) {
 
     if (segments.length === 0) continue;
 
-    const r  = isJack ? 10 : 9;
-    const sw = isJack ? 4  : 3;
+    const r  = isJack ? 12 : 11;
+    const sw = isJack ? 5  : 4;
     const n  = segments.length;
     const circumference = 2 * Math.PI * r;
     const segLen = circumference / n;
@@ -230,19 +264,29 @@ function renderJackNodes(g, state, legalSet, visitedSet) {
     if (isJack) nodeGroup.setAttribute("id", "jack-ring");
     const segCircles = [];
 
-    for (let i = 0; i < n; i++) {
+    // Each colour segment gets a dark backing arc so it stays legible over both
+    // the light and dark regions of the board image.
+    const makeArc = (idx, stroke, width) => {
       const c = document.createElementNS(SVG_NS, "circle");
       c.setAttribute("cx", node.x);
       c.setAttribute("cy", node.y);
       c.setAttribute("r", r);
       c.setAttribute("fill", "none");
-      c.style.stroke = segments[i];
-      c.setAttribute("stroke-width", sw);
+      c.style.stroke = stroke;
+      c.setAttribute("stroke-width", width);
       if (n > 1) {
         c.setAttribute("transform", `rotate(-90, ${node.x}, ${node.y})`);
         c.setAttribute("stroke-dasharray", `${segLen} ${circumference - segLen}`);
-        c.setAttribute("stroke-dashoffset", -(i * segLen));
+        c.setAttribute("stroke-dashoffset", -(idx * segLen));
       }
+      return c;
+    };
+
+    for (let i = 0; i < n; i++) {
+      nodeGroup.appendChild(makeArc(i, "var(--color-ring-halo)", sw + 3));
+    }
+    for (let i = 0; i < n; i++) {
+      const c = makeArc(i, segments[i], sw);
       segCircles.push(c);
       nodeGroup.appendChild(c);
     }
@@ -348,8 +392,8 @@ function renderCopTrails() {
     line.setAttribute("points", coords.join(" "));
     line.setAttribute("fill", "none");
     line.style.stroke = color;
-    line.setAttribute("stroke-width", "2.5");
-    line.setAttribute("stroke-opacity", "0.55");
+    line.setAttribute("stroke-width", "3.5");
+    line.setAttribute("stroke-opacity", "0.85");
     line.setAttribute("stroke-linecap", "round");
     line.setAttribute("stroke-linejoin", "round");
     g.appendChild(line);
@@ -561,23 +605,9 @@ async function animateCopTurn(events) {
       if (staticGroup?.parentNode) staticGroup.remove();
 
       const startNode = copNodeById.get(path[0]);
-      const rect = document.createElementNS(SVG_NS, "rect");
-      rect.setAttribute("x", startNode.x - 4);
-      rect.setAttribute("y", startNode.y - 4);
-      rect.setAttribute("width", 8);
-      rect.setAttribute("height", 8);
-      rect.style.fill   = "var(--color-cop)";
-      rect.style.stroke = "var(--color-cop-stroke)";
-      rect.setAttribute("stroke-width", 1.5);
-      rect.setAttribute("pointer-events", "none");
-      const dot = document.createElementNS(SVG_NS, "circle");
-      dot.setAttribute("cx", startNode.x);
-      dot.setAttribute("cy", startNode.y);
-      dot.setAttribute("r", 2.5);
-      dot.style.fill = `var(--color-cop-${ev.cop % 6})`;
-      dot.setAttribute("pointer-events", "none");
-      g.appendChild(rect);
-      g.appendChild(dot);
+      const marker = makeCopMarker(startNode.x, startNode.y, ev.cop);
+      marker.setAttribute("pointer-events", "none");
+      g.appendChild(marker);
 
       // Animate segment-by-segment so the pieces follow each graph edge in sequence,
       // stopping briefly at intermediate nodes rather than cutting across diagonals.
@@ -590,10 +620,7 @@ async function animateCopTurn(events) {
           if (!fromNode || !toNode) continue;
           await animateAlongPath(
             (x, y) => {
-              rect.setAttribute("x", x - 4);
-              rect.setAttribute("y", y - 4);
-              dot.setAttribute("cx", x);
-              dot.setAttribute("cy", y);
+              marker.setAttribute("transform", `translate(${x}, ${y})`);
             },
             [{ x: fromNode.x, y: fromNode.y }, { x: toNode.x, y: toNode.y }],
             STEP_DURATION,
@@ -601,7 +628,7 @@ async function animateCopTurn(events) {
           if (step < path.length - 2) await delay(INTERMEDIATE_PAUSE);
         }
       }
-      // Rect and dot stay at destination — visible until render() clears the overlay.
+      // Marker stays at destination — visible until render() clears the overlay.
     }
 
     animCopPositions.set(ev.cop, toId);
@@ -700,7 +727,7 @@ function showCopHoverOverlay(copIdx) {
     const ring = document.createElementNS(SVG_NS, "circle");
     ring.setAttribute("cx", posNode.x);
     ring.setAttribute("cy", posNode.y);
-    ring.setAttribute("r", 9);
+    ring.setAttribute("r", COP_MARKER_R + 4);
     ring.setAttribute("fill", "none");
     ring.style.stroke = `var(--color-cop-${copIdx % 6})`;
     ring.setAttribute("stroke-width", "2.5");
@@ -865,26 +892,43 @@ function showGameOver(state) {
     `Rozegrano ${state.turn} ${polishRoundPlural(state.turn)}`;
 
   const nextIndex = courseIndex + 1;
-  const btn = document.getElementById("gameover-btn");
+  const isLast    = nextIndex >= course.length;
+  const proceedLabel = isLast ? "Zobacz wyniki →" : "Następna mapa →";
 
-  if (nextIndex < course.length) {
-    btn.textContent = "Następna mapa →";
-    btn.addEventListener("click", async () => {
-      btn.disabled    = true;
-      btn.textContent = "Ładowanie…";
-      const gamingHabit = sessionStorage.getItem("gaming_habit") || "unknown";
-      const newState    = await newGame(gamingHabit);
-      sessionStorage.setItem("course_index", String(nextIndex));
-      sessionStorage.setItem("game_id", newState.game_id);
-      window.location.reload();
-    });
-  } else {
-    btn.textContent = "Zobacz wyniki →";
-    btn.addEventListener("click", () => {
+  // The "proceed" action (advance to next map or show the final results) is
+  // wired to two buttons: the primary one on the card, and a twin in the side
+  // panel that stays available after the card is dismissed via "Pokaż mapę".
+  const goBtn  = document.getElementById("gameover-btn");
+  const endBtn = document.getElementById("endgame-btn");
+  goBtn.textContent  = proceedLabel;
+  endBtn.textContent = proceedLabel;
+
+  const proceed = async (clicked) => {
+    if (isLast) {
       document.getElementById("gameover-overlay").classList.remove("visible");
       showResults();
-    });
-  }
+      return;
+    }
+    goBtn.disabled = true;
+    endBtn.disabled = true;
+    clicked.textContent = "Ładowanie…";
+    const gamingHabit = sessionStorage.getItem("gaming_habit") || "unknown";
+    const newState    = await newGame(gamingHabit);
+    sessionStorage.setItem("course_index", String(nextIndex));
+    sessionStorage.setItem("game_id", newState.game_id);
+    window.location.reload();
+  };
+
+  goBtn.addEventListener("click", () => proceed(goBtn));
+  endBtn.addEventListener("click", () => proceed(endBtn));
+
+  // "Pokaż mapę" — dismiss the card to inspect the final board; the proceed
+  // control is surfaced in the side panel so the player is never trapped.
+  document.getElementById("endgame-label").textContent = o.title;
+  document.getElementById("gameover-show-map").addEventListener("click", () => {
+    document.getElementById("gameover-overlay").classList.remove("visible");
+    document.getElementById("endgame-section").classList.add("visible");
+  });
 
   requestAnimationFrame(() => {
     document.getElementById("gameover-overlay").classList.add("visible");

@@ -229,4 +229,4 @@ async def get_map(request: Request, map_name: str | None = None):
 @router.get("/map-svg")
 @debug_router.get("/map-svg")
 async def get_map_svg():
-    return FileResponse("Mapa_v5.svg", media_type="image/svg+xml")
+    return FileResponse("Mapa_v5_display.svg", media_type="image/svg+xml")

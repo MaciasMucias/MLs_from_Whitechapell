@@ -1,3 +1,4 @@
+import random
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
@@ -33,11 +34,23 @@ class NewGameRequest(BaseModel):
     gaming_habit: Literal["never_played", "played_few", "played_many", "unknown"] = (
         "unknown"
     )
+    # The participant flow reserves its whole map order up front via
+    # POST /api/course/new and then requests each map by name. map_name/
+    # scenario_order are omitted only by debug/admin callers, which get a
+    # random single map.
+    map_name: str | None = None
+    scenario_order: int | None = None
 
 
 async def _new_game_impl(body: NewGameRequest, request: Request):
-    map_name, scenario_order = request.app.state.course_queue.next()
-    session = new_session(request.app.state.game_maps[map_name], map_name=map_name)
+    game_maps = request.app.state.game_maps
+    if body.map_name is not None and body.map_name in game_maps:
+        map_name = body.map_name
+        scenario_order = body.scenario_order if body.scenario_order is not None else -1
+    else:
+        map_name = random.choice(list(game_maps.keys()))
+        scenario_order = -1
+    session = new_session(game_maps[map_name], map_name=map_name)
     set_participant_meta(
         session.game_id,
         {
@@ -143,6 +156,28 @@ async def debug_jack_move(game_id: str, body: JackMoveRequest, request: Request)
 @debug_router.get("/course")
 async def get_course(request: Request):
     return request.app.state.course
+
+
+def _reserve_course_order(request: Request):
+    """Reserve one participant's full, counterbalanced map order.
+
+    Returns the course metadata entries reordered for this participant, each
+    annotated with its ``scenario_order`` (position in the course).
+    """
+    order = request.app.state.course_sequencer.next_order()
+    by_name = {entry["name"]: entry for entry in request.app.state.course}
+    return [{**by_name[name], "scenario_order": pos} for name, pos in order]
+
+
+@router.post("/course/new")
+@limiter.limit("5/minute")
+async def new_course(request: Request):
+    return _reserve_course_order(request)
+
+
+@debug_router.post("/course/new")
+async def debug_new_course(request: Request):
+    return _reserve_course_order(request)
 
 
 @router.get("/game/{game_id}")

@@ -913,7 +913,7 @@ function showGameOver(state) {
     endBtn.disabled = true;
     clicked.textContent = "Ładowanie…";
     const gamingHabit = sessionStorage.getItem("gaming_habit") || "unknown";
-    const newState    = await newGame(gamingHabit);
+    const newState    = await newGame(gamingHabit, course[nextIndex].name, nextIndex);
     sessionStorage.setItem("course_index", String(nextIndex));
     sessionStorage.setItem("game_id", newState.game_id);
     window.location.reload();

@@ -3,22 +3,31 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class CourseQueue:
+class CourseSequencer:
+    """Hands out a complete, counterbalanced map order to each participant.
+
+    Each call to :meth:`next_order` returns a *full* permutation of the maps, so
+    a participant's whole course is reserved atomically. Concurrent participants
+    can never interleave and leave someone with a duplicated or missing map
+    (the failure mode of the old drain-and-reshuffle single-draw queue).
+
+    Ordering uses a cyclic Latin square: as the internal counter advances, each
+    map appears once in every course position across each group of
+    ``len(map_names)`` participants, so maps are balanced across the 1st / 2nd /
+    3rd slots.
+    """
+
     map_names: list[str]
-    _queue: list[int] = field(default_factory=list)
-    _cycle_position: int = 0
+    _counter: int = field(default=0)
 
-    def next(self) -> tuple[str, int]:
-        """Return (map_name, position_in_permutation_cycle).
+    def __post_init__(self) -> None:
+        # Random starting offset so ordering isn't identical across restarts.
+        if self.map_names:
+            self._counter = random.randrange(len(self.map_names))
 
-        Position resets to 0 each time a new Fisher-Yates permutation is
-        generated, i.e. every len(map_names) calls.
-        """
-        if not self._queue:
-            self._queue = list(range(len(self.map_names)))
-            random.shuffle(self._queue)
-            self._cycle_position = 0
-        idx = self._queue.pop(0)
-        pos = self._cycle_position
-        self._cycle_position += 1
-        return self.map_names[idx], pos
+    def next_order(self) -> list[tuple[str, int]]:
+        """Return the next participant's course as ``(map_name, position)`` pairs."""
+        n = len(self.map_names)
+        r = self._counter % n
+        self._counter += 1
+        return [(self.map_names[(i + r) % n], i) for i in range(n)]

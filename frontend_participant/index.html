@@ -186,13 +186,13 @@
     #tutorial-overlay.hidden { display: none; }
 
     #tutorial-card {
-      width: min(660px, 96vw);
+      width: min(820px, 96vw);
       max-height: 95vh;
       overflow-y: auto;
       background: var(--surface);
       border: 1px solid var(--border-brass);
       border-radius: 2px;
-      padding: 36px 44px 32px;
+      padding: 44px 56px 40px;
       position: relative;
       display: flex;
       flex-direction: column;
@@ -218,7 +218,7 @@
 
     .tut-eyebrow {
       font-family: 'Courier Prime', monospace;
-      font-size: 10px;
+      font-size: 12px;
       letter-spacing: 0.25em;
       text-transform: uppercase;
       color: var(--brass);
@@ -227,7 +227,7 @@
 
     #tut-title {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 1.55rem;
+      font-size: 1.9rem;
       font-weight: 900;
       color: var(--text);
       margin-bottom: 18px;
@@ -235,7 +235,7 @@
     }
 
     #tut-visual {
-      height: 190px;
+      height: 240px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -248,8 +248,8 @@
     }
 
     #tut-text {
-      font-size: 0.97rem;
-      line-height: 1.75;
+      font-size: 1.15rem;
+      line-height: 1.7;
       color: var(--text-muted);
       margin-bottom: 22px;
     }
@@ -290,10 +290,10 @@
     .tut-btns { display: flex; gap: 10px; }
 
     .tut-btn {
-      padding: 10px 20px;
+      padding: 12px 24px;
       border-radius: 2px;
       font-family: 'Courier Prime', monospace;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.15em;
       text-transform: uppercase;
@@ -328,19 +328,19 @@
       border-bottom: 1px solid var(--border);
       margin-bottom: 2px;
     }
-    .tut-mock-round .label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); }
-    .tut-mock-round .counter { font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+    .tut-mock-round .label { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); }
+    .tut-mock-round .counter { font-size: 1.8rem; font-weight: 700; color: var(--text); line-height: 1.1; }
     .tut-mock-round .sep   { color: var(--border-brass); font-weight: 400; }
-    .tut-mock-round .lim   { font-size: 1rem; color: var(--text-muted); }
+    .tut-mock-round .lim   { font-size: 1.2rem; color: var(--text-muted); }
     .tut-mock-section-label {
-      font-size: 9px;
+      font-size: 10px;
       letter-spacing: 0.15em;
       text-transform: uppercase;
       color: var(--text-muted);
       margin-bottom: 2px;
     }
     .tut-cop-event {
-      font-size: 0.75rem;
+      font-size: 0.9rem;
       line-height: 1.45;
       color: var(--text-muted);
       padding: 4px 8px;
@@ -647,8 +647,8 @@
       const gamingHabit = checked ? checked.value : 'unknown';
 
       try {
-        const course = await fetchCourse();
-        const state = await newGame(gamingHabit);
+        const course = await startCourse();
+        const state = await newGame(gamingHabit, course[0].name, 0);
 
         sessionStorage.setItem('course', JSON.stringify(course));
         sessionStorage.setItem('course_index', '0');

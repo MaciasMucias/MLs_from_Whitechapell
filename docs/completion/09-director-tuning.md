@@ -134,13 +134,23 @@ which is exactly the knob on how narrowly it specialises.
 - **The historic deficit will not recur in 04.** Every arm there trains against `COPS_STUDY_V2` and
   is evaluated against `COPS_STUDY_V2`. The train/test mismatch that produced the deficit is gone,
   and the ON arm should be expected to *win*.
-- **Report the generalisation gap — it is the most interesting result here.** Score every final
-  checkpoint against a held-out cop configuration (`COPS_V1` serves) as well as the frozen one. "The
-  curriculum buys +11 points against the cops you trained on and costs 16 when they change" is a
-  sharper contribution than a single win-rate delta.
+- **Report the generalisation gap — it is the most interesting result here.** "The curriculum buys
+  +11 points against the cops you trained on and costs 16 when they change" is a sharper
+  contribution than a single win-rate delta. **Tooling exists as of 2026-09-09:**
+
+  ```bash
+  uv run python -m training.eval <ckpts...> --held-out-cops --n-games 500
+  ```
+
+  prints two tables, the frozen `COPS_STUDY_V2` and the held-out `COPS_PRERETUNE_V1`. The second
+  preset lives in `agents/heuristic_cops.py`, recovered from `259ae5d^`, and is pinned by
+  `tests/test_cop_config.py`. It is a **test set only** — never the human comparison, which is
+  `COPS_STUDY_V2` by invariant 1.
 - **Caveat, stated plainly:** one seed per arm, n=300 (±~5.6pp). The 11-point V1 advantage is
-  comfortably outside that; the 4-point V2 deficit is not significant. 04's three seeds exist for
-  exactly this reason.
+  comfortably outside that; the 4-point V2 deficit is not significant. Re-running at n=200 with a
+  different sample gave 62.5% vs 59.5% on V2 — the sign of that gap flips between runs, which is
+  what "not significant" looks like in practice. The held-out gap did not flip. 04's three seeds
+  exist for exactly this reason.
 - **Possible contamination:** `COPS_STUDY_V2` came from an Optuna study that used *a trained Jack
   policy* as its adversary (see [01](01-freeze-cops.md) — the provenance is not recorded). If that
   adversary was one of these checkpoints, the cops were tuned to beat it and its V2 score is biased

@@ -65,6 +65,51 @@ was not saved to a file.
 """
 
 
+COPS_PRERETUNE_V1 = MappingProxyType(
+    {
+        "arrest_threshold": 0.25,
+        "min_arrest_fraction": 0.8,
+        "pursuit_fraction": 0.238,
+        "pursuit_weight": 0.207,
+        "searcher_prox_fraction": 0.579,
+        "direction_certainty_threshold": 0.499,
+        "arrest_discount": 0.0,
+        "miss_discount_decay": 0.7,
+        "hideout_blend": 0.5,
+        "hideout_blend_floor": 0.330,
+        "max_passes": 5,
+        "cop_max_steps": 2,
+    }
+)
+"""The cop configuration in force before the 2026-06-11 retune (``259ae5d``).
+
+Recovered from ``git show 259ae5d^:agents/heuristic_cops.py``. **This is a
+held-out test set, not a training or reporting target.**
+
+Its purpose is measuring *generalisation*. A policy trained against one cop
+configuration and scored only against that same configuration cannot be
+distinguished from one that has learned to exploit that specific decision rule.
+Scoring against these values as well separates the two.
+
+That distinction is not hypothetical here. Measured 2026-09-09 on the project's
+only Director-ON run and its matched OFF run (300 games each, paired):
+
+===============================  ==============  ===============
+scored against                   ON (mdw4ndpi)   OFF (fsc1zobb)
+===============================  ==============  ===============
+``COPS_PRERETUNE_V1`` (trained)      74.7%           63.7%
+``COPS_STUDY_V2`` (unseen)           58.7%           62.7%
+===============================  ==============  ===============
+
+The curriculum bought 11 points on home cops and cost 16 when the cops changed.
+Reporting only one column would have told the opposite story either way.
+
+**Never use this for the human comparison** — participants played
+``COPS_STUDY_V2`` and nothing else (see that dict's docstring, and invariant 1
+in ``docs/completion/README.md``).
+"""
+
+
 class HeuristicCops(CopAgent):
     """
     Heuristic cop agent that maintains two belief distributions and uses an

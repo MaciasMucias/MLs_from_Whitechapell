@@ -23,7 +23,7 @@ import numpy as np
 import torch
 
 from agents.base import AgentOutput, JackAgent
-from agents.heuristic_cops import HeuristicCops
+from agents.heuristic_cops import COPS_PRERETUNE_V1, HeuristicCops
 from agents.random_agents import RandomJack
 from engine.game import run_game
 from engine.graph import JackEdge, Map, load_map
@@ -88,13 +88,19 @@ def eval_agent(
     game_map: Map,
     n_games: int,
     rng: random.Random | None = None,
+    cop_params: dict | None = None,
 ) -> dict[str, float]:
     """
     Run n_games against full-strength HeuristicCops with no Director.
     Returns a plain dict suitable for console printing or wandb logging.
+
+    cop_params overrides the cop configuration. Default (None) is
+    COPS_STUDY_V2, the frozen study cops — that is what every reported number
+    uses. Pass COPS_PRERETUNE_V1 to measure generalisation to cops the policy
+    never trained against; see that preset's docstring.
     """
     rng = rng or random.Random()
-    cops = HeuristicCops()
+    cops = HeuristicCops(**(cop_params or {}))
     all_dists, diameter = precompute_distances(game_map)
 
     wins = 0
@@ -165,10 +171,11 @@ def eval_policy(
     n_games: int,
     device: torch.device,
     rng: random.Random | None = None,
+    cop_params: dict | None = None,
 ) -> dict[str, float]:
     """Evaluate a trained Agent. Thin wrapper around eval_agent."""
     jack = PolicyAgent(agent, game_map, device)
-    return eval_agent(jack, game_map, n_games, rng)
+    return eval_agent(jack, game_map, n_games, rng, cop_params)
 
 
 # ---------------------------------------------------------------------------
@@ -196,9 +203,15 @@ def _fmt_step(step: int) -> str:
 
 
 def _print_table(
-    rows: list[tuple[str, int | None, dict[str, float]]], n_games: int, map_path: str
+    rows: list[tuple[str, int | None, dict[str, float]]],
+    n_games: int,
+    map_path: str,
+    cops_label: str = "COPS_STUDY_V2 (frozen - the study cops)",
 ) -> None:
-    header = f"Eval  {n_games} games | stochastic | no director | {map_path}"
+    header = (
+        f"Eval  {n_games} games | stochastic | no director | {map_path}\n"
+        f"Cops: {cops_label}"
+    )
     print()
     print(header)
     print()
@@ -241,6 +254,15 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--map", default="maps/whitechapel.json")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--no-baseline", action="store_true", default=False)
+    p.add_argument(
+        "--held-out-cops",
+        action="store_true",
+        default=False,
+        help="Also score against COPS_PRERETUNE_V1, cops no current policy "
+        "trained on. The gap between the two tables is the generalisation gap — "
+        "a policy that only beats its own training cops has memorised a "
+        "decision rule rather than learned to evade",
+    )
     return p.parse_args()
 
 
@@ -249,8 +271,6 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     game_map = load_map(args.map)
 
-    rows: list[tuple[str, int | None, dict[str, float]]] = []
-
     # Evaluate each checkpoint in order of step count
     entries: list[tuple[str, Agent, int]] = []
     for path in args.checkpoints:
@@ -258,23 +278,42 @@ def main() -> None:
         entries.append((path, agent, step))
     entries.sort(key=lambda x: x[2])
 
-    for path, agent, step in entries:
-        print(f"  evaluating {path} (step {step:,}) ...", flush=True)
-        rng = random.Random(args.seed)
-        m = eval_policy(agent, game_map, args.n_games, device, rng)
-        rows.append((path, step, m))
-
-    if not args.no_baseline:
-        print(f"  evaluating [random baseline] ...", flush=True)
-        rng = random.Random(args.seed)
-        m = eval_agent(RandomJack(rng=rng), game_map, args.n_games, rng)
-        rows.append(("[random]", None, m))
-
-    if not rows:
+    if not entries:
         print("No checkpoints specified. Pass at least one .pt path.")
         return
 
-    _print_table(rows, args.n_games, args.map)
+    cop_sets = [("COPS_STUDY_V2 (frozen - the study cops)", None)]
+    if args.held_out_cops:
+        cop_sets.append(
+            ("COPS_PRERETUNE_V1 (held out - no current policy trained on these)",
+             dict(COPS_PRERETUNE_V1))
+        )
+
+    for label, cop_params in cop_sets:
+        rows: list[tuple[str, int | None, dict[str, float]]] = []
+        for path, agent, step in entries:
+            print(f"  evaluating {path} (step {step:,}) vs {label.split()[0]} ...",
+                  flush=True)
+            rng = random.Random(args.seed)
+            rows.append(
+                (path, step,
+                 eval_policy(agent, game_map, args.n_games, device, rng, cop_params))
+            )
+
+        if not args.no_baseline:
+            rng = random.Random(args.seed)
+            rows.append(
+                ("[random]", None,
+                 eval_agent(RandomJack(rng=rng), game_map, args.n_games, rng,
+                            cop_params))
+            )
+
+        _print_table(rows, args.n_games, args.map, cops_label=label)
+
+    if args.held_out_cops:
+        print("The gap between the two tables is the generalisation gap. A policy")
+        print("that scores well only in the first has learned to exploit one cop")
+        print("decision rule rather than to evade cops. See COPS_PRERETUNE_V1.\n")
 
 
 if __name__ == "__main__":

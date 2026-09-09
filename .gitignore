@@ -212,9 +212,11 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-data/replays/*.json
+data/replays/
 data/*.sqlite
 
 notes/
 checkpoints/
 wandb/
+# Local/runtime artifacts
+/games.sqlite

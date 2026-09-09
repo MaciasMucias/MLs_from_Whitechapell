@@ -1,0 +1,25 @@
+# Final runs — 04-final-runs.md. 9 tasks, submit with --array=0-8%9
+#
+# PREREQUISITES
+#   01        cops frozen at COPS_STUDY_V2
+#   02-C1     reward coefficients exposed as CLI flags (the sparse arm needs them)
+#   02-C2     best-checkpoint tracking + pruning (9 concurrent runs x ~1.1GB otherwise)
+#   03        <LR> and <ENT> below replaced with the sweep's chosen values
+#
+# INVARIANTS
+#   - identical --n-envs/--n-steps across every line AND the sweep (batch = n_steps * n_envs)
+#   - the same three seeds in every arm, so the comparison is paired per seed
+#   - --wandb-run doubles as the checkpoint subdirectory name (train.py:291)
+#
+# Director ON — the headline arm. First real curriculum runs in the project.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 27 --wandb-run director-on-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 28 --wandb-run director-on-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 29 --wandb-run director-on-s29
+# Director OFF — the paired comparison arm. Identical but for --no-curriculum.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 27 --no-curriculum --wandb-run director-off-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 28 --no-curriculum --wandb-run director-off-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 29 --no-curriculum --wandb-run director-off-s29
+# Sparse reward ablation (DESIGN_REQUIREMENTS 7.3) — terminal reward only, curriculum ON.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 27 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 28 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 29 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s29

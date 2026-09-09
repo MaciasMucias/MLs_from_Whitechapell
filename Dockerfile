@@ -1,0 +1,15 @@
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+WORKDIR /app
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_NO_CACHE=1
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --extra server --no-dev
+
+COPY . .
+
+EXPOSE 8000
+CMD ["uv", "run", "uvicorn", "server.main:whitechapel_ui", \
+     "--host", "0.0.0.0", "--port", "8000"]

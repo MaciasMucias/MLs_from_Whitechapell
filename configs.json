@@ -1,0 +1,18 @@
+[
+    {
+      "name": "aggressive (3966)",
+      "arrest_threshold": 0.063, "min_arrest_fraction": 0.477,
+      "pursuit_fraction": 0.285, "pursuit_weight": 1.173,
+      "searcher_prox_fraction": 0.168, "direction_certainty_threshold": 0.545,
+      "arrest_discount": 0.480, "miss_discount_decay": 0.774,
+      "hideout_blend_floor": 0.076, "hideout_blend": 0.093, "max_passes": 4
+    },
+    {
+      "name": "knee (1979)",
+      "arrest_threshold": 0.146, "min_arrest_fraction": 0.469,
+      "pursuit_fraction": 0.254, "pursuit_weight": 0.352,
+      "searcher_prox_fraction": 0.168, "direction_certainty_threshold": 0.390,
+      "arrest_discount": 0.401, "miss_discount_decay": 0.435,
+      "hideout_blend_floor": 0.076, "hideout_blend": 0.093, "max_passes": 10
+    }
+]

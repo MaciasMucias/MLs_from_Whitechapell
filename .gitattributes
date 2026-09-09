@@ -1,0 +1,4 @@
+# Shell scripts run on Linux (the Slurm cluster) — never let them get CRLF,
+# which fails there with a confusing "\r: command not found".
+*.sh      text eol=lf
+*.sbatch  text eol=lf

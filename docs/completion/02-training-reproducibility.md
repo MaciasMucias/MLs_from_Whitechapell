@@ -161,8 +161,8 @@ At the time of probing **both nodes were idle and the queue was empty** — a go
 
 ### The decisive consequence: run on CPU, not GPU
 
-The GPU cap is **2**; the CPU cap is **72**. At ~8 CPUs per run (6 workers + main + overhead, at the
-current `--n-envs 12 --n-workers 6`) that is:
+The GPU cap is **2**; the CPU cap is **72**. At ~8 CPUs per run (matching the pilot-chosen shape, at the
+current `--n-envs 12 --n-workers 12`) that is:
 
 ```
 GPU path:  2 concurrent runs
@@ -180,7 +180,7 @@ law caps the achievable speedup well below 4.5x.
 
 ### This also settles `--n-envs`
 
-Keep **`--n-envs 12 --n-workers 6`**, request ~8 CPUs per job, and spend the CPU budget on
+Keep **`--n-envs 12 --n-workers 12`**, request ~8 CPUs per job, and spend the CPU budget on
 *concurrency* rather than on bigger individual runs. This is the right call twice over:
 
 - It maximises throughput (9 concurrent runs vs 5 at `--n-envs 24`).
@@ -195,16 +195,60 @@ so never exceed the allocated CPU count.
 Memory is a non-constraint — 1 TB against runs that need single-digit GB. Request modestly
 (~8-16 GB/job) rather than claiming a share you will not use.
 
-### Pilot job — do this first, before submitting anything real
+### Pilot results — RUN 2026-09-09. Decision: **CPU-only, `--n-envs 12 --n-workers 12`, 8 CPUs**
 
-A short run (~200k steps, a few minutes) measuring `charts/instant_sps`:
+200k steps per config, `--eval-games 0`, wandb disabled. SPS is full PPO throughput (rollout +
+gradient updates) as reported by `train.py`.
 
-1. 1 GPU, `--n-envs 12 --n-workers 6`
-2. CPU-only, `--n-envs 12 --n-workers 6`   <- the expected winner
-3. CPU-only, `--n-envs 24 --n-workers 12`  <- only to quantify the scaling curve
+**CPU vs GPU** (`--cpus-per-task=8`):
 
-Decision rule: **choose CPU-only unless GPU SPS exceeds 4.5x the CPU SPS.** Record the measured
-numbers here — they belong in the thesis's experimental-setup section too.
+| Config | CPU (`stud-1`, Xeon 6520P) | GPU (`stud-2`, RTX PRO 6000 Blackwell) |
+|---|---|---|
+| A — 12 envs / 6 workers (batch 3,072) | **608 SPS** | 506 SPS |
+| B — 24 envs / 12 workers (batch 6,144) | **838 SPS** | 778 SPS |
+
+**The GPU is slower than the CPU** — 0.83x and 0.93x. Not merely under the 4.5x threshold: negative.
+The workload is environment-bound, not network-bound. The model is ~0.9M parameters
+(`1416 -> 512 -> 256 -> 256` + two small heads); the rollout does 256 *sequential* forward passes at
+batch 12, so per-step host/device transfer, sync and kernel-launch overhead cost more than the
+matmuls save, while the Python game engine and the cops' DP-based PMF run on CPU either way.
+
+**Decision: CPU-only. Never request `--gres`.** Combined with the caps (9 concurrent CPU runs vs 2
+GPU runs) this is roughly an order of magnitude more aggregate throughput.
+
+**Choosing the run shape** — what matters is *aggregate* throughput across concurrent jobs, since the
+72-CPU cap fixes how many fit:
+
+| Config | envs / workers | CPUs | batch | SPS | concurrent | **aggregate** |
+|---|---|---|---|---|---|---|
+| A | 12 / 6 | 8 | 3,072 | 608 | 9 | 5,472 |
+| B | 24 / 12 | 8 | **6,144** | 838 | 9 | **7,542** |
+| **C** | **12 / 12** | **8** | **3,072** | **682** | **9** | **6,138** |
+| C16 | 12 / 12 | 16 | 3,072 | 811 | 4 | 3,244 |
+
+Three things fall out:
+
+1. **The speedup came from more workers, not the bigger batch.** C matches most of B's gain with the
+   batch unchanged — the 6-worker config simply leaves cores idle while the main process runs the
+   PPO update.
+2. **Spend the CPU budget on concurrency, not on individual runs.** C16 is 19% faster per run than C
+   but only 53% of its aggregate, because it halves how many jobs fit under the cap.
+3. **Oversubscription helps.** 12 workers on 8 CPUs beats 6 workers on 8 CPUs, because workers block
+   on IPC and the engine rather than saturating a core.
+
+**Adopted: config C** — `--n-envs 12 --n-workers 12`, `--cpus-per-task=8`, 9 concurrent. Written
+into both run manifests. It keeps
+batch size at 3,072, the value the existing architecture and hyperparameters were tuned around, for
+12% more throughput than A. Config B is 23% better on aggregate but doubles the batch, which changes
+PPO dynamics and would need its own sweep to justify; revisit only if throughput becomes binding.
+
+**The walltime risk is resolved.** 15M steps at 682 SPS is **6.1h**, well inside the 24h cap — no
+chaining needed. Both cluster figures beat the ~490 SPS reference from the local RTX 5080.
+
+Incidental: `difficulty` stayed pinned at -1.000 throughout, because win rate at 200k steps is 3-8%,
+far below the `[0.4, 0.6]` deadband, so the P-controller pushes toward "easier" and clamps. Expected
+this early — but it means **the curriculum cannot help beyond full suppression**, worth remembering
+when reading early training curves in 04.
 
 ### Queue strategy
 
@@ -287,7 +331,7 @@ filesystem (not node-local scratch that vanishes at job end), and that its W&B d
   Concluded walltime is a non-issue and chaining is counterproductive under contention.
 - 2026-09-09 — per-person limits found (72 CPU / 2 rtx6000 GPU / 1 TB / 20 queued jobs). The 2-GPU
   cap vs 72-CPU cap makes **CPU-only the default plan** (9 concurrent runs vs 2), and settles
-  `--n-envs 12 --n-workers 6` — which also preserves the existing batch size. Pilot still needed to
+  `--n-envs 12 --n-workers 12` — which also preserves the existing batch size. Pilot still needed to
   confirm the 4.5x threshold is not met.
 - 2026-09-09 — checked Slurm docs on array accounting. Each array task counts individually against
   `MaxSubmitJobs`, pending included, so the `%` throttle does **not** reduce the submitted count.
@@ -308,3 +352,9 @@ filesystem (not node-local scratch that vanishes at job end), and that its W&B d
   a compute node. Found three blockers and fixed/documented all: `--account=stud-2526-l-03` is
   mandatory (default account has MaxSubmitJobs=0); the login node's CPU lacks x86-64-v2 so numpy
   cannot run there at all; `/tmp` is node-local. Partition + account written into both `.sbatch`.
+- 2026-09-09 — pilot run. **GPU is slower than CPU** (506 vs 608 SPS), so CPU-only is settled with
+  ~10x the aggregate throughput. Ran a second pilot separating worker count from batch size: the
+  gain comes from workers, so adopted `--n-envs 12 --n-workers 12` at 8 CPUs (682 SPS, batch
+  unchanged at 3,072, 9 concurrent). 15M steps = 6.1h, so the 24h walltime risk is closed. Also
+  hit and fixed two more Slurm traps: `$0` is the spool copy under sbatch, and `--export` gets jobs
+  held with "user env retrieval failed".

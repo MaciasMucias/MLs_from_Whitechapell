@@ -12,14 +12,14 @@
 #   - --wandb-run doubles as the checkpoint subdirectory name (train.py:291)
 #
 # Director ON — the headline arm. First real curriculum runs in the project.
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 27 --wandb-run director-on-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 28 --wandb-run director-on-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 29 --wandb-run director-on-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 27 --wandb-run director-on-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 28 --wandb-run director-on-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 29 --wandb-run director-on-s29
 # Director OFF — the paired comparison arm. Identical but for --no-curriculum.
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 27 --no-curriculum --wandb-run director-off-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 28 --no-curriculum --wandb-run director-off-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 29 --no-curriculum --wandb-run director-off-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 27 --no-curriculum --wandb-run director-off-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 28 --no-curriculum --wandb-run director-off-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 29 --no-curriculum --wandb-run director-off-s29
 # Sparse reward ablation (DESIGN_REQUIREMENTS 7.3) — terminal reward only, curriculum ON.
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 27 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 28 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 6 --lr <LR> --ent-coef <ENT> --seed 29 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 27 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 28 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 29 --alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0 --wandb-run sparse-s29

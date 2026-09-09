@@ -53,7 +53,7 @@ Two deviations from the CleanRL reference the file claims to follow, worth knowi
 2. ~3M steps per config. Curriculum ON, frozen cops v2.
 3. **Cluster: submit as job arrays of <=20 tasks** (`--array=0-19%9`) rather than the
    4-6 configs a local machine would allow. Per-person caps are 72 CPU / 20 queued jobs, giving 9
-   concurrent CPU-only runs at `--n-envs 12 --n-workers 6`; a 3M-step run is ~5x shorter than a
+   concurrent CPU-only runs at `--n-envs 12 --n-workers 12`; a 3M-step run is ~5x shorter than a
    final run, so the sweep fits easily. Note each array task counts against the 20-job submit cap
    individually (see 02-C3), so a sweep wider than 20 configs must go out in waves, chained with
    `--dependency=afterany`. Sweep both Director arms if the array is cheap enough;
@@ -85,4 +85,4 @@ not engaging and the sweep is measuring the wrong thing.
 
 - 2026-09-09 — cluster access confirmed; sweep widened from a hand-picked handful to a job array.
 - 2026-09-09 — cluster caps (72 CPU / 2 GPU / 20 jobs) confirmed. Sweep runs 9-wide on CPU;
-  `--n-envs 12 --n-workers 6` fixed here and must carry unchanged into 04.
+  `--n-envs 12 --n-workers 12` fixed here and must carry unchanged into 04.

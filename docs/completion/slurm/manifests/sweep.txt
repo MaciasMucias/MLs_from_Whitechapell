@@ -9,13 +9,13 @@
 #   - curriculum ON, frozen cops v2
 #   - --n-envs/--n-steps must match what 04 will use. Do not vary them here.
 #
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 1e-4 --ent-coef 0.01 --wandb-run sw-lr1e4-ent001
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 3e-4 --ent-coef 0.01 --wandb-run sw-lr3e4-ent001
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 1e-3 --ent-coef 0.01 --wandb-run sw-lr1e3-ent001
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 3e-4 --ent-coef 0.001 --wandb-run sw-lr3e4-ent0001
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 3e-4 --ent-coef 0.04 --wandb-run sw-lr3e4-ent004
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-4 --ent-coef 0.01 --wandb-run sw-lr1e4-ent001
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --wandb-run sw-lr3e4-ent001
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-3 --ent-coef 0.01 --wandb-run sw-lr1e3-ent001
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.001 --wandb-run sw-lr3e4-ent0001
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.04 --wandb-run sw-lr3e4-ent004
 # Reward-coefficient probes (need 02-C1). Vary one at a time against the lr/ent baseline.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 3e-4 --ent-coef 0.01 --alpha 0.0 --wandb-run sw-alpha0
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 3e-4 --ent-coef 0.01 --alpha 0.3 --wandb-run sw-alpha03
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 3e-4 --ent-coef 0.01 --zeta 0.0 --wandb-run sw-zeta0
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 6 --lr 3e-4 --ent-coef 0.01 --zeta 0.3 --wandb-run sw-zeta03
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --alpha 0.0 --wandb-run sw-alpha0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --alpha 0.3 --wandb-run sw-alpha03
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --zeta 0.0 --wandb-run sw-zeta0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --zeta 0.3 --wandb-run sw-zeta03

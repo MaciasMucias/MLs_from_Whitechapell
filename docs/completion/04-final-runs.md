@@ -80,7 +80,7 @@ the OFF arm, that mildly favours ON. Sweep both arms or declare the choice.
 15M steps each. ~8.5h on an RTX 5080; CPU-only timing to be measured by the 02-C3 pilot.
 
 Cluster limits (72 CPU / 2 GPU / 20 queued jobs per person) allow **9 concurrent CPU-only runs** at
-`--n-envs 12 --n-workers 6`. The full final set fits that exactly:
+`--n-envs 12 --n-workers 12`. The full final set fits that exactly:
 
 | Run | Seeds | Concurrent slots | Purpose |
 |---|---|---|---|

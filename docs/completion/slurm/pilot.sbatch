@@ -20,8 +20,10 @@
 # ALSO CHECK: a 15M-step final run must fit 24h, i.e. >= 174 SPS sustained.
 # If CPU SPS < ~250, read the "Walltime risk" section of 04-final-runs.md.
 
-mkdir -p logs
-source "$(dirname "$0")/env.sh"
+# NOTE: under sbatch, $0 is Slurm's spool copy, not this file — resolve via PROJECT_DIR.
+: "${PROJECT_DIR:?set PROJECT_DIR (e.g. --export=ALL,PROJECT_DIR=$PWD)}"
+source "$PROJECT_DIR/docs/completion/slurm/env.sh"
+mkdir -p "$PROJECT_DIR/logs"
 
 STEPS=200000
 

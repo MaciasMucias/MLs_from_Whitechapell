@@ -21,8 +21,10 @@
 #   Add --gres=gpu:rtx6000:1 ONLY if the pilot showed GPU > 4.5x faster
 #   (and then %2, since the GPU cap is 2).
 
-mkdir -p logs
-source "$(dirname "$0")/env.sh"
+# NOTE: under sbatch, $0 is Slurm's spool copy, not this file — resolve via PROJECT_DIR.
+: "${PROJECT_DIR:?set PROJECT_DIR (e.g. --export=ALL,PROJECT_DIR=$PWD)}"
+source "$PROJECT_DIR/docs/completion/slurm/env.sh"
+mkdir -p "$PROJECT_DIR/logs"
 
 : "${MANIFEST:?set MANIFEST to a run manifest file}"
 

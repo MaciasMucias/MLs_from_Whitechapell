@@ -21,7 +21,7 @@ Audit date: 2026-09-09. Branch `dev` @ `bea89b6`.
 | [05](05-study-data.md) | Close out study data | not started | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | not started | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
-| [08](08-cluster-access.md) | Cluster SSH access for automated work | setup pending | convenience for 02-04 |
+| [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 
 Critical path: **01 + 02 -> 03 -> 04 -> 06**. Workstreams 05 and 07, and the code parts of 06, are
 laptop work that runs in parallel with cluster time.

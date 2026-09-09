@@ -1,6 +1,6 @@
 # 08 — Cluster access for automated work
 
-**Status:** setup pending (one interactive step by the user)
+**Status:** done — `ssh cluster` is passwordless and non-interactive
 **Blocks:** convenient execution of 02-C3 / 03 / 04 — not correctness of anything
 **Blocked by:** nothing
 
@@ -193,3 +193,10 @@ Then `wandb sync wandb/offline-run-*` locally if the compute nodes had no outbou
   a boundary against a process that executes the file; plaintext password is a downgrade from
   existing key auth). Verified the local key has no passphrase, so key auth is already
   non-interactive if authorized on both hops.
+- 2026-09-09 — **access working.** `ssh-copy-id jump` succeeded; the cluster hop initially failed
+  with `mux_client_request_session: read from master failed` (ControlMaster is unreliable on
+  MSYS2/Git Bash). Commented out the `Control*` directives — unnecessary once key auth works
+  end-to-end — then `ssh-copy-id cluster` succeeded. `ssh cluster` is now passwordless and
+  non-interactive. Backups at `~/.ssh/config.bak` and `.bak2`.
+- 2026-09-09 — note: the user's pasted config initially included the markdown fence tag
+  `sshconfig` as line 1, which made ssh refuse the whole file (`no argument after keyword`).

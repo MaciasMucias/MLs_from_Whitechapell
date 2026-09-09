@@ -18,12 +18,20 @@ is the single easiest way to lose a whole array. Sync once, then submit.
 
 ## Fill these in
 
-Partition is set to `student` (the only one available). No `--account` is required — the QoS
-`student` carries the limits.
+Partition `student` and **`--account=stud-2526-l-03`** are both set already.
+
+**The account is mandatory.** The default association is account `null` with `MaxSubmitJobs=0`, so
+any job submitted without `--account` is rejected with `AssocMaxSubmitJobLimit`.
 
 
-Set `PROJECT_DIR` to the repo checkout **on shared storage**, not node-local scratch, or checkpoints
+Set `PROJECT_DIR` to the repo checkout **on shared storage** (`~/MLs_from_Whitechapel` on
+`/mnt/evafs`), never node-local scratch. `/tmp` is per-node — a file staged there from the login
+node is invisible to compute nodes, and checkpoints written there
 vanish when the job ends.
+
+**Never run Python on the login node.** It is a KVM VM lacking x86-64-v2, so numpy aborts with a
+confusing `NumPy was built with baseline optimizations: (X86_V2)` error. `uv sync` there is fine
+(downloads only); everything else goes through `srun`/`sbatch`.
 
 ## Order of operations
 

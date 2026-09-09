@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=wc-train
 #SBATCH --partition=student
+#SBATCH --account=stud-2526-l-03
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8

@@ -108,6 +108,45 @@ Confirm `agent_best.pt` is written, tracks the best `eval/win_rate`, survives pr
 | Outbound HTTPS | works from the login node (`api.wandb.ai` responded) |
 | Repo | not yet cloned |
 
+### Verified working 2026-09-09
+
+Repo cloned to `~/MLs_from_Whitechapel` on `/mnt/evafs` (shared). `uv sync --extra training --no-dev`
+succeeded: **Python 3.13.14, numpy 2.4.4, torch 2.11.0+cu128, wandb 0.27.0**. On a compute node all
+engine/agents/training modules import, the map loads (195 jack / 234 cop nodes), `HeuristicCops()`
+reports `arrest_threshold=0.209`, and **all 26 tests pass**.
+
+### Three cluster gotchas — each one blocks everything until fixed
+
+**1. `--account=stud-2526-l-03` is mandatory.** The default association is account `null` with
+`MaxSubmitJobs=0`, so any job submitted without an explicit account is rejected:
+
+```
+srun: error: AssocMaxSubmitJobLimit
+srun: error: Unable to allocate resources: Job violates accounting/QOS policy
+```
+
+Both `.sbatch` files now set it. (This corrects the earlier note that no account was needed.)
+
+**2. Python cannot run on the login node at all.** It is a VM reporting `Common KVM processor`,
+missing `popcnt`/`sse4_1`/`sse4_2`/`ssse3`, so the prebuilt numpy wheel aborts:
+
+```
+RuntimeError: NumPy was built with baseline optimizations: (X86_V2)
+but your machine doesn't support: (X86_V2).
+```
+
+Compute nodes are **Intel Xeon 6520P** with full x86-64-v2 + AVX2, where it works fine. So:
+`uv sync` on the login node is fine (downloads only), but **every** smoke test, eval, or analysis
+must go through `srun`/`sbatch`. Never debug Python on the login node — the failure is confusing and
+has nothing to do with your code.
+
+**3. `/tmp` is node-local, not shared.** Staging a script to `/tmp` on the login node leaves it
+invisible to the compute node. Keep everything under the repo on `/mnt/evafs`, and note the same
+applies to checkpoint output.
+
+Minor: the project is a flat layout with no installed package, so a script run by path needs
+`PYTHONPATH=$PWD` (or use `python -m`). `pytest` works unaided.
+
 **Two corrections to earlier assumptions in this file:**
 
 1. **The `student` partition is small — 96 CPUs total, not a slice of a 1,000-CPU cluster.** The
@@ -264,3 +303,8 @@ filesystem (not node-local scratch that vanishes at job end), and that its W&B d
   small (72 CPU = 75% of it, so 9 concurrent jobs is the whole thing), and disk is not a constraint
   (no quota, 193 GB free), so C2 pruning is optional while best-checkpoint tracking is not.
   Partition filled into both `.sbatch` files.
+- 2026-09-09 — cluster environment set up and verified. Repo cloned to `~/MLs_from_Whitechapel`;
+  `uv sync --extra training` OK (py3.13.14 / numpy 2.4.4 / torch 2.11.0+cu128); 26/26 tests pass on
+  a compute node. Found three blockers and fixed/documented all: `--account=stud-2526-l-03` is
+  mandatory (default account has MaxSubmitJobs=0); the login node's CPU lacks x86-64-v2 so numpy
+  cannot run there at all; `/tmp` is node-local. Partition + account written into both `.sbatch`.

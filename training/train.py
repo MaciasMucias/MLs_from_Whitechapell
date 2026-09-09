@@ -218,6 +218,21 @@ class AsyncVectorJackEnv:
 
 
 def train(args: argparse.Namespace) -> None:
+    # Seed EVERY generator, not just the env workers.
+    #
+    # Until 2026-09-09 --seed reached only AsyncVectorJackEnv and the eval RNG,
+    # leaving weight init, action sampling and minibatch shuffling on torch's
+    # OS-seeded default. Two runs with identical flags and identical --seed were
+    # therefore independent draws: sweep wave 1's `sw1-lr3e4-ent003-on` scored
+    # 39.5% and wave 2's `sw2-control` — the same command — scored 30.0%.
+    #
+    # That 9.5-point gap was the sweep's real noise floor, and it is wider than
+    # most of the effects the sweep was trying to measure. It also silently broke
+    # 04's paired design, which assumes runs sharing a seed are comparable.
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device: {device}")
 

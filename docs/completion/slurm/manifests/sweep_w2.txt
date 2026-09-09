@@ -1,17 +1,18 @@
 # PPO sweep, WAVE 2 — 03-ppo-sweep.md. 12 tasks, submit with --array=0-11%9
 #
-# BEFORE SUBMITTING: replace every <LR> and <ENT> with wave 1's chosen values
-# (the best eval/win_rate in the ON block). Wave 2 is a one-at-a-time probe
-# around that point, so it is meaningless until wave 1 has answered.
+# FILLED 2026-09-09 with lr=3e-4, ent-coef=0.03 — wave 1's ON-arm winner
+# (array 1806901, eval/win_rate 39.5%), confirmed as an interior optimum by the
+# entropy boundary probe (array 1806936): at lr=3e-4 the curve runs
+# 0.003->18.0, 0.01->36.0, 0.03->39.5, 0.06->26.5, 0.10->16.5. A clean
+# inverted-U, so 0.03 is the peak rather than the edge of the grid.
 #
-#   sbatch --dependency=afterany:<wave1-jobid> --array=0-11%9 \
-#          docs/completion/slurm/array.sbatch \
+#   sbatch --array=0-11%9 docs/completion/slurm/array.sbatch \
 #          docs/completion/slurm/manifests/sweep_w2.txt
 #
-# The dependency matters for the 20-job cap, not for ordering alone: wave 1's 18
-# tasks and wave 2's 12 sum to 30, over the cap, so wave 2 must not enter the
-# queue until wave 1 has drained. (afterany, not afterok — a single crashed task
-# should not strand the wave.)
+# Wave 1 (18 tasks) + wave 2 (12) exceed the 20-job MaxSubmitJobs cap, so this
+# could only be submitted once wave 1 had drained. If both are ever in flight at
+# once, chain with --dependency=afterany:<wave1-jobid> (afterany, not afterok —
+# one crashed task should not strand the wave).
 #
 # WHAT THIS WAVE DECIDES
 #   The five reward-shaping coefficients, exposed as CLI flags by 02-C1 and
@@ -34,25 +35,25 @@
 # Control: wave-1 winner repeated unchanged. Its gap to the corresponding wave-1
 # run is this sweep's run-to-run noise floor — treat any probe inside that gap
 # as null.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --wandb-run sw2-control
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --wandb-run sw2-control
 # alpha — hideout-distance progress
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-alpha 0    --wandb-run sw2-alpha0
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-alpha 0.3  --wandb-run sw2-alpha03
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-alpha 0    --wandb-run sw2-alpha0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-alpha 0.3  --wandb-run sw2-alpha03
 # beta — cop PMF potential
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-beta 0     --wandb-run sw2-beta0
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-beta 0.15  --wandb-run sw2-beta015
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-beta 0     --wandb-run sw2-beta0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-beta 0.15  --wandb-run sw2-beta015
 # delta — count-based exploration bonus (note: visit counts persist across
 # episodes within a worker, deliberately — training/env.py:68-69)
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-delta 0    --wandb-run sw2-delta0
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-delta 0.03 --wandb-run sw2-delta003
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-delta 0    --wandb-run sw2-delta0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-delta 0.03 --wandb-run sw2-delta003
 # gamma — terminal hideout-uncertainty bonus. Watch eval/mean_hideout_uncert
 # here specifically: this is the coefficient that pays for staying unpredictable.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-gamma 0    --wandb-run sw2-gamma0
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-gamma 1.0  --wandb-run sw2-gamma10
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-gamma 0    --wandb-run sw2-gamma0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-gamma 1.0  --wandb-run sw2-gamma10
 # zeta — cop-distance delta. Added 2026-06-11 alongside the cop retune (259ae5d)
 # and never evaluated on its own.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-zeta 0     --wandb-run sw2-zeta0
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-zeta 0.3   --wandb-run sw2-zeta03
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-zeta 0     --wandb-run sw2-zeta0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-zeta 0.3   --wandb-run sw2-zeta03
 # Fully sparse — terminal reward only. This is 04's ablation arm; running it here
 # at 3M steps is the cheap warning that it may learn nothing at all.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sw2-sparse
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sw2-sparse

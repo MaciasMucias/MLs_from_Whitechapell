@@ -1,7 +1,7 @@
 # 03 — PPO hyperparameter sweep
 
-**Status:** **wave 1 RUNNING** — submitted 2026-09-09 12:55 as job array **1806901**
-(`--array=0-17%9`, 18 tasks, ~2.5h). Wave 2 needs `<LR>`/`<ENT>` filled in from wave 1's ON block.
+**Status:** **wave 1 COMPLETE** (2026-09-09, array `1806901`, 18/18 tasks). Entropy boundary probe
+(array `1806936`) running. Wave 2 pending the probe.
 **Blocks:** 04
 **Blocked by:** ~~01 (frozen cops), 02-C1 (coefficients must be logged)~~ — both landed 2026-09-09.
 
@@ -92,6 +92,62 @@ wave 1 runs.
 **Flag names:** the reward coefficients are `--reward-alpha/-beta/-delta/-gamma/-zeta`. Not
 `--gamma` — that is PPO's discount factor, and passing it would silently set the discount to zero.
 See 02-C1; `tests/test_run_manifests.py` enforces it.
+
+## RESULTS — wave 1, 2026-09-09 (array `1806901`, 18/18 complete)
+
+All 3M steps, frozen cops v2, seed 27, batch 3,072. Ranked on Director-free `eval/win_rate`.
+Reproduce with `uv run python -m analysis.sweep_report 'logs/wc-train_1806901_*.out'`.
+
+### Both arms choose `lr=3e-4`, decisively
+
+| arm | best config | win% | runner-up | spread across arm |
+|---|---|---|---|---|
+| ON | `lr 3e-4 / ent 0.03` | **39.5** | `3e-4 / 0.01` (36.0) | 32.5 |
+| OFF | `lr 3e-4 / ent 0.003` | **35.5** | `3e-4 / 0.03` (34.5) | 30.0 |
+
+Every top-five run in both arms uses `3e-4`. `1e-4` and `1e-3` are far behind. Spreads of ~30 points
+are far outside noise, so **the sweep genuinely separated the configs** — this is signal, not an
+argmax over a flat surface.
+
+### The arms disagree on entropy, but only nominally — take 0.03
+
+The OFF arm's top three are 35.5 / 34.5 / 34.0 across *all three* entropy values: a 1.5-point band.
+That is a flat axis, not a preference. The ON arm's is 39.5 / 36.0 / 18.0 — a real gradient.
+
+So: **entropy matters with the Director on and is close to irrelevant with it off.** `0.03` wins
+outright in the ON arm and costs ~1 point in the OFF arm, which makes it the shared config on the
+evidence rather than by fiat. **This resolves the fairness caveat below** — it did not have to be
+argued away, the data settled it.
+
+**Entropy interacts with `lr`; it is not monotone on its own.** At `3e-4` more entropy helps
+(18.0 → 36.0 → 39.5). At `1e-3` it hurts badly (25.5 → 25.5 → 12.0). Do not carry "more entropy is
+better" into 09 or 04 as a general rule.
+
+### The arms are behaviourally different, in the direction 09 predicts
+
+| arm | copdist | arrest% |
+|---|---|---|
+| ON (9 runs) | 0.99 – 1.11 | 48 – 78% |
+| OFF (9 runs) | 1.19 – 1.49 | 29 – 50% |
+
+Director-trained policies run **closer** to cops and are arrested more; no-Director policies keep a
+wider berth. Same signature as the single 2026-05-23 pair, now with nine runs per arm — a much
+stronger basis for [09](09-director-tuning.md)'s risk-aversion discussion, and again the *opposite*
+of "the Director makes Jack cautious".
+
+### The curriculum never engaged
+
+`curriculum/difficulty` stayed at **−1.000 in all nine ON runs**. The P-controller only moves once
+win rate leaves `[0.4, 0.6]` from above, and the best run reached 39.5%. So the ON arm here is
+"training against maximally-suppressed cops", not a curriculum — exactly as this file predicted, and
+exactly what [09](09-director-tuning.md) exists to fix. **The wave-1 ON/OFF result is therefore not
+the Director comparison the thesis wants**; do not report it as one.
+
+### Boundary probe (array `1806936`)
+
+`ent-coef 0.03` was the largest value in the grid, so the winner sat on the edge. Two extra runs at
+`0.06` and `0.10` (`slurm/manifests/ent_probe.txt`) extend the axis. See the session log for the
+outcome.
 
 ## Judging
 

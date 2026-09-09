@@ -26,6 +26,13 @@ export OPENBLAS_NUM_THREADS=1
 # default; sync from the login node afterwards with `wandb sync wandb/offline-*`.
 export WANDB_MODE=offline
 
+# Line-buffer stdout. Slurm sends stdout to a file, so Python block-buffers it in
+# 8 KB chunks; at ~200 bytes per update line that is ~40 updates (10+ minutes)
+# before anything appears. Observed on array 1806901: a job 460k steps in still
+# had a 963-byte log, which is indistinguishable from a hang while you are
+# watching it. Costs nothing, saves a false alarm.
+export PYTHONUNBUFFERED=1
+
 cd "${PROJECT_DIR:?set PROJECT_DIR to the repo checkout on shared storage}"
 
 echo "host=$(hostname) job=${SLURM_JOB_ID:-none} task=${SLURM_ARRAY_TASK_ID:-none}"

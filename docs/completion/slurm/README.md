@@ -104,6 +104,31 @@ Per person: **72 CPUs, 2 rtx6000 GPUs, 1 TB RAM, 20 submitted jobs, 24h walltime
 - `--time=23:00:00` leaves margin under the 24h cap. A 15M-step run needs **>=174 SPS** to fit at
   all; the pilot verifies this.
 
+## A running job can look hung when it is not
+
+Two things make a healthy job look dead. Check these before cancelling anything.
+
+**1. Startup takes several minutes at 9-way concurrency.** Each job spawns 12 worker processes that
+each import torch from the shared `.venv` on Lustre. With 6 jobs per node the main process is
+CPU-starved while it works through `Process.start()`, so late workers sit in `pipe_read` with
+**0% CPU** waiting for their spawn payload. That clears on its own — measured ~6 minutes on array
+1806901. It is a thundering herd, not a deadlock.
+
+**2. stdout is block-buffered, so the log stays tiny for 10+ minutes.** `env.sh` now sets
+`PYTHONUNBUFFERED=1`, but array 1806901 ran before that fix and showed a 963-byte log while already
+460k steps in.
+
+**Check progress by what other processes write, not by the log:**
+
+```bash
+ls -l wandb/offline-run-*/ *.wandb          # grows every update
+find checkpoints -name '*.pt' -newermt '-10 minutes'
+squeue -u $USER -t R -o '%.12i %.10M %R'
+srun --overlap --jobid=<task-jobid> ps -eo pid,time,pcpu,comm | grep python3
+```
+
+Note `--jobid` there is the **task's own** job id (from the log's `job=` line), not the array id.
+
 ## Manifest pattern
 
 `array.sbatch` takes the manifest as its first argument and runs the line matching

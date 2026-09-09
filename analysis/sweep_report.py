@@ -36,6 +36,11 @@ _EVAL = re.compile(
     r"(?:.*?timeout=(?P<timeout>[\d.]+)%)?"
 )
 _STEPS = re.compile(r"^update=\S+\s+steps=([\d,]+)")
+# curriculum/difficulty, printed on every update line as e.g. "difficulty=-1.000".
+# For a Director run this is the progress signal that charts/win_rate is not:
+# pinned at -1.000 means the P-controller never ramped and the run trained
+# against maximally-suppressed cops rather than a curriculum.
+_DIFF = re.compile(r"\bdifficulty=([-+]?[\d.]+)")
 _RUNLINE = re.compile(r"^run:\s+(.*)$")
 # The (?!--) matters: without it a boolean flag swallows the next flag as its
 # value, so "--no-curriculum --wandb-run x" loses the run name entirely.
@@ -59,6 +64,17 @@ class Run:
     last_arrest: float | None = None
     steps: int = 0
     finished: bool = False
+    final_difficulty: float | None = None
+    max_difficulty: float | None = None
+
+    @property
+    def curriculum_engaged(self) -> bool:
+        """Did the P-controller ever move difficulty off its floor?
+
+        False means the run trained at a fixed suppression level throughout —
+        the Director was active but the *curriculum* never happened.
+        """
+        return self.max_difficulty is not None and self.max_difficulty > -1.0
 
     @property
     def best_win(self) -> float:
@@ -94,6 +110,14 @@ def parse_log(path: str | Path) -> Run:
         if m:
             step = int(m.group(1).replace(",", ""))
             run.steps = max(run.steps, step)
+            d = _DIFF.search(line)
+            if d:
+                value = float(d.group(1))
+                run.final_difficulty = value
+                run.max_difficulty = (
+                    value if run.max_difficulty is None
+                    else max(run.max_difficulty, value)
+                )
             continue
 
         m = _EVAL.search(line)
@@ -129,18 +153,42 @@ def report(paths: list[str], noise_pp: float = NOISE_PP) -> list[Run]:
         print(f"WARNING: {len(unfinished)} still running — ranking is provisional.")
     print()
 
-    col = (f"{'run':<24} {'arm':>4} {'lr':>7} {'ent':>7} {'steps':>10} "
-           f"{'best win%':>10} {'final':>7} {'hideout_u':>10} {'copdist':>8} {'arrest%':>8}")
+    col = (
+        f"{'run':<24} {'arm':>4} {'lr':>7} {'ent':>7} {'steps':>10} "
+        f"{'best win%':>10} {'final':>7} {'diff_max':>9} {'diff_end':>9} "
+        f"{'hideout_u':>10} {'copdist':>8} {'arrest%':>8}"
+    )
     print(col)
     print("-" * len(col))
     for r in sorted(runs, key=lambda r: (-(r.best_win == r.best_win), -r.best_win)):
         print(
             f"{r.name:<24} {r.arm:>4} {r.lr:>7} {r.ent:>7} {r.steps:>10,} "
             f"{_fmt(r.best_win, '9.1f'):>10} {_fmt(r.final_win, '6.1f'):>7} "
+            f"{_fmt(r.max_difficulty, '8.3f'):>9} "
+            f"{_fmt(r.final_difficulty, '8.3f'):>9} "
             f"{_fmt(r.last_uncert):>10} {_fmt(r.last_copdist):>8} "
             f"{_fmt(r.last_arrest):>8}"
         )
     print()
+
+    # For a Director wave this is the finding, ahead of any ranking: if the
+    # controller never left its floor, the runs are "train at fixed suppression",
+    # not curriculum learning, and the grid is not what needs changing.
+    on_runs = [r for r in runs if r.arm == "ON" and r.max_difficulty is not None]
+    if on_runs:
+        engaged = [r for r in on_runs if r.curriculum_engaged]
+        if not engaged:
+            print(f"*** curriculum/difficulty stayed pinned at its floor in ALL "
+                  f"{len(on_runs)} ON runs. ***")
+            print("No run curricularised — each trained at a fixed suppression level.")
+            print("The P-controller only ramps once win rate leaves the deadband from")
+            print("above, so this usually means the runs are too short, not that the")
+            print("Director settings are wrong. See 09-director-tuning.md.")
+            print()
+        else:
+            print(f"curriculum engaged (difficulty left its floor) in "
+                  f"{len(engaged)}/{len(on_runs)} ON runs.")
+            print()
     return runs
 
 
@@ -154,8 +202,10 @@ def pick(runs: list[Run], arm: str = "ON", noise_pp: float = NOISE_PP):
     ranked = sorted(pool, key=lambda r: -r.best_win)
     winner, spread = ranked[0], ranked[0].best_win - ranked[-1].best_win
 
-    print(f"Best {arm}-arm config: {winner.name}  lr={winner.lr} ent-coef={winner.ent}"
-          f"  (best eval win rate {winner.best_win:.1f}%)")
+    print(
+        f"Best {arm}-arm config: {winner.name}  lr={winner.lr} ent-coef={winner.ent}"
+        f"  (best eval win rate {winner.best_win:.1f}%)"
+    )
     print(f"Spread across the {arm} arm: {spread:.1f} points")
 
     # A one-run arm has zero spread by definition; warning there is noise.
@@ -168,9 +218,11 @@ def pick(runs: list[Run], arm: str = "ON", noise_pp: float = NOISE_PP):
         print("committing the final runs to this config.")
     if len(ranked) > 1:
         second = ranked[1]
-        print(f"Runner-up: {second.name} (lr={second.lr} ent={second.ent}, "
-              f"{second.best_win:.1f}%) — {winner.best_win - second.best_win:.1f} "
-              f"points behind.")
+        print(
+            f"Runner-up: {second.name} (lr={second.lr} ent={second.ent}, "
+            f"{second.best_win:.1f}%) — {winner.best_win - second.best_win:.1f} "
+            f"points behind."
+        )
     return winner
 
 
@@ -179,9 +231,7 @@ def fill_manifest(path: Path | str, lr: str, ent: str) -> int:
     p = Path(path)
     text = p.read_text()
     filled = text.replace("<LR>", lr).replace("<ENT>", ent)
-    changed = sum(
-        1 for a, b in zip(text.splitlines(), filled.splitlines()) if a != b
-    )
+    changed = sum(1 for a, b in zip(text.splitlines(), filled.splitlines()) if a != b)
     p.write_text(filled)
     return changed
 
@@ -192,7 +242,8 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--arm", default="ON", choices=["ON", "OFF"])
     p.add_argument("--noise-pp", type=float, default=NOISE_PP)
     p.add_argument(
-        "--fill", metavar="MANIFEST",
+        "--fill",
+        metavar="MANIFEST",
         help="Write the winning lr/ent into this manifest's <LR>/<ENT> placeholders",
     )
     return p.parse_args()
@@ -209,7 +260,9 @@ if __name__ == "__main__":
 
     if winner and args.fill:
         n = fill_manifest(args.fill, winner.lr, winner.ent)
-        print(f"\nFilled {n} lines in {args.fill} with lr={winner.lr} "
-              f"ent-coef={winner.ent}")
+        print(
+            f"\nFilled {n} lines in {args.fill} with lr={winner.lr} "
+            f"ent-coef={winner.ent}"
+        )
         print("Review it, then submit:")
         print(f"  sbatch --array=0-11%9 docs/completion/slurm/array.sbatch {args.fill}")

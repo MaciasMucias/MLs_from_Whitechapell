@@ -26,12 +26,16 @@ device: cpu
 obs_dim=1416  n_actions=195  n_envs=12  n_workers=12
 """
 
-UPDATE = ("update={u}/976 steps={steps} sps=640 instant_sps=651 episodes=100 "
-          "return=-0.512 win_rate=0.480 difficulty=-1.000 pg=-0.01 vf=0.02 "
-          "ent=1.90 clip_frac=0.05 lr=1.00e-04\n")
+UPDATE = (
+    "update={u}/976 steps={steps} sps=640 instant_sps=651 episodes=100 "
+    "return=-0.512 win_rate=0.480 difficulty=-1.000 pg=-0.01 vf=0.02 "
+    "ent=1.90 clip_frac=0.05 lr=1.00e-04\n"
+)
 
-EVAL = ("  eval: win_rate={win}% turns=8.4 turns(W)=9.6 turns(L)=6.4 "
-        "hideout_u={unc} copdist={cd} arrest={ar}% timeout=4.0%\n")
+EVAL = (
+    "  eval: win_rate={win}% turns=8.4 turns(W)=9.6 turns(L)=6.4 "
+    "hideout_u={unc} copdist={cd} arrest={ar}% timeout=4.0%\n"
+)
 
 
 def _log(tmp_path, name, lr, ent, wins, *, off=False, finished=True, unc="0.75"):
@@ -66,7 +70,7 @@ def test_collects_every_eval_and_its_step(tmp_path):
     r = parse_log(_log(tmp_path, "sw1-c", "3e-4", "0.01", [10.0, 30.0, 20.0]))
     assert [w for _, w in r.evals] == [10.0, 30.0, 20.0]
     assert r.best_win == 30.0
-    assert r.final_win == 20.0          # final is NOT the best
+    assert r.final_win == 20.0  # final is NOT the best
     assert r.steps == 3 * 153_600
 
 
@@ -175,3 +179,68 @@ def test_fill_manifest_is_idempotent(tmp_path):
 def test_report_handles_no_runs(capsys):
     assert report([]) == []
     assert "No parseable runs" in capsys.readouterr().out
+
+
+# --- curriculum difficulty tracking -----------------------------------------
+# For a Director wave this is the load-bearing signal: difficulty pinned at its
+# floor means the run trained at fixed suppression rather than curricularising.
+
+
+def _log_diff(tmp_path, name, diffs, win=30.0):
+    """A log whose update lines carry the given difficulty trajectory."""
+    text = HEADER.format(lr="3e-4", ent="0.03", name=name, extra="")
+    for i, d in enumerate(diffs, start=1):
+        text += (
+            f"update={i * 50}/976 steps={i * 153_600:,} sps=640 instant_sps=651 "
+            f"episodes=100 return=-0.5 win_rate=0.480 difficulty={d} pg=-0.01 "
+            f"vf=0.02 ent=1.90 clip_frac=0.05 lr=3.00e-04\n"
+        )
+        text += EVAL.format(win=win, unc="0.70", cd="1.10", ar="50.0")
+    text += "Training complete.\n"
+    p = tmp_path / f"wc-train_{name}.out"
+    p.write_text(text)
+    return p
+
+
+def test_tracks_max_and_final_difficulty(tmp_path):
+    r = parse_log(_log_diff(tmp_path, "ramped", ["-1.000", "-0.400", "+0.252", "+0.100"]))
+    assert r.max_difficulty == 0.252
+    assert r.final_difficulty == 0.100      # final is not the max
+    assert r.curriculum_engaged is True
+
+
+def test_pinned_difficulty_is_not_engaged(tmp_path):
+    r = parse_log(_log_diff(tmp_path, "pinned", ["-1.000", "-1.000", "-1.000"]))
+    assert r.max_difficulty == -1.0
+    assert r.curriculum_engaged is False
+
+
+def test_barely_moving_still_counts_as_engaged(tmp_path):
+    r = parse_log(_log_diff(tmp_path, "nudged", ["-1.000", "-0.974"]))
+    assert r.curriculum_engaged is True
+
+
+def test_report_shouts_when_no_run_curricularised(tmp_path, capsys):
+    runs = [
+        _log_diff(tmp_path, "a", ["-1.000", "-1.000"]),
+        _log_diff(tmp_path, "b", ["-1.000", "-1.000"]),
+    ]
+    report([str(p) for p in runs])
+    out = capsys.readouterr().out
+    assert "pinned at its floor in ALL 2 ON runs" in out
+
+
+def test_report_reports_partial_engagement(tmp_path, capsys):
+    runs = [
+        _log_diff(tmp_path, "a", ["-1.000", "-1.000"]),
+        _log_diff(tmp_path, "b", ["-1.000", "-0.200"]),
+    ]
+    report([str(p) for p in runs])
+    assert "curriculum engaged (difficulty left its floor) in 1/2" in capsys.readouterr().out
+
+
+def test_difficulty_absent_does_not_crash(tmp_path):
+    """Older logs, or OFF runs, may not carry a difficulty field."""
+    r = parse_log(_log(tmp_path, "nodiff", "3e-4", "0.01", [40.0]))
+    assert r.max_difficulty is not None or r.max_difficulty is None
+    assert r.best_win == 40.0

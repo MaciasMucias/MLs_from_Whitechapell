@@ -1,0 +1,36 @@
+# Entropy boundary probe — 2 tasks, submit with --array=0-1%2
+#
+#   sbatch --array=0-1%2 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/ent_probe.txt
+#
+# WHY
+#   Wave 1's winner sits on the EDGE of the grid: at lr=3e-4 the entropy
+#   coefficient ran 0.003 -> 0.01 -> 0.03 for 18.0% -> 36.0% -> 39.5%, and 0.03
+#   was the largest value tried. A boundary winner is not a demonstrated optimum
+#   — it is "the best of what we happened to test". These two lines extend the
+#   axis so the answer is either confirmed or corrected before nine 15M-step
+#   final runs are committed to it.
+#
+# WHAT TO EXPECT
+#   The curve is already flattening (+18.0 points from 0.003->0.01, but only
+#   +3.5 from 0.01->0.03), so 0.03 is probably near the top rather than partway
+#   up a cliff. The likely outcome is confirmation. That is still worth 2.4 CPU-
+#   hours against the cost of discovering otherwise after the final runs.
+#
+# READING IT
+#   Both below 39.5%  -> 0.03 is a genuine interior optimum. Use it, and say in
+#                        the writeup that the boundary was checked.
+#   0.06 above 39.5%  -> the optimum is outside the grid. Take the better value,
+#                        and consider one more step out before 04.
+#   Both far above    -> the entropy axis was badly under-explored; re-grid
+#                        rather than accept a second boundary winner.
+#
+# COST / SCHEDULING
+#   ~1.2h each, 2 tasks. The 72-CPU cap is already saturated by wave 1's OFF arm
+#   (9 x 8 CPUs), so these sit pending and start as that drains — they delay
+#   nothing and cost no wall-clock time on the critical path.
+#
+# Everything except --ent-coef is identical to sw1-lr3e4-ent003-on, the winner:
+# same lr, seed, batch shape, curriculum ON, frozen cops v2.
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.06 --wandb-run sw1b-lr3e4-ent006-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.10 --wandb-run sw1b-lr3e4-ent010-on

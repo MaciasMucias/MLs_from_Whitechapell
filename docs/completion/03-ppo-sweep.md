@@ -1,8 +1,9 @@
 # 03 — PPO hyperparameter sweep
 
-**Status:** not started
+**Status:** **ready to submit** — grid designed, manifests written and machine-checked. Nothing left
+but cluster time.
 **Blocks:** 04
-**Blocked by:** 01 (frozen cops), 02-C1 (coefficients must be logged)
+**Blocked by:** ~~01 (frozen cops), 02-C1 (coefficients must be logged)~~ — both landed 2026-09-09.
 
 ---
 
@@ -47,17 +48,50 @@ Observation: 1,416 dims (`training/obs.py:24-109`). Cop distance vectors are sor
 Two deviations from the CleanRL reference the file claims to follow, worth knowing if reproducing:
 **unclipped value loss**, and **no orthogonal init**. Not bugs.
 
+## The grid — two waves, 30 runs
+
+Written and validated. Both live in [`slurm/manifests/`](slurm/manifests/).
+
+### Wave 1 — `sweep_w1.txt`, 18 tasks, `--array=0-17%9`, ~2.5h wall
+
+`--lr {1e-4, 3e-4, 1e-3}` x `--ent-coef {0.003, 0.01, 0.03}`, **run on both Director arms**.
+
+Sweeping both arms is what buys the answer to the fairness caveat below, and it is cheap: 3M steps
+at the pilot's 682 SPS is ~1.2h per task, 18 tasks nine-wide is ~2.5h. Doing it any other way would
+have meant defending a choice in the thesis rather than measuring it, for the sake of an afternoon.
+
+### Wave 2 — `sweep_w2.txt`, 12 tasks, `--array=0-11%9`, ~1.6h wall
+
+The five reward coefficients, one at a time off the defaults, at wave 1's chosen `lr`/`ent`.
+Curriculum ON, because 04's reward ablation is an ON-arm run.
+
+Line 1 is a **control**: wave 1's winner repeated unchanged. Its gap to the corresponding wave-1 run
+is this sweep's run-to-run noise floor at a single seed — probes inside that gap are null results,
+not small effects. Worth having, given that 04 exists precisely because PPO seed variance can swamp
+the Director effect. Line 12 is the fully sparse config, run here at 3M steps as a cheap early
+warning that 04's ablation arm may learn nothing at all.
+
+### Why two waves and not one
+
+18 + 12 = 30 exceeds the 20-job `MaxSubmitJobs` cap, which counts pending array tasks individually
+(02-C3). Wave 2 also *cannot* be written until wave 1 answers — `<LR>`/`<ENT>` are placeholders. In
+practice: submit wave 1, read it, edit `sweep_w2.txt`, submit wave 2. The
+`--dependency=afterany:$J1` form in the [slurm README](slurm/README.md) is for firing both at once;
+`array.sbatch` reads the manifest at task start, not at submit time, so the file can be edited while
+wave 1 runs.
+
 ## Steps
 
-1. Sweep `--lr`, `--ent-coef`, and the reward coefficients exposed in 02-C1.
-2. ~3M steps per config. Curriculum ON, frozen cops v2.
-3. **Cluster: submit as job arrays of <=20 tasks** (`--array=0-19%9`) rather than the
-   4-6 configs a local machine would allow. Per-person caps are 72 CPU / 20 queued jobs, giving 9
-   concurrent CPU-only runs at `--n-envs 12 --n-workers 12`; a 3M-step run is ~5x shorter than a
-   final run, so the sweep fits easily. Note each array task counts against the 20-job submit cap
-   individually (see 02-C3), so a sweep wider than 20 configs must go out in waves, chained with
-   `--dependency=afterany`. Sweep both Director arms if the array is cheap enough;
-   that removes the fairness caveat below entirely.
+1. ~~Sweep `--lr`, `--ent-coef`, and the reward coefficients exposed in 02-C1.~~ Grid above.
+2. ~~3M steps per config. Curriculum ON, frozen cops v2.~~ Both encoded in the manifests. Frozen
+   cops need no flag: `COPS_STUDY_V2` is `HeuristicCops()`'s default as of 01.
+3. Submit wave 1, pick `lr`/`ent` from the ON block, edit `sweep_w2.txt`, submit wave 2.
+4. Carry the winning `lr`/`ent` into `final.txt`'s `<LR>`/`<ENT>`, and the winning reward
+   coefficients into 04 (as explicit `--reward-*` flags if they differ from the defaults).
+
+**Flag names:** the reward coefficients are `--reward-alpha/-beta/-delta/-gamma/-zeta`. Not
+`--gamma` — that is PPO's discount factor, and passing it would silently set the discount to zero.
+See 02-C1; `tests/test_run_manifests.py` enforces it.
 
 ## Judging
 
@@ -71,18 +105,52 @@ a regression.
 
 ## Fairness caveat, carried into 04
 
-Tuning with the curriculum ON and reusing the config for the OFF arm mildly favours ON. Either sweep
-both arms (if compute allows) or use the shared config and **state the choice explicitly in the
-thesis**. Do not leave it implicit.
+Tuning with the curriculum ON and reusing the config for the OFF arm mildly favours ON. **Resolved
+by sweeping both arms** in wave 1 — compute allowed it easily. If the two arms pick different
+`lr`/`ent`, that itself is a finding worth reporting, and 04 should then say which arm's config it
+used and why.
 
 ## Verification
 
-Confirm every swept value appears in `wandb.config` (this is what 02-C1 buys) and that
-`curriculum/difficulty` moves away from -1.0 during the runs — if it stays pinned, the Director is
-not engaging and the sweep is measuring the wrong thing.
+1. Every swept value appears in `wandb.config` — this is what 02-C1 buys, and it is the whole reason
+   the sweep is worth running at all.
+2. `eval/win_rate` separates the configs. If all 18 wave-1 runs land within noise of each other,
+   3M steps is too short to rank them and the sweep needs lengthening, not re-gridding.
+
+### `curriculum/difficulty` will probably stay at -1.0, and that is not a failure
+
+An earlier draft of this file said that if difficulty stays pinned at -1.0 the Director is not
+engaging and the sweep is measuring the wrong thing. **That is wrong**, and acting on it would
+waste cluster time chasing a non-bug.
+
+`INITIAL_DIFFICULTY` is -1.0, and in `CurriculumDirector` negative difficulty means *suppression*:
+at -1.0 every discovered `visited_at` entry is dropped except the public depth-0 start
+(`agents/curriculum_director.py:56-64`). Pinned at -1.0 the Director is engaging **maximally** —
+cops are nearly blind. The ON and OFF arms are genuinely different games there.
+
+What is pinned is the *ramp*, not the intervention. The P-controller only moves difficulty when win
+rate leaves the `[0.4, 0.6]` deadband, and below 0.4 it pushes toward easier — already clamped. The
+02-C3 pilot saw 3-8% win rates at 200k steps. So difficulty stays at -1.0 until Jack clears **60%**
+against fully-suppressed cops, which 3M steps may well not reach.
+
+The real thing to check: does any ON run's `charts/win_rate` cross 0.6 and pull
+`curriculum/difficulty` off the clamp? If none does even in 04's 15M-step runs, then the curriculum
+never actually curricularises, the ON arm reduces to "training against permanently blinded cops",
+and **that is the honest finding to report** — not a bug to hide.
 
 ## Session log
 
 - 2026-09-09 — cluster access confirmed; sweep widened from a hand-picked handful to a job array.
 - 2026-09-09 — cluster caps (72 CPU / 2 GPU / 20 jobs) confirmed. Sweep runs 9-wide on CPU;
   `--n-envs 12 --n-workers 12` fixed here and must carry unchanged into 04.
+- 2026-09-09 — **grid designed and manifests written; ready to submit.** Two waves: `sweep_w1.txt`
+  (18 tasks, lr x ent on both Director arms) and `sweep_w2.txt` (12 tasks, reward coefficients one
+  at a time, plus a control and the sparse config). Sweeping both arms was cheap enough (~2.5h) to
+  close the fairness caveat outright rather than caveat it in the thesis. Every line is parsed by
+  `tests/test_run_manifests.py` on the laptop, which also blocks the `--gamma` collision from 02-C1.
+  **Corrected this file's own verification criterion:** difficulty pinned at -1.0 means the Director
+  is suppressing maximally, not that it is disengaged — the previous wording would have sent a
+  future session hunting a non-existent bug.
+- 2026-09-09 — **stopped here deliberately.** Submitting the waves is cluster execution and was out
+  of scope for this session. Next step is literally the `sbatch` line in
+  [slurm/README.md](slurm/README.md), after `uv sync --extra training --no-dev` on the login node.

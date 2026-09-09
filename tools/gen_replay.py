@@ -29,6 +29,7 @@ from engine.game import GameRecord, run_game
 from engine.graph import Map, load_map
 from engine.state import GameState
 from server.replay import build_replay, save_replay
+from training.checkpoints import latest_checkpoint
 from training.obs import build_obs, precompute_distances
 from training.train import Agent
 
@@ -109,10 +110,15 @@ class _Session:
 
 
 def _latest_checkpoint(checkpoint_dir: str) -> Path:
-    ckpts = sorted(Path(checkpoint_dir).glob("agent_*.pt"))
-    if not ckpts:
+    """Highest-step periodic checkpoint — deliberately not agent_best.pt.
+
+    This generates a replay of "the run as it stands", so it wants the latest
+    policy, not the best-scoring one. See training/checkpoints.py.
+    """
+    ckpt = latest_checkpoint(checkpoint_dir)
+    if ckpt is None:
         raise FileNotFoundError(f"No checkpoints found in {checkpoint_dir}")
-    return ckpts[-1]
+    return ckpt
 
 
 def _pmf_entropy(pmf: dict) -> float:

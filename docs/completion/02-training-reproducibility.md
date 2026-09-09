@@ -1,6 +1,6 @@
 # 02 — Training reproducibility + cluster readiness
 
-**Status:** not started
+**Status:** **done** (2026-09-09) — C1 and C2 implemented and verified; C3 settled by the pilot
 **Blocks:** 03, 04 — a sweep over unlogged values is worthless
 **Blocked by:** nothing. Can run in parallel with 01.
 
@@ -46,17 +46,40 @@ Reward structure, for reference when sweeping:
   `gamma * (nonzero_zone_nodes / |hideout_zone|)` — rewards leaving cops uncertain which zone node
   is the hideout.
 
-### Steps
+### Steps — **done 2026-09-09**
 
-1. Add `--alpha/--beta/--delta/--gamma/--zeta` to `parse_args()` (`training/train.py:535-579`).
-2. Thread them through `_worker_fn` (`train.py:39-106`) into each `JackEnv`. Note `_worker_fn` is
-   module-level for Windows `spawn` and each worker loads its own `load_map()` copy because `Map` is
-   not picklable (`train.py:59`).
-3. `config=vars(args)` at `wandb.init` (`train.py:244-253`) then picks them up automatically.
+1. ~~Add `--alpha/--beta/--delta/--gamma/--zeta` to `parse_args()`.~~ Added as
+   **`--reward-alpha/-beta/-delta/-gamma/-zeta`**. See the naming note below — the unprefixed names
+   in the original plan would have been actively dangerous.
+2. Threaded through `_worker_fn` and `AsyncVectorJackEnv` as a plain `reward_coefs` dict (picklable
+   across the `spawn` boundary) and splatted into each `JackEnv`.
+3. `config=vars(args)` at `wandb.init` picks them up automatically, as `reward_alpha` etc.
 
-### Verification
+### The name collision — why the flags are `--reward-*`
 
-Launch a 50k-step run; confirm all five appear in `wandb.config`.
+**`--gamma` was already taken by PPO's discount factor.** Adding the reward's `gamma` under its own
+name would have shadowed it, and `final.txt`'s sparse-ablation line already read
+
+```
+--alpha 0 --beta 0 --delta 0 --gamma 0 --zeta 0
+```
+
+which argparse would have accepted while **setting the PPO discount to zero**. A myopic agent, in
+the arm whose entire purpose is to show what happens without reward shaping, attributed to the
+missing shaping. It would not have crashed and the logged config would have looked correct.
+
+All five are therefore prefixed rather than just `gamma` — a mix of `--alpha` and `--reward-gamma`
+invites exactly this mistake again. `tests/test_run_manifests.py` now asserts no manifest line
+passes `--gamma` at all, and that `args.gamma` stays 0.99 on every line.
+
+The manifests in `slurm/manifests/` were updated to the new names.
+
+### Verification — done
+
+- `uv run python -m training.train --help` lists all five.
+- Two 1,600-step runs, identical but for the coefficients: defaults gave `return=-0.975`, all-zero
+  gave exactly `return=-1.000` (pure terminal reward, no shaping). The values reach the worker
+  processes, which was the part that could have silently failed.
 
 ---
 
@@ -76,18 +99,46 @@ Launch a 50k-step run; confirm all five appear in `wandb.config`.
 - Resume is fully supported (`train.py:229-260`) and restores step, optimizer, curriculum difficulty,
   and the same W&B run via `resume="must"`.
 
-### Steps
+### Steps — **done 2026-09-09**
 
-1. Eval already runs at every checkpoint save when `--eval-games > 0` (`train.py:497-503`) — track
-   the best `eval/win_rate` and write `agent_best.pt` alongside.
-2. Keep only the last N periodic checkpoints (N configurable, default ~5). Never prune
-   `agent_best.pt`.
-3. Fix the `agent_final.pt` reference in `training/eval.py:8`.
+1. `agent_best.pt` is written whenever a checkpoint's `eval/win_rate` beats the best so far. The
+   eval now runs **before** the save rather than after, so the checkpoint records the win rate that
+   earned it and `best_eval_win_rate` is exact on resume. `agent_best.pt` is a `shutil.copyfile` of
+   the periodic checkpoint, so the two are byte-identical.
+2. `--keep-checkpoints` (default 5, `0` = keep all) prunes older periodic checkpoints after each
+   save. `agent_best.pt` is not a periodic checkpoint and is never eligible.
+3. `training/eval.py`'s docstring no longer references `agent_final.pt`; it documents the real
+   naming scheme and points at `training/checkpoints.py`.
 
-### Verification
+Two things the plan did not anticipate:
 
-Confirm `agent_best.pt` is written, tracks the best `eval/win_rate`, survives pruning, and that
-`--resume` still works from a pruned directory.
+**`best_eval_win_rate` is stored in the checkpoint and restored by `--resume`.** Without it a
+resumed run starts from "no best yet" and overwrites a genuinely better `agent_best.pt` with the
+first checkpoint it happens to evaluate. That silently swaps the model the thesis reports.
+
+**`agent_best.pt` broke both existing "latest checkpoint" lookups.** `b` sorts after every digit, so
+`sorted(glob("*.pt"))[-1]` — `tools/optuna_tune.py:resolve_checkpoint` and
+`tools/gen_replay.py:_latest_checkpoint` — returns *best* while claiming *latest*. The selection
+rule now lives once in **`training/checkpoints.py`** and both callers use it, each stating which it
+wants: `optuna_tune` prefers best (it is benchmarking against the strongest Jack available),
+`gen_replay` takes latest (it renders the run as it stands). `tests/test_checkpoints.py` covers it.
+
+### Verification — done
+
+- Smoke run, 6 checkpoint saves with `--keep-checkpoints 3`: exactly 3 periodic files plus
+  `agent_best.pt` remain, and pruning logged the expected deletions.
+- Best-tracking exercised with a stubbed eval returning `[0.10, 0.40, 0.20, 0.55, 0.30, 0.05]`
+  through the real training loop. `agent_best.pt` ends at step 6,400 with `eval_win_rate 0.55` — the
+  4th save — and **survived the pruning of its own periodic source**. Later, worse checkpoints did
+  not overwrite it.
+- `--resume` from a pruned directory restored step, optimizer, curriculum difficulty and
+  `best_eval_win_rate`, and did not clobber `agent_best.pt`.
+- 45/45 tests pass (26 pre-existing + cop pin + checkpoint helpers).
+
+Not implemented, and deliberately: **pruning does not run on `--resume` startup**, so an existing
+7.4 GB checkpoint tree is not retroactively trimmed. Disk is not a constraint (no quota, 193 GB
+free) and silently deleting a previous run's checkpoints on resume is the wrong default. Prune old
+runs by hand if it ever matters.
 
 ---
 
@@ -317,8 +368,19 @@ Written: [`slurm/manifests/`](slurm/manifests/). `array.sbatch` reads one comman
 the line matching `$SLURM_ARRAY_TASK_ID`, so the manifest **is** the record of what was run — it
 doubles as the thesis's experiment table.
 
+- `sweep_w1.txt` — 18 tasks: lr x ent-coef, both Director arms. See [03](03-ppo-sweep.md).
+- `sweep_w2.txt` — 12 tasks: reward-coefficient probes. `<LR>`/`<ENT>` from wave 1.
 - `final.txt` — the 9 final runs (3 arms x 3 seeds). `<LR>`/`<ENT>` filled in after the sweep.
-- `sweep.txt` — example grid; keep each wave to <=20 lines.
+
+(The placeholder `sweep.txt` was replaced by the two real waves.)
+
+**`tests/test_run_manifests.py` parses every line of every manifest** with `train.py`'s own
+`parse_args`, on the laptop, for free. A manifest typo is otherwise invisible until an array task
+starts, hours into contended cluster time. It checks each line parses, names a unique
+`--wandb-run` (which doubles as the checkpoint directory, so a clash overwrites), keeps
+`--n-envs 12 --n-workers 12`, stays under the 20-task wave cap, and never passes `--gamma`. Verified
+against three deliberately injected faults — a `--gamma 0`, a misspelled `--ent-cof`, and an
+`--n-envs 24` — all three failed the suite; restoring the manifests returned it to green.
 
 ### Verification
 
@@ -358,3 +420,11 @@ filesystem (not node-local scratch that vanishes at job end), and that its W&B d
   unchanged at 3,072, 9 concurrent). 15M steps = 6.1h, so the 24h walltime risk is closed. Also
   hit and fixed two more Slurm traps: `$0` is the spool copy under sbatch, and `--export` gets jobs
   held with "user env retrieval failed".
+- 2026-09-09 — **C1 and C2 implemented and verified; 02 is done.** The reward flags are
+  `--reward-*`, not the `--alpha`/`--gamma` the plan specified: `--gamma` is PPO's discount, and
+  `final.txt` already carried a `--gamma 0` that would have zeroed it in the sparse arm without
+  failing. C2 turned up two things beyond the brief — `best_eval_win_rate` must round-trip through
+  the checkpoint or a resume overwrites a better `agent_best.pt`, and `agent_best.pt` breaks
+  lexicographic "latest checkpoint" lookups, so selection moved into `training/checkpoints.py`.
+  Added `tests/test_run_manifests.py` to parse every cluster manifest line locally. 247 tests pass.
+  Nothing in 02 remains that is not cluster execution.

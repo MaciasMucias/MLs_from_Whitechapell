@@ -56,12 +56,18 @@ uv run python -m training.train
 uv run python -m training.train --total-steps 10_000_000 --n-envs 16
 ```
 
-Checkpoints are saved to `checkpoints/`. Training logs to W&B — set `WANDB_API_KEY` in your environment first.
+Checkpoints are saved to `checkpoints/<run>/`. Training logs to W&B — set `WANDB_API_KEY` in your environment first.
+
+Two kinds of checkpoint are written (see `training/checkpoints.py`):
+
+- `agent_<step>.pt` — periodic saves, pruned to the most recent `--keep-checkpoints` (default 5).
+- `agent_best.pt` — a copy of whichever checkpoint scored the highest `eval/win_rate`. Never pruned.
+  Only written when `--eval-games > 0`.
 
 ### Evaluating a checkpoint
 
 ```bash
-uv run python -m training.eval checkpoints/<run>/agent_final.pt
+uv run python -m training.eval checkpoints/<run>/agent_best.pt
 uv run python -m training.eval checkpoints/<run>/*.pt --n-games 500 --seed 42
 ```
 

@@ -4,8 +4,12 @@ Evaluate trained Jack policies against full-strength heuristic cops (no Director
 Core function eval_policy() returns a plain dict — can be called from the
 training loop to log per-checkpoint metrics to wandb, or used standalone.
 
+Checkpoint names: periodic saves are agent_<step:010d>.pt and the best-scoring
+one is copied to agent_best.pt (see training/checkpoints.py). There is no
+agent_final.pt — train.py has never written one.
+
 Usage:
-    uv run python -m training.eval checkpoints/run/agent_final.pt
+    uv run python -m training.eval checkpoints/run/agent_best.pt
     uv run python -m training.eval checkpoints/run/*.pt --n-games 500 --seed 42
     uv run python -m training.eval ckpt1.pt ckpt2.pt --no-baseline
 """
@@ -61,6 +65,24 @@ class PolicyAgent(JackAgent):
 # ---------------------------------------------------------------------------
 
 
+def _min_cop_distance(
+    state: GameState,
+    game_map: Map,
+    all_dists: dict[int, dict[int, int]],
+    diameter: int,
+) -> int:
+    """Jack's BFS distance to the nearest Jack node any cop currently covers.
+
+    Mirrors the cop-distance term in training/env.py so the eval metric and the
+    zeta shaping term measure the same thing.
+    """
+    return min(
+        all_dists[state.jack_pos].get(jn.id, diameter)
+        for cp in state.cop_positions
+        for jn in game_map.cop_nodes[cp].jack_neighbours
+    )
+
+
 def eval_agent(
     jack_agent: JackAgent,
     game_map: Map,
@@ -73,17 +95,31 @@ def eval_agent(
     """
     rng = rng or random.Random()
     cops = HeuristicCops()
+    all_dists, diameter = precompute_distances(game_map)
 
     wins = 0
+    arrests = 0
     turns_all: list[int] = []
     turns_on_win: list[int] = []
     turns_on_loss: list[int] = []
     hideout_uncerts: list[float] = []
+    cop_dists: list[float] = []
 
     for _ in range(n_games):
         record = run_game(game_map, jack_agent, cops, director=None, rng=rng)
         t = record.turns_survived
         turns_all.append(t)
+
+        # Mean distance Jack kept from his nearest cop over the whole game.
+        # The direct evasiveness measure: a risk-averse policy holds a wider
+        # berth, and pays for it in detours against the turn limit.
+        per_round = [
+            _min_cop_distance(rr.state_after_round, game_map, all_dists, diameter)
+            for rr in record.history
+        ]
+        if per_round:
+            cop_dists.append(sum(per_round) / len(per_round))
+
         if record.winner == "jack":
             wins += 1
             turns_on_win.append(t)
@@ -92,13 +128,32 @@ def eval_agent(
             hideout_uncerts.append(hideout_uncertainty(final.hideout_zone, pmf))
         else:
             turns_on_loss.append(t)
+            # Losses split into "caught" and "ran out of time". A cop step that
+            # terminated the game is an arrest; anything else ended in
+            # end_of_round, i.e. the turn limit. The split is what distinguishes
+            # a policy that dies bravely from one that dawdles.
+            if any(
+                cs.terminated and cs.winner == "cops"
+                for rr in record.history
+                for cs in rr.cop_steps
+            ):
+                arrests += 1
 
+    losses = n_games - wins
     return {
         "win_rate": wins / n_games,
         "mean_turns": sum(turns_all) / n_games,
         "mean_turns_on_win": sum(turns_on_win) / max(len(turns_on_win), 1),
         "mean_turns_on_loss": sum(turns_on_loss) / max(len(turns_on_loss), 1),
         "mean_hideout_uncert": sum(hideout_uncerts) / max(len(hideout_uncerts), 1),
+        "mean_min_cop_dist": sum(cop_dists) / max(len(cop_dists), 1),
+        # Fractions of ALL games, so arrest_rate + timeout_rate + win_rate == 1.
+        "arrest_rate": arrests / n_games,
+        "timeout_rate": (losses - arrests) / n_games,
+        # ...and of losses only, which is the risk-aversion signal: a cautious
+        # policy shifts its losses from arrest to timeout without necessarily
+        # losing less often.
+        "arrest_share_of_losses": arrests / max(losses, 1),
         "n_wins": float(wins),
         "n_games": float(n_games),
     }
@@ -147,7 +202,11 @@ def _print_table(
     print()
     print(header)
     print()
-    col = f"{'checkpoint':<{_COL_W}}  {'step':>7}  {'win%':>6}  {'turns':>6}  {'turns(W)':>8}  {'turns(L)':>8}  {'hideout_u':>9}"
+    col = (
+        f"{'checkpoint':<{_COL_W}}  {'step':>7}  {'win%':>6}  {'turns':>6}  "
+        f"{'turns(W)':>8}  {'turns(L)':>8}  {'hideout_u':>9}  "
+        f"{'copdist':>7}  {'arrest%':>7}  {'timeout%':>8}"
+    )
     print(col)
     print("-" * len(col))
     for label, step, m in rows:
@@ -158,9 +217,16 @@ def _print_table(
             f"{m['mean_turns']:>6.1f}  "
             f"{m['mean_turns_on_win']:>8.1f}  "
             f"{m['mean_turns_on_loss']:>8.1f}  "
-            f"{m['mean_hideout_uncert']:>9.2f}"
+            f"{m['mean_hideout_uncert']:>9.2f}  "
+            f"{m['mean_min_cop_dist']:>7.2f}  "
+            f"{m['arrest_rate']:>6.1%}  "
+            f"{m['timeout_rate']:>7.1%}"
         )
     print()
+    # copdist / arrest% / timeout% exist to test the risk-aversion hypothesis in
+    # 09-director-tuning.md: a Director-trained Jack that lost by being cautious
+    # shows a HIGHER copdist and shifts losses from arrest% to timeout%. Same
+    # win rate with a different split is a different failure, not the same one.
 
 
 # ---------------------------------------------------------------------------

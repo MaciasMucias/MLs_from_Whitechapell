@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import multiprocessing as mp
 import random
+import shutil
 import time
 from collections import deque
 from multiprocessing.connection import Connection
@@ -26,6 +27,7 @@ from torch.optim import Adam
 
 from agents.curriculum_director import INITIAL_DIFFICULTY
 from engine.graph import load_map
+from training.checkpoints import BEST_NAME, prune_checkpoints
 from training.env import JackEnv
 from training.eval import eval_policy
 from training.model import Agent
@@ -42,10 +44,14 @@ def _worker_fn(
     seeds: list[int],
     use_curriculum: bool = False,
     initial_difficulty: float = INITIAL_DIFFICULTY,
+    reward_coefs: dict[str, float] | None = None,
 ) -> None:
     """
     Env worker. Owns len(seeds) independent JackEnv instances and steps them
     sequentially per message. Loads its own map copy (Map is not picklable).
+
+    reward_coefs carries the shaping coefficients (alpha/beta/delta/gamma/zeta)
+    through to each JackEnv; it is a plain dict so it survives spawn pickling.
 
     Auto-resets each env on termination; the reset obs/mask are returned in
     the same message so the main process never needs a separate round-trip.
@@ -57,6 +63,7 @@ def _worker_fn(
         recv: ("close",)                   ->  exit
     """
     game_map = load_map(map_path)
+    coefs = dict(reward_coefs or {})
     if use_curriculum:
         from agents.curriculum_director import CurriculumDirector
 
@@ -65,10 +72,11 @@ def _worker_fn(
             rng=random.Random(seeds[0] + 10_000_000),
         )
         envs = [
-            JackEnv(game_map, rng=random.Random(s), director=director) for s in seeds
+            JackEnv(game_map, rng=random.Random(s), director=director, **coefs)
+            for s in seeds
         ]
     else:
-        envs = [JackEnv(game_map, rng=random.Random(s)) for s in seeds]
+        envs = [JackEnv(game_map, rng=random.Random(s), **coefs) for s in seeds]
 
     try:
         while True:
@@ -128,6 +136,7 @@ class AsyncVectorJackEnv:
         seed: int,
         use_curriculum: bool = False,
         initial_difficulty: float = INITIAL_DIFFICULTY,
+        reward_coefs: dict[str, float] | None = None,
     ) -> None:
         assert n_envs % n_workers == 0, "n_envs must be divisible by n_workers"
         self.n = n_envs
@@ -148,6 +157,7 @@ class AsyncVectorJackEnv:
                     worker_seeds,
                     use_curriculum,
                     initial_difficulty,
+                    reward_coefs,
                 ),
                 daemon=True,
             )
@@ -215,6 +225,15 @@ def train(args: argparse.Namespace) -> None:
     # Workers load their own copies (Map is not picklable).
     game_map = load_map(args.map)
     n_actions = len(game_map.jack_nodes)
+    # Reward shaping coefficients, forwarded to every worker's JackEnv. Kept as a
+    # plain dict so it pickles cleanly across the spawn boundary.
+    reward_coefs = {
+        "alpha": args.reward_alpha,
+        "beta": args.reward_beta,
+        "delta": args.reward_delta,
+        "gamma": args.reward_gamma,
+        "zeta": args.reward_zeta,
+    }
     sample_env = JackEnv(game_map)
     sample_obs, _ = sample_env.reset()
     obs_dim = sample_obs.shape[0]
@@ -230,13 +249,20 @@ def train(args: argparse.Namespace) -> None:
     resume_step = 0
     start_update = 1
     wandb_resume_id = None
-    curriculum_difficulty: float = INITIAL_DIFFICULTY
+    curriculum_difficulty: float = args.initial_difficulty
+    # Highest eval/win_rate seen so far; -1.0 so the first eval always wins.
+    # Restored on resume, otherwise a resumed run would overwrite a better
+    # agent_best.pt with the first checkpoint it happens to evaluate.
+    best_eval_win_rate: float = -1.0
     if args.resume:
         ckpt = torch.load(args.resume, map_location=device, weights_only=True)
         resume_step = ckpt["step"]
         start_update = resume_step // batch_size + 1
         wandb_resume_id = ckpt.get("wandb_run_id")
-        curriculum_difficulty = ckpt.get("curriculum_difficulty", INITIAL_DIFFICULTY)
+        curriculum_difficulty = ckpt.get(
+            "curriculum_difficulty", args.initial_difficulty
+        )
+        best_eval_win_rate = ckpt.get("best_eval_win_rate", -1.0)
         print(
             f"Resumed from {args.resume} at step {resume_step:,} (update {start_update}/{n_updates})"
         )
@@ -277,6 +303,7 @@ def train(args: argparse.Namespace) -> None:
         args.seed,
         use_curriculum=not args.no_curriculum,
         initial_difficulty=curriculum_difficulty,
+        reward_coefs=reward_coefs,
     ) as envs:
         obs_np, infos = envs.reset()
         obs = torch.from_numpy(obs_np).float().to(device)
@@ -462,6 +489,12 @@ def train(args: argparse.Namespace) -> None:
             )
 
             # -- Curriculum P-controller update --------------------------------
+            # NOTE ON READING ON-ARM WIN RATES: this controller drives difficulty
+            # until win_rate sits inside the deadband, so a converged curriculum
+            # run oscillates around the band centre *by construction*. The agent's
+            # improvement shows up as rising difficulty, not rising win rate.
+            # charts/win_rate is the setpoint; curriculum/difficulty and the
+            # Director-free eval/win_rate are the performance signals.
             if not args.no_curriculum and len(ep_wins) >= 10:
                 target_centre = (
                     args.curriculum_target_low + args.curriculum_target_high
@@ -471,27 +504,25 @@ def train(args: argparse.Namespace) -> None:
                     or win_rate > args.curriculum_target_high
                 ):
                     error = win_rate - target_centre
-                    curriculum_difficulty = max(
-                        -1.0,
-                        min(1.0, curriculum_difficulty + args.curriculum_kp * error),
-                    )
-                    envs.set_difficulty(curriculum_difficulty)
+                    delta = args.curriculum_kp * error
+                    # Rate limit. The 2026-05-23 run crossed the whole suppression
+                    # range in ~1M of 10M steps and lost 20 points of win rate
+                    # doing it; capping the per-update move tests whether that
+                    # traverse speed is what hurt.
+                    cap = args.curriculum_max_step
+                    delta = max(-cap, min(cap, delta))
+                    # Ratchet: difficulty may only ever get harder, never fall back.
+                    if args.curriculum_ratchet:
+                        delta = max(0.0, delta)
+                    new_difficulty = max(-1.0, min(1.0, curriculum_difficulty + delta))
+                    if new_difficulty != curriculum_difficulty:
+                        curriculum_difficulty = new_difficulty
+                        envs.set_difficulty(curriculum_difficulty)
 
             if update % 50 == 0 or update == n_updates:
-                ckpt_path = ckpt_dir / f"agent_{global_step:010d}.pt"
-                torch.save(
-                    {
-                        "agent": agent.state_dict(),
-                        "optimizer": optimizer.state_dict(),
-                        "step": global_step,
-                        "obs_dim": obs_dim,
-                        "n_actions": n_actions,
-                        "wandb_run_id": wandb.run.id,
-                        "curriculum_difficulty": curriculum_difficulty,
-                    },
-                    ckpt_path,
-                )
-                print(f"  checkpoint -> {ckpt_path}")
+                # Eval BEFORE saving so the checkpoint records the win rate that
+                # earned it, and so best_eval_win_rate is exact on resume.
+                eval_results = None
                 if args.eval_games > 0:
                     agent.eval()
                     eval_results = eval_policy(
@@ -506,7 +537,10 @@ def train(args: argparse.Namespace) -> None:
                         f"  eval: win_rate={eval_results['win_rate']:.1%} "
                         f"turns={eval_results['mean_turns']:.1f} "
                         f"turns(W)={eval_results['mean_turns_on_win']:.1f} "
-                        f"hideout_u={eval_results['mean_hideout_uncert']:.2f}"
+                        f"hideout_u={eval_results['mean_hideout_uncert']:.2f} "
+                        f"copdist={eval_results['mean_min_cop_dist']:.2f} "
+                        f"arrest={eval_results['arrest_rate']:.1%} "
+                        f"timeout={eval_results['timeout_rate']:.1%}"
                     )
                     wandb.log(
                         {
@@ -519,9 +553,58 @@ def train(args: argparse.Namespace) -> None:
                             "eval/mean_hideout_uncert": eval_results[
                                 "mean_hideout_uncert"
                             ],
+                            # Risk-aversion probes — see 09-director-tuning.md.
+                            # A cautious policy shows a higher mean_min_cop_dist
+                            # and shifts its losses from arrest to timeout.
+                            "eval/mean_min_cop_dist": eval_results["mean_min_cop_dist"],
+                            "eval/arrest_rate": eval_results["arrest_rate"],
+                            "eval/timeout_rate": eval_results["timeout_rate"],
+                            "eval/arrest_share_of_losses": eval_results[
+                                "arrest_share_of_losses"
+                            ],
+                            "eval/best_win_rate": max(
+                                best_eval_win_rate, eval_results["win_rate"]
+                            ),
                             "global_step": global_step,
                         }
                     )
+
+                is_best = (
+                    eval_results is not None
+                    and eval_results["win_rate"] > best_eval_win_rate
+                )
+                if is_best:
+                    best_eval_win_rate = eval_results["win_rate"]
+
+                ckpt_path = ckpt_dir / f"agent_{global_step:010d}.pt"
+                torch.save(
+                    {
+                        "agent": agent.state_dict(),
+                        "optimizer": optimizer.state_dict(),
+                        "step": global_step,
+                        "obs_dim": obs_dim,
+                        "n_actions": n_actions,
+                        "wandb_run_id": wandb.run.id,
+                        "curriculum_difficulty": curriculum_difficulty,
+                        "best_eval_win_rate": best_eval_win_rate,
+                        "eval_win_rate": (
+                            eval_results["win_rate"] if eval_results else float("nan")
+                        ),
+                    },
+                    ckpt_path,
+                )
+                print(f"  checkpoint -> {ckpt_path}")
+
+                # Copy rather than re-save: agent_best.pt is then byte-identical
+                # to the periodic checkpoint it came from.
+                if is_best:
+                    best_path = ckpt_dir / BEST_NAME
+                    shutil.copyfile(ckpt_path, best_path)
+                    print(f"  best so far ({best_eval_win_rate:.1%}) -> {best_path}")
+
+                # agent_best.pt is not a periodic checkpoint and is never pruned.
+                for stale in prune_checkpoints(ckpt_dir, args.keep_checkpoints):
+                    print(f"  pruned {stale.name}")
 
     wandb.finish()
     print("Training complete.")
@@ -532,7 +615,9 @@ def train(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI args. argv defaults to sys.argv[1:]; pass a list to validate
+    a command line without running it (see tests/test_run_manifests.py)."""
     p = argparse.ArgumentParser(description="PPO training for Jack RL policy")
     p.add_argument("--map", default="maps/whitechapel.json")
     p.add_argument("--total-steps", type=int, default=5_000_000)
@@ -550,6 +635,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-grad-norm", type=float, default=0.5)
     p.add_argument("--seed", type=int, default=27)
     p.add_argument("--checkpoint-dir", default="checkpoints/")
+    p.add_argument(
+        "--keep-checkpoints",
+        type=int,
+        default=5,
+        help="Periodic checkpoints to retain (0 = keep all). agent_best.pt is "
+        "never pruned",
+    )
     p.add_argument("--resume", default=None, metavar="CHECKPOINT")
     p.add_argument(
         "--no-curriculum",
@@ -566,6 +658,46 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--curriculum-target-low", type=float, default=0.4)
     p.add_argument("--curriculum-target-high", type=float, default=0.6)
     p.add_argument(
+        "--initial-difficulty",
+        type=float,
+        default=INITIAL_DIFFICULTY,
+        help="Starting curriculum difficulty. -1.0 = full suppression (cops keep "
+        "only Jack's public start), 0.0 = Director inactive, +1.0 = full "
+        "injection. Overridden by --resume, which restores the saved value",
+    )
+    p.add_argument(
+        "--curriculum-max-step",
+        type=float,
+        default=2.0,
+        help="Cap on how far difficulty may move in one update. The difficulty "
+        "range is 2.0 wide, so the default never binds",
+    )
+    p.add_argument(
+        "--curriculum-ratchet",
+        action="store_true",
+        default=False,
+        help="Difficulty may only increase. Prevents the controller relaxing "
+        "back toward suppression after the agent has adapted",
+    )
+    # Reward shaping coefficients — see JackEnv (training/env.py). These were
+    # hardcoded constructor defaults until 2026-09-09, so runs before that date
+    # cannot be told apart by their logged config. Prefixed --reward-* because
+    # the reward's gamma would otherwise collide with PPO's discount --gamma.
+    p.add_argument(
+        "--reward-alpha", type=float, default=0.1, help="Hideout-distance progress"
+    )
+    p.add_argument("--reward-beta", type=float, default=0.05, help="Cop PMF potential")
+    p.add_argument(
+        "--reward-delta", type=float, default=0.01, help="Count-based exploration bonus"
+    )
+    p.add_argument(
+        "--reward-gamma",
+        type=float,
+        default=0.5,
+        help="Terminal hideout-uncertainty bonus (NOT the PPO discount, see --gamma)",
+    )
+    p.add_argument("--reward-zeta", type=float, default=0.1, help="Cop-distance delta")
+    p.add_argument(
         "--eval-games",
         type=int,
         default=200,
@@ -576,7 +708,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--wandb-mode", default="offline", choices=["offline", "online", "disabled"]
     )
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 if __name__ == "__main__":

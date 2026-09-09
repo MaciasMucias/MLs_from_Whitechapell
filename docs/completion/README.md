@@ -14,17 +14,24 @@ Audit date: 2026-09-09. Branch `dev` @ `bea89b6`.
 
 | # | Workstream | Status | Blocks |
 |---|---|---|---|
-| [01](01-freeze-cops.md) | Freeze cop configuration | not started | 03, 04, 06 |
-| [02](02-training-reproducibility.md) | Training reproducibility + cluster readiness | not started | 03, 04 |
-| [03](03-ppo-sweep.md) | PPO hyperparameter sweep | not started | 04 |
+| [01](01-freeze-cops.md) | Freeze cop configuration | **done** | 03, 04, 06 |
+| [02](02-training-reproducibility.md) | Training reproducibility + cluster readiness | **done** | 03, 04 |
+| [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **ready to submit** | 04, 09 |
+| [09](09-director-tuning.md) | Director tuning | **ready to submit** (needs 03's lr/ent) | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | not started | 06 |
 | [05](05-study-data.md) | Close out study data | not started | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | not started | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 
-Critical path: **01 + 02 -> 03 -> 04 -> 06**. Workstreams 05 and 07, and the code parts of 06, are
-laptop work that runs in parallel with cluster time.
+Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 06**. Workstreams 05 and 07, and the code parts of 06,
+are laptop work that runs in parallel with cluster time.
+
+**09 was added 2026-09-09** and inserted ahead of 04. The Director had exactly one configuration ever
+tried — `INITIAL_DIFFICULTY` was a hardcoded constant, not a flag — and that one run underperformed
+the no-Director arm on a fair Director-free evaluation. Committing 3 seeds x 15M steps to an untuned
+ON arm would have bought an expensive negative result with no diagnosis. See
+[09](09-director-tuning.md).
 
 **Compute: university cluster confirmed 2026-09-09.** Per-person limits: **72 CPUs, 2 rtx6000 GPUs,
 1 TB RAM, 20 queued jobs, 24h walltime.** `uv` installed as user. No deadline pressure.
@@ -40,11 +47,19 @@ whole 04 final set — 2 Director arms + the reward ablation, **3 seeds each, 9 
 concurrent window instead of running sequentially. The seeds matter most: PPO seed variance can
 exceed the Director effect being claimed, so single-seed arms would not support the conclusion.
 
-Next concrete step: the **02-C3 pilot** (~200k steps, minutes) to measure CPU vs GPU throughput.
-It also settles one risk — 15M steps inside a 24h cap needs **≥174 SPS**, against ~490 SPS on GPU
-today, so a CPU run must stay within ~2.8x of GPU speed. [`cluster_probe.sh`](cluster_probe.sh)
-covers what remains: partition names, outbound internet for W&B, and quota. Slurm job scripts are
-written and syntax-checked in [`slurm/`](slurm/README.md).
+**Next concrete step (2026-09-09): submit sweep wave 1.** 01, 02 and the 02-C3 pilot are done; the
+critical path is now pure cluster time. On the login node:
+
+```bash
+cd ~/MLs_from_Whitechapel && git pull
+export PATH="$HOME/.local/bin:$PATH" && uv sync --extra training --no-dev   # once, never from jobs
+sbatch --array=0-17%9 docs/completion/slurm/array.sbatch \
+       docs/completion/slurm/manifests/sweep_w1.txt
+```
+
+Then read the ON block, fill `<LR>`/`<ENT>` into `sweep_w2.txt`, and submit wave 2. Full ordering in
+[`slurm/README.md`](slurm/README.md). Remember: **never run Python on the login node** — its CPU
+lacks x86-64-v2 and numpy aborts.
 
 ---
 
@@ -75,13 +90,24 @@ the results rather than fail loudly.
 
 1. **Cop parameters are frozen** at `COPS_STUDY_V2` — the values participants actually played
    against. A retune becomes a separate named v3 and never feeds the human comparison. See
-   [01](01-freeze-cops.md).
-2. **Evaluation is always Director-free**, for every arm. `eval_agent` passes `director=None`
-   (`training/eval.py:84`); keep it that way. The Director shapes training difficulty only.
+   [01](01-freeze-cops.md). Implemented 2026-09-09 in `agents/heuristic_cops.py`; pinned by
+   `tests/test_cop_config.py`.
+2. **Evaluation is always Director-free**, for every arm. `eval_agent` passes `director=None`; keep
+   it that way. The Director shapes training difficulty only.
+2b. **Never rank Director-ON runs by `charts/win_rate`.** The P-controller drives difficulty until
+   win rate sits inside its deadband, so every converged ON run reads ~0.5 regardless of policy
+   quality — it is the controller's setpoint, not a score. Rank on Director-free `eval/win_rate`,
+   and report final `curriculum/difficulty` beside it. See [09](09-director-tuning.md).
 3. **Production is not modified.** The study is winding down. All analysis runs on a local snapshot.
 4. **No PyTorch on the server.** The Fly VM is 256 MB; the comparison is offline by design.
 5. **`uv` for everything** — `uv run python`, `uv add`. Never bare `python`/`pip`, never hand-edit
    `pyproject.toml`.
+6. **Reward coefficients are `--reward-alpha/-beta/-delta/-gamma/-zeta`, never `--alpha`/`--gamma`.**
+   `--gamma` is PPO's discount factor; passing it to disable reward shaping sets the discount to
+   zero instead, silently, in exactly the arm meant to isolate reward shaping. Enforced by
+   `tests/test_run_manifests.py`. See [02-C1](02-training-reproducibility.md).
+7. **`--n-envs 12 --n-workers 12`** across every sweep and final run, so batch size stays 3,072 and
+   the runs stay comparable. Also enforced by `tests/test_run_manifests.py`.
 
 ---
 

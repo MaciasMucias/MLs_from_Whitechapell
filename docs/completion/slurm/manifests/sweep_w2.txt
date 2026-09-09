@@ -1,0 +1,58 @@
+# PPO sweep, WAVE 2 — 03-ppo-sweep.md. 12 tasks, submit with --array=0-11%9
+#
+# BEFORE SUBMITTING: replace every <LR> and <ENT> with wave 1's chosen values
+# (the best eval/win_rate in the ON block). Wave 2 is a one-at-a-time probe
+# around that point, so it is meaningless until wave 1 has answered.
+#
+#   sbatch --dependency=afterany:<wave1-jobid> --array=0-11%9 \
+#          docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/sweep_w2.txt
+#
+# The dependency matters for the 20-job cap, not for ordering alone: wave 1's 18
+# tasks and wave 2's 12 sum to 30, over the cap, so wave 2 must not enter the
+# queue until wave 1 has drained. (afterany, not afterok — a single crashed task
+# should not strand the wave.)
+#
+# WHAT THIS WAVE DECIDES
+#   The five reward-shaping coefficients, exposed as CLI flags by 02-C1 and
+#   therefore logged to wandb.config for the first time. Each line moves ONE
+#   coefficient off its default; attributing an effect needs nothing else to move.
+#
+#   FLAG NAMING: they are --reward-alpha/beta/delta/gamma/zeta, not --alpha etc.
+#   The reward's gamma would otherwise collide with PPO's discount factor
+#   --gamma, and a bare "--gamma 0" would silently set the discount to zero
+#   rather than disable the terminal hideout-uncertainty bonus.
+#
+#   Defaults (training/env.py): alpha 0.1  beta 0.05  delta 0.01  gamma 0.5  zeta 0.1
+#     alpha  hideout-distance progress          beta   cop PMF potential
+#     delta  count-based exploration bonus      gamma  terminal hideout-uncertainty
+#     zeta   cop-distance delta
+#
+# Curriculum ON throughout — 04's reward ablation is an ON-arm run, so the
+# coefficients should be chosen under the conditions they will be used in.
+#
+# Control: wave-1 winner repeated unchanged. Its gap to the corresponding wave-1
+# run is this sweep's run-to-run noise floor — treat any probe inside that gap
+# as null.
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --wandb-run sw2-control
+# alpha — hideout-distance progress
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-alpha 0    --wandb-run sw2-alpha0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-alpha 0.3  --wandb-run sw2-alpha03
+# beta — cop PMF potential
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-beta 0     --wandb-run sw2-beta0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-beta 0.15  --wandb-run sw2-beta015
+# delta — count-based exploration bonus (note: visit counts persist across
+# episodes within a worker, deliberately — training/env.py:68-69)
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-delta 0    --wandb-run sw2-delta0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-delta 0.03 --wandb-run sw2-delta003
+# gamma — terminal hideout-uncertainty bonus. Watch eval/mean_hideout_uncert
+# here specifically: this is the coefficient that pays for staying unpredictable.
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-gamma 0    --wandb-run sw2-gamma0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-gamma 1.0  --wandb-run sw2-gamma10
+# zeta — cop-distance delta. Added 2026-06-11 alongside the cop retune (259ae5d)
+# and never evaluated on its own.
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-zeta 0     --wandb-run sw2-zeta0
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-zeta 0.3   --wandb-run sw2-zeta03
+# Fully sparse — terminal reward only. This is 04's ablation arm; running it here
+# at 3M steps is the cheap warning that it may learn nothing at all.
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sw2-sparse

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 from collections import defaultdict
+from types import MappingProxyType
 
 import numpy as np
 
@@ -20,10 +21,58 @@ _PROX_RANGE_EPS = 1e-9
 _SEARCH_DISC_ZERO_DEPTH_FALLBACK = 0.5
 
 
+# ---------------------------------------------------------------------------
+# Frozen cop presets
+# ---------------------------------------------------------------------------
+
+COPS_STUDY_V2 = MappingProxyType(
+    {
+        "arrest_threshold": 0.209,
+        "min_arrest_fraction": 0.357,
+        "pursuit_fraction": 0.271,
+        "pursuit_weight": 1.049,
+        "searcher_prox_fraction": 0.339,
+        "direction_certainty_threshold": 0.573,
+        "arrest_discount": 0.287,
+        "miss_discount_decay": 0.420,
+        "hideout_blend": 0.434,
+        "hideout_blend_floor": 0.076,
+        "max_passes": 7,
+        "cop_max_steps": 2,
+    }
+)
+"""The cop configuration the human study was run against. **Do not edit.**
+
+Frozen 2026-06-11 at commit ``259ae5d``, the second Optuna round. Every human
+participant played against exactly these values, and they are the defaults of
+:class:`HeuristicCops`, so they are also what the RL agent trains and is
+evaluated against.
+
+Changing any number here silently invalidates the headline human-vs-RL
+comparison: the policy would be measured against cops no participant ever
+faced, while the human records in ``data/games.sqlite`` stay pinned to the old
+behaviour. The comparison would still *run* — it would just no longer mean
+anything.
+
+A future retune therefore lands as a **new named preset** (``COPS_V3``) passed
+explicitly at the call site, never by editing this dict. ``tests/test_cop_config.py``
+pins all twelve values literally and will fail if they drift.
+
+Provenance gap worth noting in the writeup: these values match neither
+``optuna_result1.txt`` (the earlier *random-Jack* Pareto front) nor either entry
+in ``configs.json``. They came from a later policy-Jack study whose raw output
+was not saved to a file.
+"""
+
+
 class HeuristicCops(CopAgent):
     """
     Heuristic cop agent that maintains two belief distributions and uses an
     ACO-style multi-iteration assignment to decide where each cop moves.
+
+    Constructor defaults come from COPS_STUDY_V2, the frozen configuration the
+    human study ran against — see that dict's docstring before changing any of
+    them.
 
     Position PMF:
         counts[t][v][mask] = number of valid paths of length t ending at
@@ -67,18 +116,22 @@ class HeuristicCops(CopAgent):
 
     def __init__(
         self,
-        arrest_threshold: float = 0.209,
-        min_arrest_fraction: float = 0.357,
-        pursuit_fraction: float = 0.271,
-        pursuit_weight: float = 1.049,
-        searcher_prox_fraction: float = 0.339,
-        direction_certainty_threshold: float = 0.573,
-        arrest_discount: float = 0.287,
-        miss_discount_decay: float = 0.420,
-        hideout_blend: float = 0.434,
-        hideout_blend_floor: float = 0.076,
-        max_passes: int = 7,
-        cop_max_steps: int = 2,
+        # Defaults are COPS_STUDY_V2 — the frozen study configuration. Override
+        # per call site (as tools/scripted_sim.py does) rather than editing it.
+        arrest_threshold: float = COPS_STUDY_V2["arrest_threshold"],
+        min_arrest_fraction: float = COPS_STUDY_V2["min_arrest_fraction"],
+        pursuit_fraction: float = COPS_STUDY_V2["pursuit_fraction"],
+        pursuit_weight: float = COPS_STUDY_V2["pursuit_weight"],
+        searcher_prox_fraction: float = COPS_STUDY_V2["searcher_prox_fraction"],
+        direction_certainty_threshold: float = COPS_STUDY_V2[
+            "direction_certainty_threshold"
+        ],
+        arrest_discount: float = COPS_STUDY_V2["arrest_discount"],
+        miss_discount_decay: float = COPS_STUDY_V2["miss_discount_decay"],
+        hideout_blend: float = COPS_STUDY_V2["hideout_blend"],
+        hideout_blend_floor: float = COPS_STUDY_V2["hideout_blend_floor"],
+        max_passes: int = COPS_STUDY_V2["max_passes"],
+        cop_max_steps: int = COPS_STUDY_V2["cop_max_steps"],
     ) -> None:
         self._arrest_threshold = arrest_threshold
         self._min_arrest_fraction = min_arrest_fraction

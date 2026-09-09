@@ -6,10 +6,10 @@ set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 
 # CRITICAL for CPU-only training.
-# Rollout runs 6 worker *processes*; PyTorch defaults to one OMP thread per core
-# *per process*, so 6 workers x 8 threads on an 8-CPU allocation thrashes badly
+# Rollout runs 12 worker *processes* on 8 CPUs; PyTorch defaults to one OMP thread per core
+# *per process*, so 12 workers x 8 threads on an 8-CPU allocation thrashes badly
 # and can be several times slower than single-threaded. The PPO update is tiny
-# (4 epochs x 12 minibatches of 256 on a ~700k-param MLP), so nothing is lost.
+# (4 epochs x 12 minibatches of 256 on a ~0.9M-param MLP), so nothing is lost.
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1

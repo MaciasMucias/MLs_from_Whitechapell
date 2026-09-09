@@ -55,20 +55,39 @@ cd ~/MLs_from_Whitechapel
 sbatch docs/completion/slurm/pilot.sbatch
 sbatch --gres=gpu:rtx6000:1 --job-name=wc-pilot-gpu docs/completion/slurm/pilot.sbatch
 
-# 2. Sweep (after 01, 02-C1, 02-C2 land, and the pilot decides the partition)
-sbatch --array=0-8%9 docs/completion/slurm/array.sbatch \
-       docs/completion/slurm/manifests/sweep.txt
+# 2. Sweep wave 1 — lr x ent-coef, both Director arms. 18 tasks, ~2.5h.
+#    (01, 02-C1 and 02-C2 have landed; the pilot chose CPU-only.)
+J1=$(sbatch --parsable --array=0-17%9 docs/completion/slurm/array.sbatch \
+            docs/completion/slurm/manifests/sweep_w1.txt)
 
-# 3. Final runs (after the sweep picks hyperparameters)
+# 3. Sweep wave 2 — reward coefficients. EDIT <LR>/<ENT> from wave 1 FIRST.
+#    Chained because 18 + 12 = 30 tasks exceeds the 20-job submit cap.
+sbatch --dependency=afterany:$J1 --array=0-11%9 docs/completion/slurm/array.sbatch \
+       docs/completion/slurm/manifests/sweep_w2.txt
+
+# 4. Director tuning — 17 tasks. EDIT <LR>/<ENT> first. See 09-director-tuning.md.
+#    Must precede the final runs: 04's headline ON arm is 3 seeds x 15M steps and
+#    is not worth spending on an untuned Director.
+sbatch --array=0-16%9 docs/completion/slurm/array.sbatch \
+       docs/completion/slurm/manifests/director.txt
+
+# 5. Final runs — 9 tasks. EDIT <LR>/<ENT> and the chosen Director flags in
+#    final.txt first.
 sbatch --array=0-8%9 docs/completion/slurm/array.sbatch \
        docs/completion/slurm/manifests/final.txt
 ```
+
+Step 3 cannot be submitted before step 2's values are known, so in practice you
+will submit wave 1, read it, edit `sweep_w2.txt`, then submit wave 2 without the
+dependency. The `--dependency` form above is for firing both at once and editing
+the manifest while wave 1 runs — `array.sbatch` reads the manifest at task start,
+not at submit time.
 
 ## The limits that shape these scripts
 
 Per person: **72 CPUs, 2 rtx6000 GPUs, 1 TB RAM, 20 submitted jobs, 24h walltime.**
 
-- `--cpus-per-task=8` (6 workers + main + overhead) -> **9 concurrent runs** within the 72-CPU cap.
+- `--cpus-per-task=8` (12 workers, deliberately oversubscribed — see 02-C3) -> **9 concurrent runs** within the 72-CPU cap.
 - **Array size is capped at 20 tasks, not 20 running.** Each array task counts individually against
   `MaxSubmitJobs`, pending included — the `%` throttle only limits concurrent *execution*. See
   [02-C3](../02-training-reproducibility.md) for the documentation quotes. Wider sweeps go in waves

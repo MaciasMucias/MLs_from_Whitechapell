@@ -37,6 +37,7 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 from engine.env import make_initial_state
 from engine.graph import load_map
 from tools.scripted_sim import run_policy_game, run_scripted_game
+from training.checkpoints import resolve_checkpoint as _resolve
 
 MAP_PATH = "maps/whitechapel.json"
 POOL_SEED = 42
@@ -184,13 +185,12 @@ def build_policy_objective(
 
 
 def resolve_checkpoint(path_str: str) -> Path:
-    p = Path(path_str)
-    if p.is_dir():
-        pts = sorted(p.glob("*.pt"))
-        if not pts:
-            raise FileNotFoundError(f"No .pt files in {p}")
-        return pts[-1]
-    return p
+    """A run directory resolves to agent_best.pt, else its highest-step checkpoint.
+
+    See training/checkpoints.py — a plain sorted(glob("*.pt"))[-1] picks up
+    agent_best.pt while claiming to return the latest.
+    """
+    return _resolve(path_str)
 
 
 # ---------------------------------------------------------------------------

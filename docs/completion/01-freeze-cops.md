@@ -1,6 +1,6 @@
 # 01 — Freeze the cop configuration
 
-**Status:** not started
+**Status:** **done** (2026-09-09)
 **Blocks:** 03, 04, 06 — every run and every comparison depends on cops being pinned
 **Blocked by:** nothing. Start here.
 
@@ -75,13 +75,30 @@ output was not saved to a file. Worth noting as a provenance gap in the thesis.
 ## Verification
 
 ```bash
-uv run python -m pytest tests/ -q          # 26 existing tests + the new pin
-uv run python tools/scripted_sim.py        # same winner, turns, search hits as before
+uv run python -m pytest tests/ -q          # 26 existing tests + the 5 new pins
 ```
 
-`scripted_sim.py` is the behavioural check: it replays a fixed Jack path against the cops, so any
-accidental parameter change shows up as a different winner or hit count.
+**The originally planned second check does not exist.** `tools/scripted_sim.py` has no `__main__`
+block — it is a library module imported by `optuna_tune.py`, so `uv run python tools/scripted_sim.py`
+runs and prints nothing, exit 0. It would have passed silently whatever the cop parameters were.
+
+Behavioural equivalence was instead checked with a throwaway fingerprint: 60 seeded
+`RandomJack`-vs-`HeuristicCops` games through `engine.game.run_game`, hashing winner, turns
+survived, final cop positions and search hits per game. Identical before and after
+(`fcc115dbfb843f64c99f38206fce5252ff118132b5cff0a39400ddd4726320e6`), confirming the change is pure
+labelling. Rebuild it in five minutes if a future change needs the same assurance; it was not kept
+because `tests/test_cop_config.py` now guards the parameters directly and a digest over
+`run_game` output would also trip on unrelated engine changes.
 
 ## Session log
 
-- _(empty)_
+- 2026-09-09 — **done.** `COPS_STUDY_V2` added to `agents/heuristic_cops.py` as an immutable
+  `MappingProxyType`, with the freeze date, commit, the "a retune becomes COPS_V3" rule and the
+  provenance gap in its docstring. `HeuristicCops.__init__` defaults from it entry by entry, so the
+  link is visible in the signature. `tests/test_cop_config.py` pins all 12 values literally and also
+  asserts the preset's key set equals the constructor's parameter names — a future tunable added as
+  a loose default fails the suite rather than escaping the freeze. 31/31 tests pass; behavioural
+  digest unchanged.
+- 2026-09-09 — found the planned `scripted_sim.py` verification is a no-op (no `__main__` block).
+  Replaced with the seeded 60-game fingerprint described above. Worth knowing before trusting that
+  command anywhere else in these docs.

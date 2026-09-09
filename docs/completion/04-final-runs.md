@@ -13,10 +13,16 @@ plus seed repeats, all against frozen cops v2.
 
 ## Why it matters — read this before deprioritising anything here
 
-**The curriculum has never actually been run.** Every training run since 2026-06-02 passed
-`--no-curriculum`. All four recent runs' W&B summaries show `curriculum/difficulty: -1`, frozen at
-`INITIAL_DIFFICULTY`. The `CurriculumDirector` is implemented, wired end-to-end, and has **never
-been switched on in a real run**.
+**The curriculum has been run exactly once, in May 2026, and never since.** Every training run since
+2026-06-02 passed `--no-curriculum`; those W&B summaries show `curriculum/difficulty: -1`, frozen at
+`INITIAL_DIFFICULTY`.
+
+> **Correction (2026-09-09).** An earlier version of this file, and of the completion README, said
+> the curriculum had *never* been switched on. That is wrong.
+> `wandb/offline-run-20260523_134803-mdw4ndpi` (2026-05-23, 10M steps) has `no_curriculum=False`
+> and ended at `difficulty=+0.252`. It is the only ON run in the project's history, it predates both
+> the cop retune and `eval/win_rate`, and **it is the run that gave the Director its reputation for
+> underperforming.** See [09](09-director-tuning.md) for what it actually shows.
 
 The Director is the thesis's named contribution. The with/without comparison is a headline result,
 not a side ablation, and it currently has no "with" arm at all.

@@ -39,7 +39,12 @@ Also drifted, lower priority:
   `server/debug_main.py` on port 8001, not deployed).
 - `server/database.py:17` docstring says `'never'|'sometimes'|'regularly'`; stored values are
   `never_played|played_few|played_many`.
-- `training/eval.py:8` references `agent_final.pt`, never written (fixed in 02-C2).
+- ~~`training/eval.py:8` references `agent_final.pt`, never written~~ — **fixed 2026-09-09** in
+  02-C2, along with the same stale reference in the root `README.md`. Both now document the real
+  `agent_<step>.pt` / `agent_best.pt` scheme.
+- `CLAUDE.md` still says `training/` is `[NOT STARTED]` and the module is empty, in two places. It
+  is the full PPO pipeline, and as of 2026-09-09 also has `checkpoints.py`. Same section claims the
+  `training` extra has no dependencies.
 
 ## Steps
 

@@ -1,0 +1,45 @@
+# PPO sweep, WAVE 1 — 03-ppo-sweep.md. 18 tasks, submit with --array=0-17%9
+#
+#   sbatch --array=0-17%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/sweep_w1.txt
+#
+# WHAT THIS WAVE DECIDES
+#   The PPO core: --lr x --ent-coef, 3x3, run on BOTH Director arms.
+#   Sweeping both arms is what removes 03's fairness caveat — tuning only with
+#   the curriculum ON and reusing that config for the OFF arm mildly favours ON.
+#   18 tasks is under the 20-job MaxSubmitJobs cap; %9 respects the 72-CPU cap.
+#
+# COST
+#   3M steps at ~682 SPS = ~1.2h per task; 18 tasks / 9 concurrent = ~2.5h wall.
+#
+# FIXED ACROSS EVERY LINE (and carried unchanged into wave 2 and 04)
+#   --n-envs 12 --n-workers 12   batch = n_steps * n_envs = 256 * 12 = 3,072
+#   --seed 27                    one seed here; the 3-seed replication is 04's job
+#   cops frozen at COPS_STUDY_V2 (01), which is HeuristicCops()'s default
+#
+# READING THE RESULT
+#   Primary   eval/win_rate.  Secondary  eval/mean_hideout_uncert — a policy that
+#   wins by luck rather than by staying unpredictable scores low on it.
+#   Compare arms only within an arm; ON runs face suppressed-knowledge cops and
+#   will show a higher win rate for reasons that are not policy quality.
+#
+# ON = curriculum Director active (the default). Difficulty starts at -1.0.
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-4 --ent-coef 0.003 --wandb-run sw1-lr1e4-ent0003-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-4 --ent-coef 0.01  --wandb-run sw1-lr1e4-ent001-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-4 --ent-coef 0.03  --wandb-run sw1-lr1e4-ent003-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.003 --wandb-run sw1-lr3e4-ent0003-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01  --wandb-run sw1-lr3e4-ent001-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03  --wandb-run sw1-lr3e4-ent003-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-3 --ent-coef 0.003 --wandb-run sw1-lr1e3-ent0003-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-3 --ent-coef 0.01  --wandb-run sw1-lr1e3-ent001-on
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-3 --ent-coef 0.03  --wandb-run sw1-lr1e3-ent003-on
+# OFF = --no-curriculum. Same nine configs, paired line for line with the block above.
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-4 --ent-coef 0.003 --no-curriculum --wandb-run sw1-lr1e4-ent0003-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-4 --ent-coef 0.01  --no-curriculum --wandb-run sw1-lr1e4-ent001-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-4 --ent-coef 0.03  --no-curriculum --wandb-run sw1-lr1e4-ent003-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.003 --no-curriculum --wandb-run sw1-lr3e4-ent0003-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01  --no-curriculum --wandb-run sw1-lr3e4-ent001-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03  --no-curriculum --wandb-run sw1-lr3e4-ent003-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-3 --ent-coef 0.003 --no-curriculum --wandb-run sw1-lr1e3-ent0003-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-3 --ent-coef 0.01  --no-curriculum --wandb-run sw1-lr1e3-ent001-off
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 1e-3 --ent-coef 0.03  --no-curriculum --wandb-run sw1-lr1e3-ent003-off

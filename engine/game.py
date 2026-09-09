@@ -210,6 +210,7 @@ def run_game(
     rng: random.Random | None = None,
     blocking: bool = False,
     turn_limit: int | None = None,
+    initial_state: GameState | None = None,
 ) -> GameRecord:
     """
     Run a complete game and return a GameRecord.
@@ -217,6 +218,14 @@ def run_game(
     jack_logprob and jack_value are captured from AgentOutput and stored in
     each RoundRecord so the PPO training loop can build advantage estimates
     without re-running inference.
+
+    initial_state pins the starting scenario — Jack's position, the cop
+    placement, the hideout and its zone — instead of sampling one. Omit it and
+    behaviour is unchanged. This exists so a policy can be replayed on the exact
+    board a human participant faced: the course maps fix Jack's start and the
+    zone anchor but still sample the hideout within the zone and the cop starts
+    from a pool, so averaging at the map level would confound scenario
+    difficulty with player skill. See docs/completion/06-comparison.md.
     """
     from agents.random_agents import NoOpDirector  # deferred to avoid circular import
 
@@ -225,7 +234,8 @@ def run_game(
     if rng is None:
         rng = random.Random()
 
-    initial_state = make_initial_state(game_map, rng)
+    if initial_state is None:
+        initial_state = make_initial_state(game_map, rng)
     ctx = StepContext(
         game_map=game_map,
         state=initial_state,

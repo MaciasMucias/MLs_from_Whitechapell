@@ -19,8 +19,8 @@ Audit date: 2026-09-09. Branch `dev` @ `bea89b6`.
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **ready to submit** | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **ready to submit** (needs 03's lr/ent) | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | not started | 06 |
-| [05](05-study-data.md) | Close out study data | not started | 06 |
-| [06](06-comparison.md) | Human-vs-RL comparison | not started | — |
+| [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
+| [06](06-comparison.md) | Human-vs-RL comparison | **code done**, awaiting 04 | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 
@@ -69,17 +69,25 @@ More is done than `CLAUDE.md` claims (see [07](07-docs-cleanup.md)). The engine,
 `CurriculumDirector`, the full PPO pipeline, the participant UI and the live Fly deployment are all
 implemented and working.
 
-Three findings reshape what "done" means:
+Findings that reshape what "done" means. **Items 1 and 3 were superseded on 2026-09-09** — kept, with
+corrections, because both were load-bearing assumptions elsewhere in these docs.
 
-1. **The curriculum has never been run.** Every training run since 2026-06-02 passed
-   `--no-curriculum`; all W&B summaries show `curriculum/difficulty: -1` frozen at
-   `INITIAL_DIFFICULTY`. The Director is the thesis's named contribution and the with/without
-   comparison has no "with" arm. The code is written and wired — it has simply never been switched
-   on. Invisible from the file tree. See [04](04-final-runs.md).
-2. **Every checkpoint is stale.** All 7 runs finished by 2026-06-08; the cop retune landed
-   2026-06-11 (`259ae5d`). No existing policy has played the cops participants faced.
-3. **No comparison code exists.** Nothing joins `data/games.sqlite` to policy evaluation. This is the
-   actual thesis deliverable. See [06](06-comparison.md).
+1. ~~**The curriculum has never been run.**~~ **Corrected:** it ran once, 2026-05-23
+   (`offline-run-20260523_134803-mdw4ndpi`, 10M steps). Every run *since 2026-06-02* passed
+   `--no-curriculum`. That single ON run is the source of the belief that the Director
+   underperforms — and re-measuring it showed the Director **wins by 11 points on the cops it
+   trained against** and loses only on the retuned cops it never saw. See
+   [09](09-director-tuning.md).
+2. **Every checkpoint is stale.** Still true. All 7 runs finished by 2026-06-08; the cop retune
+   landed 2026-06-11 (`259ae5d`). No existing policy has played the cops participants faced.
+3. ~~**No comparison code exists.**~~ **Built 2026-09-09.** `analysis/compare.py` reconstructs each
+   participant's exact board from its stored replay and replays the policy on it, plus move-level
+   agreement against the human's own decisions. Validated on all 33 human games with zero desyncs.
+   Awaiting 04's checkpoints for the reported numbers. See [06](06-comparison.md).
+4. **New — the study data was not where the plan assumed.** The live database and the local
+   `data/games.sqlite` are **disjoint**: production holds 51 rows from 2026-08-05 onward, all
+   post-fix and uncontaminated, while the local file ends 2026-07-20. Pulling the current snapshot
+   took the usable N from **2 participants / 6 games to 11 / 33**. See [05](05-study-data.md).
 
 ---
 
@@ -98,7 +106,9 @@ the results rather than fail loudly.
    win rate sits inside its deadband, so every converged ON run reads ~0.5 regardless of policy
    quality — it is the controller's setpoint, not a score. Rank on Director-free `eval/win_rate`,
    and report final `curriculum/difficulty` beside it. See [09](09-director-tuning.md).
-3. **Production is not modified.** The study is winding down. All analysis runs on a local snapshot.
+3. **Production is not modified.** The study is winding down. All analysis runs on a dated local
+   snapshot under `data/study/`, pulled read-only with `fly ssh sftp get`. Reading is fine and is how
+   the snapshot is refreshed; writing, migrating or "fixing" production data is not.
 4. **No PyTorch on the server.** The Fly VM is 256 MB; the comparison is offline by design.
 5. **`uv` for everything** — `uv run python`, `uv add`. Never bare `python`/`pip`, never hand-edit
    `pyproject.toml`.

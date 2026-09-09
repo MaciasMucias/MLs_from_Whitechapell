@@ -1,8 +1,59 @@
 # 05 — Close out study data
 
-**Status:** not started
+**Status:** **mostly done** (2026-09-09) — snapshot pulled, sessions reconstructed, N established.
+A2/A3/A4 done; A1 and A5 outstanding.
 **Blocks:** 06
 **Blocked by:** nothing. Laptop work — do it while the GPU is busy.
+
+---
+
+## READ THIS FIRST — the two snapshots are disjoint
+
+Pulling the live snapshot on 2026-09-09 turned up something the plan did not anticipate.
+
+| | rows | collected | content |
+|---|---|---|---|
+| `data/games.sqlite` (was already local) | 64 | 2026-05-24 → **2026-07-20** | mostly pre-course, 15 admin artifacts, duplicate-bug sessions |
+| `data/study/games_20260909.sqlite` (pulled from Fly) | 51 | **2026-08-05** → 2026-09-08 | all course maps, zero admin artifacts, all post-fix |
+
+**They share no rows.** Production starts two weeks after the local file ends, so the Fly volume was
+evidently reset or recreated between 07-20 and 08-05. Consequences:
+
+1. **The local file is the only surviving copy of the May–July data.** It is not on production and
+   cannot be re-pulled.
+2. **The 2026-09-09 pull is the only local copy of the August–September data**, which is the data the
+   thesis actually wants — it is entirely post-fix and uncontaminated.
+3. The duplicate fix `594fba0` is dated **2026-07-20 23:24**, after the last local row (21:22 the
+   same day). So the local file is *entirely* pre-fix and the production file *entirely* post-fix.
+   That is a clean split, and it is why the usable N differs so sharply between them.
+4. **Both files are one laptop failure from gone.** `data/study/` has been added to `.gitignore`
+   rather than committed: the records are anonymous (the schema collects no participant identity at
+   all) but retention and backup of participant data is an ethics-approval question, not a call to
+   make in passing. **Decide where these live.**
+
+### The usable N
+
+`uv run python -m analysis.sessions --db data/study/games_20260909.sqlite --verbose`
+
+| | local (pre-fix) | **production (post-fix)** |
+|---|---|---|
+| rows | 64 | 51 |
+| admin artifacts | 15 | **0** |
+| reconstructed sessions | 36 | 23 |
+| **usable participants** | **2** | **11** |
+| **usable games** | **6** | **33** |
+
+**11 participants, 33 games** — by `gaming_habit`: `never_played` 7, `played_few` 3, `played_many` 1.
+Human win rate 9/33 = **27.3%**.
+
+Two things to report honestly in the thesis:
+
+- **Course completion rate is 48%** (11 of 23 sessions finished all three maps). Nothing is persisted
+  for an abandoned game, so the 12 incomplete sessions are dropouts, not data loss.
+- **The skill distribution is heavily novice-weighted** (7/11 never played). Any "RL vs experienced
+  humans" claim rests on a single participant. Report per-group numbers and resist pooling.
+
+Both snapshots should be kept: the pre-fix file still supports the duplicate-bug writeup below.
 
 ---
 
@@ -125,6 +176,32 @@ Session reconstruction totals must reconcile: every retained row belongs to exac
 every exclusion has a recorded reason. Report the final usable N — it is small, and the thesis needs
 an honest number.
 
+**Done.** `tests/test_sessions.py` asserts the partition reconciles (no row silently disappears), and
+`report()` prints the reconciliation for each snapshot. The snapshot is opened
+`file:...?mode=ro` so an analysis bug cannot mutate it — also asserted.
+
+## What is left
+
+- **A1 — sanity-check the live deploy.** Not done. Arguably moot: the production data is *evidence*
+  the fix works, since all 23 reconstructed sessions serve three distinct course maps. A direct
+  `POST /api/course/new` check would still confirm it cheaply.
+- **A5 — commit the untracked deployment artifacts.** Not done. `uv.lock` in particular is a live
+  landmine: the Dockerfile runs `uv sync --frozen`, which cannot work from a clean checkout without
+  it. (Checked 2026-09-09: `uv.lock` **is** tracked; the rest of A5's list needs re-checking against
+  the current tree, since it was written before commit `8528821` landed deployment artifacts.)
+- **The study is still live** — the newest row is 2026-09-08, the day before this pull. If
+  collection continues, re-pull before the final analysis and re-run `analysis.sessions`.
+
 ## Session log
 
-- _(empty)_
+- 2026-09-09 — **A2/A3/A4 done.** Pulled the live snapshot read-only
+  (`fly ssh sftp get /app/data/games.sqlite`) to `data/study/games_20260909.sqlite`; integrity check
+  passes. Discovered production and the existing local file are **disjoint** — see the top of this
+  file. Wrote `analysis/sessions.py` (reconstruction + exclusion accounting, every reason recorded,
+  ambiguous groupings flagged rather than guessed) and `tests/test_sessions.py` (15 tests, fixtures
+  built in `tmp_path`, nothing read from mutable data).
+  **Usable N went from 2 participants / 6 games to 11 / 33** purely by pulling the current data.
+- 2026-09-09 — note for whoever writes A5: use `fly ssh sftp get`, not
+  `fly ssh console -C "cat ..."`. Under Git Bash the latter mangles `/app/...` into a Windows path
+  (MSYS path translation) and, being a text pipe, risks corrupting a binary file anyway. Run it from
+  PowerShell or prefix `MSYS_NO_PATHCONV=1`.

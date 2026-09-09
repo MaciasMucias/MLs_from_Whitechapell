@@ -220,3 +220,8 @@ checkpoints/
 wandb/
 # Local/runtime artifacts
 /games.sqlite
+
+# Participant data snapshots. Anonymous (no participant ID is even collected),
+# but retention/backup is an ethics decision — see docs/completion/05-study-data.md.
+# Deliberately NOT committed by default; the snapshots are the only copies.
+data/study/

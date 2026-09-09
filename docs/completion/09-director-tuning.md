@@ -1,6 +1,28 @@
 # 09 — Director tuning
 
-**Status:** ready to submit — flags implemented, manifest written and machine-checked
+**Status:** **RUNNING** — submitted 2026-09-09 23:24 as job array **`1807070`** (17 tasks,
+`--array=0-16%9`, ~2.5h, ETA ~02:00). Filled with `lr=3e-4 --ent-coef 0.03` from
+[03](03-ppo-sweep.md).
+
+```bash
+ssh cluster 'squeue -u $USER'
+ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
+    UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807070_*.out"'
+ssh cluster 'scancel 1807070'     # abort
+```
+
+**Read it as a SCREEN, not a decision.** One seed per config against a measured **~9.5-point
+noise floor** — wave 1's `sw1-lr3e4-ent003-on` scored 39.5% and wave 2's `sw2-control`, the
+identical command, scored 30.0%. Most plausible Director effects are smaller than that. Take the
+top 2–3 configs and confirm them at 3+ seeds before anything enters 04.
+
+**The first thing to check is not the ranking**, it is whether `diff_max` leaves −1.000 in *any*
+run. It did not in a single one of wave 1's nine ON runs. `sweep_report` now prints this
+explicitly. If it stays pinned here too, the curriculum still never engages and the fix is **longer
+runs, not a different grid**.
+
+These are also the first runs with the 2026-09-09 seeding fix, so `--seed` finally controls weight
+init, action sampling and minibatch order rather than only the env workers.
 **Blocks:** 04 — the headline ON arm is not worth 3 seeds until the Director is tuned
 **Blocked by:** 03 (needs the chosen `lr`/`ent-coef`)
 

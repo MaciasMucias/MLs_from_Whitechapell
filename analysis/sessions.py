@@ -244,12 +244,16 @@ def report(
 
     print(f"\nSnapshot: {db_path}")
     if games:
-        print(f"Collected: {games[0].created_at:%Y-%m-%d} to {games[-1].created_at:%Y-%m-%d}")
+        print(
+            f"Collected: {games[0].created_at:%Y-%m-%d} to {games[-1].created_at:%Y-%m-%d}"
+        )
     print(f"Rows: {len(games)}\n")
 
     print(f"{'':4}{len(artifacts):>4} rows  excluded — {ADMIN_ARTIFACT}")
-    print(f"{'':4}{len(games) - len(artifacts):>4} rows  participant play, in "
-          f"{len(sessions)} reconstructed sessions\n")
+    print(
+        f"{'':4}{len(games) - len(artifacts):>4} rows  participant play, in "
+        f"{len(sessions)} reconstructed sessions\n"
+    )
 
     counts: Counter[str] = Counter()
     for session in sessions:

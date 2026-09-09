@@ -285,27 +285,38 @@ def main() -> None:
     cop_sets = [("COPS_STUDY_V2 (frozen - the study cops)", None)]
     if args.held_out_cops:
         cop_sets.append(
-            ("COPS_PRERETUNE_V1 (held out - no current policy trained on these)",
-             dict(COPS_PRERETUNE_V1))
+            (
+                "COPS_PRERETUNE_V1 (held out - no current policy trained on these)",
+                dict(COPS_PRERETUNE_V1),
+            )
         )
 
     for label, cop_params in cop_sets:
         rows: list[tuple[str, int | None, dict[str, float]]] = []
         for path, agent, step in entries:
-            print(f"  evaluating {path} (step {step:,}) vs {label.split()[0]} ...",
-                  flush=True)
+            print(
+                f"  evaluating {path} (step {step:,}) vs {label.split()[0]} ...",
+                flush=True,
+            )
             rng = random.Random(args.seed)
             rows.append(
-                (path, step,
-                 eval_policy(agent, game_map, args.n_games, device, rng, cop_params))
+                (
+                    path,
+                    step,
+                    eval_policy(agent, game_map, args.n_games, device, rng, cop_params),
+                )
             )
 
         if not args.no_baseline:
             rng = random.Random(args.seed)
             rows.append(
-                ("[random]", None,
-                 eval_agent(RandomJack(rng=rng), game_map, args.n_games, rng,
-                            cop_params))
+                (
+                    "[random]",
+                    None,
+                    eval_agent(
+                        RandomJack(rng=rng), game_map, args.n_games, rng, cop_params
+                    ),
+                )
             )
 
         _print_table(rows, args.n_games, args.map, cops_label=label)

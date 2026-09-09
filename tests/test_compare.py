@@ -51,10 +51,18 @@ def _ids(games):
 
 def test_run_game_without_initial_state_is_unchanged(gm):
     """Omitting initial_state must reproduce the previous behaviour exactly."""
-    a = run_game(gm, RandomJack(random.Random(5)), RandomCops(random.Random(5)),
-                 rng=random.Random(99))
-    b = run_game(gm, RandomJack(random.Random(5)), RandomCops(random.Random(5)),
-                 rng=random.Random(99))
+    a = run_game(
+        gm,
+        RandomJack(random.Random(5)),
+        RandomCops(random.Random(5)),
+        rng=random.Random(99),
+    )
+    b = run_game(
+        gm,
+        RandomJack(random.Random(5)),
+        RandomCops(random.Random(5)),
+        rng=random.Random(99),
+    )
     assert a.initial_state == b.initial_state
     assert a.winner == b.winner
     assert a.turns_survived == b.turns_survived
@@ -64,8 +72,13 @@ def test_run_game_starts_from_the_supplied_state(gm):
     """With a state supplied, the game must begin from precisely it."""
     pinned = make_initial_state(gm, rng=random.Random(1234))
     # A different rng would sample a different scenario if it were used at all.
-    record = run_game(gm, RandomJack(random.Random(2)), HeuristicCops(),
-                      rng=random.Random(777), initial_state=pinned)
+    record = run_game(
+        gm,
+        RandomJack(random.Random(2)),
+        HeuristicCops(),
+        rng=random.Random(777),
+        initial_state=pinned,
+    )
     assert record.initial_state == pinned
     assert record.history[0].state_before == pinned
 
@@ -74,8 +87,13 @@ def test_supplied_state_survives_regardless_of_rng(gm):
     """The scenario must not depend on the rng once it is pinned."""
     pinned = make_initial_state(gm, rng=random.Random(31337))
     starts = {
-        run_game(gm, RandomJack(random.Random(3)), HeuristicCops(),
-                 rng=random.Random(seed), initial_state=pinned).initial_state
+        run_game(
+            gm,
+            RandomJack(random.Random(3)),
+            HeuristicCops(),
+            rng=random.Random(seed),
+            initial_state=pinned,
+        ).initial_state
         for seed in (0, 1, 2)
     }
     assert starts == {pinned}
@@ -156,8 +174,12 @@ def test_a_policy_can_be_run_on_a_reconstructed_scenario(
     state = scenario_from_replay(entry["replay"])
     game_map = course_maps[entry["map_name"]]
     record = run_game(
-        game_map, RandomJack(random.Random(0)), HeuristicCops(),
-        director=None, rng=random.Random(0), initial_state=state,
+        game_map,
+        RandomJack(random.Random(0)),
+        HeuristicCops(),
+        director=None,
+        rng=random.Random(0),
+        initial_state=state,
     )
     assert record.initial_state == state
     assert record.winner in {"jack", "cops"}

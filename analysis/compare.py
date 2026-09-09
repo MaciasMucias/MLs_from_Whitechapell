@@ -118,10 +118,7 @@ def load_human_games(
     """
     sessions, _ = reconstruct_sessions(load_games(db_path))
     wanted = {
-        g.row_id
-        for s in sessions
-        if include_flagged or s.is_usable
-        for g in s.games
+        g.row_id for s in sessions if include_flagged or s.is_usable for g in s.games
     }
     if not wanted:
         return []
@@ -272,9 +269,13 @@ def compare(
         return {}
 
     human_wins = sum(h.human_won for h in humans)
-    print(f"\nHuman games: {len(humans)}"
-          f"{' (INCLUDING FLAGGED — not the headline number)' if include_flagged else ''}")
-    print(f"Human win rate: {human_wins}/{len(humans)} = {human_wins / len(humans):.1%}")
+    print(
+        f"\nHuman games: {len(humans)}"
+        f"{' (INCLUDING FLAGGED — not the headline number)' if include_flagged else ''}"
+    )
+    print(
+        f"Human win rate: {human_wins}/{len(humans)} = {human_wins / len(humans):.1%}"
+    )
     print(f"Policy replays per scenario: {n_replays}\n")
 
     results: dict[str, dict] = {}
@@ -327,9 +328,11 @@ def _print_table(results: dict, humans: list[HumanGame]) -> None:
     n_lost = sum(not h.human_won for h in humans)
     n_won = len(humans) - n_lost
     print()
-    col = (f"{'checkpoint':<24} {'step':>8} {'policy win%':>12} {'vs human':>9} "
-           f"{f'human lost (n={n_lost})':>20} {f'human won (n={n_won})':>19} "
-           f"{'agree%':>8} {'desync':>7}")
+    col = (
+        f"{'checkpoint':<24} {'step':>8} {'policy win%':>12} {'vs human':>9} "
+        f"{f'human lost (n={n_lost})':>20} {f'human won (n={n_won})':>19} "
+        f"{'agree%':>8} {'desync':>7}"
+    )
     print(col)
     print("-" * len(col))
     human_rate = sum(h.human_won for h in humans) / len(humans)

@@ -47,8 +47,18 @@ def _mkdb(path, rows):
             "INSERT INTO games (game_id, map_name, scenario_order, gaming_habit, "
             "outcome, turns_survived, turn_limit, move_sequence, replay, created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (f"g{i}", m, order, habit, outcome, 5, 15, "[]", "{}",
-             (BASE + dt.timedelta(seconds=offset)).isoformat()),
+            (
+                f"g{i}",
+                m,
+                order,
+                habit,
+                outcome,
+                5,
+                15,
+                "[]",
+                "{}",
+                (BASE + dt.timedelta(seconds=offset)).isoformat(),
+            ),
         )
     conn.commit()
     conn.close()
@@ -57,8 +67,14 @@ def _mkdb(path, rows):
 
 def _game(map_name="course_1", order=0, habit="played_many", outcome="cops", offset=0):
     return Game(
-        row_id=1, game_id="g", map_name=map_name, scenario_order=order,
-        gaming_habit=habit, outcome=outcome, turns_survived=5, turn_limit=15,
+        row_id=1,
+        game_id="g",
+        map_name=map_name,
+        scenario_order=order,
+        gaming_habit=habit,
+        outcome=outcome,
+        turns_survived=5,
+        turn_limit=15,
         created_at=BASE + dt.timedelta(seconds=offset),
     )
 
@@ -71,10 +87,13 @@ def _session(*specs):
 
 
 def test_load_orders_oldest_first(tmp_path):
-    db = _mkdb(tmp_path / "g.sqlite", [
-        ("course_1", 0, "played_many", "cops", 500),
-        ("course_2", 1, "played_many", "jack", 100),
-    ])
+    db = _mkdb(
+        tmp_path / "g.sqlite",
+        [
+            ("course_1", 0, "played_many", "cops", 500),
+            ("course_2", 1, "played_many", "jack", 100),
+        ],
+    )
     games = load_games(db)
     assert [g.map_name for g in games] == ["course_2", "course_1"]
 
@@ -137,12 +156,15 @@ def test_non_sequential_order_is_flagged_not_guessed():
 
 def test_admin_rows_are_separated_before_grouping(tmp_path):
     """Admin rows interleave with real play and must not split a session."""
-    db = _mkdb(tmp_path / "g.sqlite", [
-        ("course_1", 0, "played_many", "cops", 0),
-        ("unknown", -1, "unknown", "jack", 30),      # interleaved admin row
-        ("course_2", 1, "played_many", "jack", 60),
-        ("course_3", 2, "played_many", "cops", 90),
-    ])
+    db = _mkdb(
+        tmp_path / "g.sqlite",
+        [
+            ("course_1", 0, "played_many", "cops", 0),
+            ("unknown", -1, "unknown", "jack", 30),  # interleaved admin row
+            ("course_2", 1, "played_many", "jack", 60),
+            ("course_3", 2, "played_many", "cops", 90),
+        ],
+    )
     sessions, artifacts = reconstruct_sessions(load_games(db))
     assert len(artifacts) == 1
     assert len(sessions) == 1
@@ -151,31 +173,40 @@ def test_admin_rows_are_separated_before_grouping(tmp_path):
 
 
 def test_a_long_gap_starts_a_new_session(tmp_path):
-    db = _mkdb(tmp_path / "g.sqlite", [
-        ("course_1", 0, "played_many", "cops", 0),
-        ("course_2", 1, "played_many", "cops", 100_000),
-    ])
+    db = _mkdb(
+        tmp_path / "g.sqlite",
+        [
+            ("course_1", 0, "played_many", "cops", 0),
+            ("course_2", 1, "played_many", "cops", 100_000),
+        ],
+    )
     sessions, _ = reconstruct_sessions(load_games(db))
     assert len(sessions) == 2
 
 
 def test_changing_gaming_habit_starts_a_new_session(tmp_path):
-    db = _mkdb(tmp_path / "g.sqlite", [
-        ("course_1", 0, "played_many", "cops", 0),
-        ("course_2", 1, "never_played", "cops", 60),
-    ])
+    db = _mkdb(
+        tmp_path / "g.sqlite",
+        [
+            ("course_1", 0, "played_many", "cops", 0),
+            ("course_2", 1, "never_played", "cops", 60),
+        ],
+    )
     sessions, _ = reconstruct_sessions(load_games(db))
     assert len(sessions) == 2
 
 
 def test_order_restarting_starts_a_new_session(tmp_path):
     """Two participants back to back: 0,1 then 0,1 again."""
-    db = _mkdb(tmp_path / "g.sqlite", [
-        ("course_1", 0, "played_many", "cops", 0),
-        ("course_2", 1, "played_many", "cops", 60),
-        ("course_3", 0, "played_many", "cops", 120),
-        ("course_1", 1, "played_many", "cops", 180),
-    ])
+    db = _mkdb(
+        tmp_path / "g.sqlite",
+        [
+            ("course_1", 0, "played_many", "cops", 0),
+            ("course_2", 1, "played_many", "cops", 60),
+            ("course_3", 0, "played_many", "cops", 120),
+            ("course_1", 1, "played_many", "cops", 180),
+        ],
+    )
     sessions, _ = reconstruct_sessions(load_games(db))
     assert len(sessions) == 2
     assert all(len(s.games) == 2 for s in sessions)
@@ -196,9 +227,11 @@ def test_every_row_is_accounted_for(tmp_path):
 
 
 def test_win_rate_counts_jack_wins():
-    s = Session(games=[
-        _game(outcome="jack", offset=0),
-        _game(outcome="cops", offset=60),
-        _game(outcome="cops", offset=120),
-    ])
+    s = Session(
+        games=[
+            _game(outcome="jack", offset=0),
+            _game(outcome="cops", offset=60),
+            _game(outcome="cops", offset=120),
+        ]
+    )
     assert s.win_rate == pytest.approx(1 / 3)

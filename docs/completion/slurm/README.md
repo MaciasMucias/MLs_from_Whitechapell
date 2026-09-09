@@ -10,11 +10,20 @@ Scheduler confirmed **Slurm** (2026-09-09). Templates for the runs in
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 cd /path/to/MLs_from_Whitechapel
-uv sync --extra training --no-dev
+uv sync --extra training          # NOT --no-dev, see below
 ```
 
-If nine concurrent jobs each run `uv sync` against the same `.venv`, they race and corrupt it. This
-is the single easiest way to lose a whole array. Sync once, then submit.
+If nine concurrent jobs each sync against the same `.venv`, they race and corrupt it. This is the
+single easiest way to lose a whole array. Sync once, then submit.
+
+**`env.sh` sets `UV_NO_SYNC=1`** so jobs physically cannot do it. That matters because `uv run`
+syncs *by default* — a bare `uv run` is enough, no explicit `uv sync` required. Verified 2026-09-09:
+`uv run` inside `srun` reinstalled 11 packages before starting.
+
+**Sync without `--no-dev`.** `uv run` compares the venv against the full default set, so a venv
+built with `--no-dev` looks stale to it and it re-syncs. Since `UV_NO_SYNC=1` now blocks that, a
+`--no-dev` venv would instead make jobs fail on a missing import. The dev extra is a few small
+packages; install them and keep the environment consistent.
 
 ## Fill these in
 

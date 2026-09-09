@@ -5,6 +5,14 @@ set -euo pipefail
 # uv was installed as a user (not system-wide) — make it findable.
 export PATH="$HOME/.local/bin:$PATH"
 
+# CRITICAL: never let a job touch the shared .venv.
+# `uv run` syncs the environment by default. With 9 array tasks starting at once
+# that is 9 processes mutating one .venv on shared storage simultaneously — the
+# fastest way to lose a whole array. Observed 2026-09-09: a bare `uv run` inside
+# srun reinstalled 11 packages before starting.
+# Sync ONCE on the login node (`uv sync --extra training`), then let jobs read it.
+export UV_NO_SYNC=1
+
 # CRITICAL for CPU-only training.
 # Rollout runs 12 worker *processes* on 8 CPUs; PyTorch defaults to one OMP thread per core
 # *per process*, so 12 workers x 8 threads on an 8-CPU allocation thrashes badly

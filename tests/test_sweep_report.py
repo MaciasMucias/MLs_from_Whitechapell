@@ -203,9 +203,11 @@ def _log_diff(tmp_path, name, diffs, win=30.0):
 
 
 def test_tracks_max_and_final_difficulty(tmp_path):
-    r = parse_log(_log_diff(tmp_path, "ramped", ["-1.000", "-0.400", "+0.252", "+0.100"]))
+    r = parse_log(
+        _log_diff(tmp_path, "ramped", ["-1.000", "-0.400", "+0.252", "+0.100"])
+    )
     assert r.max_difficulty == 0.252
-    assert r.final_difficulty == 0.100      # final is not the max
+    assert r.final_difficulty == 0.100  # final is not the max
     assert r.curriculum_engaged is True
 
 
@@ -236,7 +238,10 @@ def test_report_reports_partial_engagement(tmp_path, capsys):
         _log_diff(tmp_path, "b", ["-1.000", "-0.200"]),
     ]
     report([str(p) for p in runs])
-    assert "curriculum engaged (difficulty left its floor) in 1/2" in capsys.readouterr().out
+    assert (
+        "curriculum engaged (difficulty left its floor) in 1/2"
+        in capsys.readouterr().out
+    )
 
 
 def test_difficulty_absent_does_not_crash(tmp_path):

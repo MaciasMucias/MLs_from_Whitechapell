@@ -115,7 +115,8 @@ def parse_log(path: str | Path) -> Run:
                 value = float(d.group(1))
                 run.final_difficulty = value
                 run.max_difficulty = (
-                    value if run.max_difficulty is None
+                    value
+                    if run.max_difficulty is None
                     else max(run.max_difficulty, value)
                 )
             continue
@@ -178,16 +179,20 @@ def report(paths: list[str], noise_pp: float = NOISE_PP) -> list[Run]:
     if on_runs:
         engaged = [r for r in on_runs if r.curriculum_engaged]
         if not engaged:
-            print(f"*** curriculum/difficulty stayed pinned at its floor in ALL "
-                  f"{len(on_runs)} ON runs. ***")
+            print(
+                f"*** curriculum/difficulty stayed pinned at its floor in ALL "
+                f"{len(on_runs)} ON runs. ***"
+            )
             print("No run curricularised — each trained at a fixed suppression level.")
             print("The P-controller only ramps once win rate leaves the deadband from")
             print("above, so this usually means the runs are too short, not that the")
             print("Director settings are wrong. See 09-director-tuning.md.")
             print()
         else:
-            print(f"curriculum engaged (difficulty left its floor) in "
-                  f"{len(engaged)}/{len(on_runs)} ON runs.")
+            print(
+                f"curriculum engaged (difficulty left its floor) in "
+                f"{len(engaged)}/{len(on_runs)} ON runs."
+            )
             print()
     return runs
 

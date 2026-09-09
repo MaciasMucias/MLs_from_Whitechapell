@@ -1,9 +1,27 @@
 # Director tuning — 09-director-tuning.md. 17 tasks, submit with --array=0-16%9
 #
-# BEFORE SUBMITTING: replace every <LR> and <ENT> with 03's chosen values.
+# FILLED 2026-09-09 with lr=3e-4, ent-coef=0.03 — 03's chosen config (wave 1
+# winner, entropy confirmed as an interior optimum by the boundary probe).
 #
 #   sbatch --array=0-16%9 docs/completion/slurm/array.sbatch \
 #          docs/completion/slurm/manifests/director.txt
+#
+# ### READ THIS BEFORE RANKING ANYTHING ###
+#
+# THIS IS A SCREEN, NOT A DECISION. One seed per config, and the measured
+# run-to-run noise floor is ~9.5 points of eval/win_rate: wave 1's
+# sw1-lr3e4-ent003-on scored 39.5% and wave 2's sw2-control — the identical
+# command — scored 30.0%. Most plausible Director effects are smaller than that.
+#
+# So: use this wave to find the 2-3 most promising configurations, then confirm
+# them at 3+ seeds before letting anything into 04. Do NOT read the top row as
+# "the best Director config"; at n=1 the ordering within a few points is noise.
+#
+# These runs are the first with the 2026-09-09 seeding fix, so --seed now
+# actually controls weight init, action sampling and minibatch order. Before
+# that it controlled only the env workers, which is why the noise floor is as
+# wide as it is. Re-measuring that floor from the three kp variants of the
+# CONTROL row is worth doing while reading this wave.
 #
 # JUDGE ON eval/win_rate, WHICH IS DIRECTOR-FREE. Not charts/win_rate.
 #   The P-controller drives difficulty until win_rate sits in the deadband, so
@@ -24,35 +42,35 @@
 # The hypothesis under test: 3.3M steps at full suppression entrenches a
 # shortest-path policy that the agent then cannot unlearn, so a gentler start
 # should beat a gentler ramp.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.1  --wandb-run dir-i10-kp010-CONTROL
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.02 --wandb-run dir-i10-kp002
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.3  --wandb-run dir-i10-kp030
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -0.5 --curriculum-kp 0.1  --wandb-run dir-i05-kp010
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -0.5 --curriculum-kp 0.02 --wandb-run dir-i05-kp002
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -0.5 --curriculum-kp 0.3  --wandb-run dir-i05-kp030
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty 0.0  --curriculum-kp 0.1  --wandb-run dir-i00-kp010
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty 0.0  --curriculum-kp 0.02 --wandb-run dir-i00-kp002
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty 0.0  --curriculum-kp 0.3  --wandb-run dir-i00-kp030
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.1  --wandb-run dir-i10-kp010-CONTROL
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.02 --wandb-run dir-i10-kp002
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.3  --wandb-run dir-i10-kp030
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -0.5 --curriculum-kp 0.1  --wandb-run dir-i05-kp010
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -0.5 --curriculum-kp 0.02 --wandb-run dir-i05-kp002
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -0.5 --curriculum-kp 0.3  --wandb-run dir-i05-kp030
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty 0.0  --curriculum-kp 0.1  --wandb-run dir-i00-kp010
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty 0.0  --curriculum-kp 0.02 --wandb-run dir-i00-kp002
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty 0.0  --curriculum-kp 0.3  --wandb-run dir-i00-kp030
 
 # --- Ramp-shape probes, one at a time off the control (5) -----------------
 # Rate limit: 0.01 per update caps the traverse at ~100 updates (~300k steps)
 # minimum, against the ~1M steps the historic run actually took. Combined with
 # kp 0.02 it becomes the binding constraint rather than the gain.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-max-step 0.01 --wandb-run dir-cap001
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-ratchet --wandb-run dir-ratchet
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-max-step 0.01 --curriculum-ratchet --wandb-run dir-cap001-ratchet
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-max-step 0.01 --wandb-run dir-cap001
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-ratchet --wandb-run dir-ratchet
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-max-step 0.01 --curriculum-ratchet --wandb-run dir-cap001-ratchet
 # Wider deadband = fewer corrections = less churn. Narrower = tighter tracking.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-target-low 0.3 --curriculum-target-high 0.7 --wandb-run dir-band3070
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-target-low 0.45 --curriculum-target-high 0.55 --wandb-run dir-band4555
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-target-low 0.3 --curriculum-target-high 0.7 --wandb-run dir-band3070
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-target-low 0.45 --curriculum-target-high 0.55 --wandb-run dir-band4555
 
 # --- Combined candidates (2) ----------------------------------------------
 # Purest test of "learn evasion from the start": begin with the Director
 # inactive and let it only ever get harder. No suppression phase to unlearn.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty 0.0 --curriculum-kp 0.1 --curriculum-ratchet --wandb-run dir-i00-ratchet
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty 0.0 --curriculum-kp 0.1 --curriculum-ratchet --wandb-run dir-i00-ratchet
 # Everything slowed at once — the maximally gentle curriculum.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --initial-difficulty -0.5 --curriculum-kp 0.02 --curriculum-max-step 0.01 --curriculum-ratchet --wandb-run dir-gentle
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -0.5 --curriculum-kp 0.02 --curriculum-max-step 0.01 --curriculum-ratchet --wandb-run dir-gentle
 
 # --- OFF reference (1) ----------------------------------------------------
 # Same lr/ent, no Director. The number every line above must beat on
 # eval/win_rate for the Director to be worth claiming as a contribution.
-uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --no-curriculum --wandb-run dir-OFF-reference
+uv run python -m training.train --total-steps 3000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --no-curriculum --wandb-run dir-OFF-reference

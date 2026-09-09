@@ -47,19 +47,23 @@ whole 04 final set — 2 Director arms + the reward ablation, **3 seeds each, 9 
 concurrent window instead of running sequentially. The seeds matter most: PPO seed variance can
 exceed the Director effect being claimed, so single-seed arms would not support the conclusion.
 
-**Next concrete step (2026-09-09): submit sweep wave 1.** 01, 02 and the 02-C3 pilot are done; the
-critical path is now pure cluster time. On the login node:
+**Sweep wave 1 is RUNNING** — job array **`1806901`**, submitted 2026-09-09 12:55, 18 tasks,
+9 concurrent, ~2.5h expected.
 
 ```bash
-cd ~/MLs_from_Whitechapel && git pull
-export PATH="$HOME/.local/bin:$PATH" && uv sync --extra training --no-dev   # once, never from jobs
-sbatch --array=0-17%9 docs/completion/slurm/array.sbatch \
-       docs/completion/slurm/manifests/sweep_w1.txt
+ssh cluster 'squeue -u $USER'                                    # progress
+ssh cluster 'cd ~/MLs_from_Whitechapel && tail -3 logs/wc-train_1806901_*.out'
+ssh cluster 'scancel 1806901'                                    # abort the wave
 ```
 
-Then read the ON block, fill `<LR>`/`<ENT>` into `sweep_w2.txt`, and submit wave 2. Full ordering in
-[`slurm/README.md`](slurm/README.md). Remember: **never run Python on the login node** — its CPU
-lacks x86-64-v2 and numpy aborts.
+**Next concrete step: read wave 1's ON block, pick `lr`/`ent-coef`, fill the `<LR>`/`<ENT>`
+placeholders in `sweep_w2.txt`, and submit wave 2** (`--array=0-11%9`). Rank on `eval/win_rate`;
+`charts/win_rate` is meaningless for ON runs (invariant 2b). Then 09, then 04. Full ordering in
+[`slurm/README.md`](slurm/README.md).
+
+W&B runs offline on the compute nodes — sync from the login node afterwards with
+`wandb sync wandb/offline-*`. Remember: **never run Python on the login node**; its CPU lacks
+x86-64-v2 and numpy aborts with a misleading error.
 
 ---
 

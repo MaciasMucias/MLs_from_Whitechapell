@@ -1,7 +1,7 @@
 # 03 — PPO hyperparameter sweep
 
-**Status:** **ready to submit** — grid designed, manifests written and machine-checked. Nothing left
-but cluster time.
+**Status:** **wave 1 RUNNING** — submitted 2026-09-09 12:55 as job array **1806901**
+(`--array=0-17%9`, 18 tasks, ~2.5h). Wave 2 needs `<LR>`/`<ENT>` filled in from wave 1's ON block.
 **Blocks:** 04
 **Blocked by:** ~~01 (frozen cops), 02-C1 (coefficients must be logged)~~ — both landed 2026-09-09.
 
@@ -151,6 +151,20 @@ and **that is the honest finding to report** — not a bug to hide.
   **Corrected this file's own verification criterion:** difficulty pinned at -1.0 means the Director
   is suppressing maximally, not that it is disengaged — the previous wording would have sent a
   future session hunting a non-existent bug.
-- 2026-09-09 — **stopped here deliberately.** Submitting the waves is cluster execution and was out
-  of scope for this session. Next step is literally the `sbatch` line in
-  [slurm/README.md](slurm/README.md), after `uv sync --extra training --no-dev` on the login node.
+- 2026-09-09 — **wave 1 submitted: job array `1806901`, `--array=0-17%9`.** Both nodes were idle and
+  the queue empty at submission. 9 tasks running immediately (5 on `stud-1`, 4 on `stud-2`), 9
+  pending under the `%9` throttle with reason `JobArrayTaskLimit` — which is the throttle working,
+  not an error. Task 0-8 map to the nine ON configs in manifest order, verified from the logs.
+  Cluster is at `688966c`.
+- 2026-09-09 — **found and fixed a real trap during pre-flight: `uv run` syncs by default.** A bare
+  `uv run` inside `srun` reinstalled 11 packages before starting, so nine array tasks would each
+  have mutated the shared `.venv` on Lustre concurrently — the exact failure `slurm/README.md`
+  warns is "the single easiest way to lose a whole array", reachable *without* anyone writing
+  `uv sync`. `env.sh` now exports **`UV_NO_SYNC=1`**, and the login-node sync must NOT use
+  `--no-dev` (a `--no-dev` venv reads as stale to `uv run`, which with `UV_NO_SYNC=1` would surface
+  as a missing import instead). Verified on a compute node: `UV_NO_SYNC=1`, `OMP_NUM_THREADS=1`,
+  imports fine, nothing installed.
+- 2026-09-09 — pre-flight smoke run on `stud-1` before committing the array: 12 envs / 12 workers,
+  ~730 instant SPS (above the 682 the pilot measured), new eval diagnostics present,
+  `agent_best.pt` written. **Never run this check on the login node** — its CPU lacks x86-64-v2 and
+  numpy aborts with a misleading error.

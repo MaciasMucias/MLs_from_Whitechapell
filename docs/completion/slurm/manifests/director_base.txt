@@ -1,0 +1,53 @@
+# Director base runs — 09-director-tuning.md phase 2. 3 tasks, --array=0-2%3
+#
+#   sbatch --array=0-2%3 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/director_base.txt
+#
+# ### WHY THESE EXIST ###
+#
+# The 3M-step runs in 03 and 09 stop BEFORE the curriculum starts working. In
+# the only historic Director run (offline-run-20260523_134803-mdw4ndpi, 10M
+# steps against the OLD cops) the first difficulty uptick was at step
+# 3,256,320 — 1,059 of 3,255 updates were pinned at -1.0 first. Every sweep run
+# so far ended ~250k steps short of that.
+#
+# That is the whole explanation for 09's null result: difficulty moved on update
+# 976 of 976, so 975/976 of training was identical across configurations and six
+# runs produced byte-identical eval metrics.
+#
+# Against frozen COPS_STUDY_V2 the agent is WEAKER than that historic run (09's
+# control spent 769/976 updates below the band), so expect the uptick LATER than
+# 3.26M — plausibly 4-6M. Hence 8M here, with margin.
+#
+# These three runs are the shared prefix. Every Director arm then branches from
+# their checkpoints via --branch-from, so the pre-curriculum phase is paid three
+# times instead of fifteen, and all arms start from an identical policy.
+#
+# ### WHY --curriculum-kp 0 ###
+#
+# kp=0 makes the controller's delta zero, so new_difficulty == curriculum_
+# difficulty and the update is skipped entirely: difficulty is PINNED at
+# --initial-difficulty. A base pinned at -1.0 is provably identical to a
+# curriculum-ON base right up to the uptick (the controller cannot move down
+# from the clamp, and cannot move up until win rate exceeds the band), so this
+# costs nothing and makes the base unambiguous and reproducible.
+#
+# ### PICKING THE BRANCH POINT ###
+#
+# Branch at the first checkpoint where TRAINING win rate sustains > 0.60 — the
+# band top, i.e. where the controller would first have hardened difficulty.
+# Checkpoints land every 153,600 steps, which is ample granularity.
+#
+#   grep '^update=' logs/wc-train_<id>_0.out | awk -F'win_rate=' \
+#       '{split($2,a," "); if (a[1]>0.6) {print; exit}}'
+#
+# If none of the three crosses 0.60 by 8M, do NOT branch early — extend the
+# bases. Branching before the uptick reproduces 09 exactly.
+#
+# --keep-checkpoints 0 keeps every periodic checkpoint, because the branch point
+# is chosen after the fact and pruning would discard it.
+#
+# lr/ent from 03 (wave 1 winner, entropy confirmed an interior optimum).
+uv run python -m training.train --total-steps 8000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0 --keep-checkpoints 0 --seed 27 --wandb-run dbase-s27
+uv run python -m training.train --total-steps 8000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0 --keep-checkpoints 0 --seed 28 --wandb-run dbase-s28
+uv run python -m training.train --total-steps 8000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-kp 0 --keep-checkpoints 0 --seed 29 --wandb-run dbase-s29

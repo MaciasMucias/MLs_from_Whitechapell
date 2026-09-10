@@ -1,7 +1,7 @@
 # 03 — PPO hyperparameter sweep
 
-**Status:** **wave 1 COMPLETE** (2026-09-09, array `1806901`, 18/18 tasks). Entropy boundary probe
-(array `1806936`) running. Wave 2 pending the probe.
+**Status:** **DONE** (2026-09-10). Waves 1+2 and the entropy probe all complete; chosen config
+is `--lr 3e-4 --ent-coef 0.03`.
 **Blocks:** 04
 **Blocked by:** ~~01 (frozen cops), 02-C1 (coefficients must be logged)~~ — both landed 2026-09-09.
 
@@ -137,17 +137,50 @@ of "the Director makes Jack cautious".
 
 ### The curriculum never engaged
 
-`curriculum/difficulty` stayed at **−1.000 in all nine ON runs**. The P-controller only moves once
-win rate leaves `[0.4, 0.6]` from above, and the best run reached 39.5%. So the ON arm here is
-"training against maximally-suppressed cops", not a curriculum — exactly as this file predicted, and
-exactly what [09](09-director-tuning.md) exists to fix. **The wave-1 ON/OFF result is therefore not
+`curriculum/difficulty` stayed at **−1.000 in all nine ON runs**. So the ON arm here is "training
+against maximally-suppressed cops", not a curriculum. **The wave-1 ON/OFF result is therefore not
 the Director comparison the thesis wants**; do not report it as one.
 
-### Boundary probe (array `1806936`)
+**Why (established 2026-09-10, and it is a property of the run length, not of the task):** the
+historic 10M-step Director run's first difficulty uptick was at step **3,256,320**. Every run here
+is 3M steps, so they all stop ~250k steps short of the point where the controller first acts. See
+[09](09-director-tuning.md) — this is what its branch design exists to get past.
+
+### Boundary probe (array `1806936`) — `0.03` is an interior optimum
 
 `ent-coef 0.03` was the largest value in the grid, so the winner sat on the edge. Two extra runs at
-`0.06` and `0.10` (`slurm/manifests/ent_probe.txt`) extend the axis. See the session log for the
-outcome.
+`0.06` and `0.10` settled it. At `lr=3e-4` the curve is a clean inverted-U:
+
+| ent-coef | 0.003 | 0.01 | **0.03** | 0.06 | 0.10 |
+|---|---|---|---|---|---|
+| eval win% | 18.0 | 36.0 | **39.5** | 26.5 | 16.5 |
+
+It turns over sharply past 0.03, so the boundary was worth checking and the choice holds.
+
+## RESULTS — wave 2, reward coefficients (array `1806976`, 12/12)
+
+**Nothing here is significant, and the control is why.** `sw2-control` repeats wave 1's winner
+byte-identically and scored **30.0%** against that run's **39.5%** — a 9.5-point gap between the
+same command run twice. That is the sweep's run-to-run noise floor, and wave 2's entire spread is
+13.0 points.
+
+| run | win% | vs control |
+|---|---|---|
+| `gamma0` | 37.5 | +7.5 |
+| `alpha0` / `alpha03` / `beta015` | 36.5 | +6.5 |
+| **`sparse`** (all shaping off) | **33.0** | **+3.0** |
+| **`control`** | **30.0** | — |
+| `zeta0` | 25.0 | −5.0 |
+| `gamma10` | 24.5 | −5.5 |
+
+Every delta is inside the noise floor, so **keep the default reward coefficients** — wave 2 gives no
+evidence for changing any of them. One observation does survive: the **fully sparse** config scored
+*above* the control, so reward shaping cannot be shown to beat pure terminal reward at 3M steps.
+That is a real result for 04's ablation arm, and not the one it was set up to expect.
+
+The 9.5-point floor traced to a bug: `--seed` was not seeding torch, numpy or global `random`, so
+same-seed runs were independent draws. Fixed 2026-09-09 (see 02); runs from `1807070` onward are
+properly seeded.
 
 ## Judging
 

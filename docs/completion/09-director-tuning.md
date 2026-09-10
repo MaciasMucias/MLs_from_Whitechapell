@@ -1,30 +1,77 @@
 # 09 — Director tuning
 
-**Status:** **RUNNING** — submitted 2026-09-09 23:24 as job array **`1807070`** (17 tasks,
-`--array=0-16%9`, ~2.5h, ETA ~02:00). Filled with `lr=3e-4 --ent-coef 0.03` from
-[03](03-ppo-sweep.md).
+**Status:** **wave 1 complete (null), redesigned.** Array `1807070` (17 tasks × 3M steps) finished
+2026-09-10. It found nothing, for a reason that invalidates its design rather than its grid — see
+below. Replaced by a two-phase branch design: `director_base.txt` (3) then `director_branch.txt` (15).
+**Blocks:** 04 — the headline ON arm is not worth 3 seeds until the Director is tested in the regime
+where it actually operates.
+**Blocked by:** nothing. `--branch-from` is implemented and verified; phase 2 is ready to submit.
 
-```bash
-ssh cluster 'squeue -u $USER'
-ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-    UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807070_*.out"'
-ssh cluster 'scancel 1807070'     # abort
-```
+---
 
-**Read it as a SCREEN, not a decision.** One seed per config against a measured **~9.5-point
-noise floor** — wave 1's `sw1-lr3e4-ent003-on` scored 39.5% and wave 2's `sw2-control`, the
-identical command, scored 30.0%. Most plausible Director effects are smaller than that. Take the
-top 2–3 configs and confirm them at 3+ seeds before anything enters 04.
+## Why array `1807070` found nothing: the runs ended before the curriculum starts
 
-**The first thing to check is not the ranking**, it is whether `diff_max` leaves −1.000 in *any*
-run. It did not in a single one of wave 1's nine ON runs. `sweep_report` now prints this
-explicitly. If it stays pinned here too, the curriculum still never engages and the fix is **longer
-runs, not a different grid**.
+**The 3M-step runs stop just short of the first difficulty uptick.** In the only historic Director
+run (`wandb/offline-run-20260523_134803-mdw4ndpi`, 10M steps, old cops) the first uptick was at
+step **3,256,320** — 1,059 of 3,255 updates were pinned at −1.0 before it moved. Every run in the 03
+sweep and in this wave was 3M steps.
 
-These are also the first runs with the 2026-09-09 seeding fix, so `--seed` finally controls weight
-init, action sampling and minibatch order rather than only the env workers.
-**Blocks:** 04 — the headline ON arm is not worth 3 seeds until the Director is tuned
-**Blocked by:** 03 (needs the chosen `lr`/`ent-coef`)
+Everything odd about the wave follows from that:
+
+- Difficulty left the floor on **update 976 of 976** in every `--initial-difficulty -1.0` config.
+- So 975/976 of training was bit-identical across them, and **six configurations produced
+  byte-identical eval metrics** (`dir-i10-kp010-CONTROL`, `dir-i10-kp002`, `dir-i10-kp030`,
+  `dir-cap001`, `dir-ratchet`, `dir-cap001-ratchet` — all 35.0%, copdist 1.08, arrest 56.0%).
+- `--curriculum-kp`, `--curriculum-max-step`, `--curriculum-ratchet` and the deadband width were
+  therefore **untested, not disproven**. The controller never reached the regime where it acts.
+
+Two results from the wave *are* meaningful:
+
+- **`dir-i00-ratchet` and `dir-OFF-reference` have identical eval lines.** Difficulty 0.0 with a
+  ratchet, and win rate never above the band, is exactly equivalent to no Director. It should be,
+  and it is — a correctness check on the implementation.
+- **The fixed suppression level moves results**: −0.5 → 37.0%, −1.0 → 35.0%, off → 27.0%. All n=1
+  against a ~9.5-point noise floor, so suggestive only — this is what the branch wave tests.
+
+Against frozen `COPS_STUDY_V2` the agent is weaker than that historic run (this wave's control spent
+769/976 updates *below* the band), so the uptick should be expected **later** than 3.26M — plausibly
+4–6M. Simply raising `--total-steps` would work but multiplies the pre-curriculum prefix across
+every arm.
+
+**Correction to an earlier reading of mine:** I first concluded "the adaptive controller has no
+operating range on this task". That was wrong, and it was the user who spotted why — the runs were
+too short, not the controller inert. The evidence above is consistent with a controller that simply
+had not been reached yet.
+
+## The redesign: branch from a post-uptick checkpoint
+
+Train the shared prefix **once per seed**, then fork every Director arm from that checkpoint via
+the new `--branch-from`. The pre-curriculum phase is paid 3 times instead of 15, and every arm
+starts from an identical policy — a cleaner contrast than independent runs, since initialisation
+variance drops out of the between-arm comparison.
+
+| phase | manifest | tasks | what |
+|---|---|---|---|
+| 2 | `slurm/manifests/director_base.txt` | 3 | seeds 27/28/29 to 8M, difficulty pinned at −1.0 |
+| 3 | `slurm/manifests/director_branch.txt` | 15 | 5 arms × 3 bases, branch → 15M |
+
+Arms: fixed −1.0 (control), fixed −0.5, adaptive `[0.40,0.60]` (original), adaptive `[0.20,0.35]`
+(lowered into the achievable range), and no Director.
+
+**`--branch-from`, not `--resume`.** `--resume` forces the checkpoint's saved curriculum difficulty
+(so the arms could not differ), rejoins its W&B run via `resume="must"` (15 forks colliding on one
+run), and restores `best_eval_win_rate` (so a branch worse than its base never writes its own
+`agent_best.pt`). `--branch-from` keeps weights, optimizer and the step counter — so LR annealing
+stays on one schedule — while forking a fresh W&B run, honouring the curriculum flags on the command
+line, and resetting the best-eval tracker. Provenance is saved as `branched_from`.
+
+**`--curriculum-kp 0` pins difficulty** (delta becomes 0, so the update is skipped). A base pinned at
+−1.0 is provably identical to a curriculum-ON base up to the uptick, so it costs nothing and makes
+the base unambiguous.
+
+**Branch point** = the first checkpoint where *training* win rate sustains > 0.60, i.e. where the
+controller would first have hardened. `--keep-checkpoints 0` on the bases so pruning cannot discard
+it. If no base crosses 0.60 by 8M, extend the bases — branching early reproduces this wave exactly.
 
 ---
 
@@ -304,3 +351,22 @@ untuned arm that loses for reasons nobody looked into.
   the two on every diagnostic, under both cop sets. The real effect is a **generalisation gap**, and
   it is now this workstream's subject. Runs verified as a controlled pair: 22 of 26 config keys
   identical, differing only in `no_curriculum`.
+- 2026-09-10 — **array `1807070` completed: null, and the design was at fault, not the grid.** All
+  17 tasks finished. Difficulty left the floor on update 976/976, six configurations produced
+  byte-identical eval metrics, and the ramp-shape parameters were never exercised. Root cause:
+  3M-step runs end ~250k steps before the first uptick, which the historic 10M run put at step
+  3,256,320. **The user diagnosed this; my first reading ("the controller has no operating range")
+  was wrong.**
+- 2026-09-10 — redesigned around branching. Added `--branch-from` to `training/train.py` so the
+  shared pre-curriculum prefix is trained once per seed and every arm forks from it: 3 base runs
+  instead of 15 prefixes, and arms that differ only in their Director settings rather than also in
+  initialisation. Verified end to end — step continues, CLI curriculum flags win over the
+  checkpoint's saved values, a fresh W&B run id is allocated, `best_eval_win_rate` resets, and
+  `branched_from` records provenance. Also verified `--curriculum-kp 0` pins difficulty exactly.
+- 2026-09-10 — **fixed a reporting bug of my own.** `sweep_report`'s `curriculum_engaged` returned
+  True for any `max_difficulty > -1.0`, so this wave's single final-update nudge was reported as
+  "curriculum engaged in 15/16 ON runs" — the opposite of the truth. It now requires a margin off
+  the floor *and* a non-trivial share of updates spent there, measured against each run's own
+  starting difficulty so a fixed −0.5 run correctly reads as never leaving its floor. Added an
+  `off_floor%` column and seed-aware aggregation (mean ± half-range), since the branch wave is the
+  first with replicates.

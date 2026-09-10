@@ -1,0 +1,65 @@
+# Director branch wave — 09-director-tuning.md phase 3. 15 tasks, --array=0-14%9
+#
+# BEFORE SUBMITTING: replace <CK27>/<CK28>/<CK29> with the three base checkpoints
+# chosen from director_base.txt's runs — the first checkpoint in each where
+# TRAINING win rate sustains > 0.60. See that manifest for the grep.
+#
+#   sbatch --array=0-14%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/director_branch.txt
+#
+# ### WHAT THIS IS ###
+#
+# The comparison workstream 09 was meant to be, now run in the regime where the
+# controller is actually live. 09 ran entirely BEFORE the first difficulty
+# uptick, so its Director settings could not matter and six configs produced
+# byte-identical policies.
+#
+# Five arms x three base checkpoints. Every arm branches from the SAME policy,
+# so between-arm differences are attributable to the Director rather than to
+# initialisation — which is a cleaner contrast than 09's independent runs, where
+# a ~9.5-point seed noise floor swamped everything.
+#
+# --branch-from (not --resume) is required: --resume would force the base's
+# saved curriculum difficulty onto every arm, rejoin the base's single W&B run
+# from all 15 tasks, and carry over its best-eval tracker.
+#
+# ### THE ARMS ###
+#
+#   fix10   difficulty pinned at -1.0 — the control. No curriculum at all.
+#   fix05   difficulty pinned at -0.5 — 09's one real signal was that the FIXED
+#           suppression level moves results (-0.5 -> 37.0%, -1.0 -> 35.0%,
+#           off -> 27.0%, all n=1). This tests it with seeds.
+#   b4060   adaptive, the original [0.40, 0.60] band.
+#   b2035   adaptive, band lowered INTO the achievable range. Training win rate
+#           under full suppression sits around 0.40-0.60, so the original band
+#           is mostly satisfied or below; a lower band gives the controller a
+#           reason to HARDEN rather than only ever ask for easier.
+#   off     no Director.
+#
+# ### READING IT ###
+#
+# Check off_floor% BEFORE the ranking. If b2035 and b4060 are still pinned even
+# post-uptick, re-banding cannot rescue the curriculum and that is the finding.
+# Rank on Director-free eval/win_rate; charts/win_rate is the controller's
+# setpoint for ON arms, not a score.
+
+# --- fixed -1.0 (control: no curriculum) ---------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -1.0 --curriculum-kp 0 --seed 27 --wandb-run dbr-fix10-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -1.0 --curriculum-kp 0 --seed 28 --wandb-run dbr-fix10-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -1.0 --curriculum-kp 0 --seed 29 --wandb-run dbr-fix10-s29
+# --- fixed -0.5 (partial suppression, held constant) ----------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -0.5 --curriculum-kp 0 --seed 27 --wandb-run dbr-fix05-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -0.5 --curriculum-kp 0 --seed 28 --wandb-run dbr-fix05-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -0.5 --curriculum-kp 0 --seed 29 --wandb-run dbr-fix05-s29
+# --- adaptive, original band [0.40, 0.60] ---------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run dbr-b4060-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run dbr-b4060-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run dbr-b4060-s29
+# --- adaptive, band lowered into reach [0.20, 0.35] -----------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run dbr-b2035-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run dbr-b2035-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 29 --wandb-run dbr-b2035-s29
+# --- no Director ----------------------------------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --no-curriculum --seed 27 --wandb-run dbr-off-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --no-curriculum --seed 28 --wandb-run dbr-off-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --no-curriculum --seed 29 --wandb-run dbr-off-s29

@@ -1,6 +1,22 @@
 # 04 — Final runs: Director on/off
 
-**Status:** not started
+**Status:** not started — **and its ON arm's premise is not yet verified.** Do not submit before
+[09](09-director-tuning.md) phase 3 reports.
+
+> **Blocking caveat added 2026-09-10.** Every 3M-step run so far ended *before* the curriculum does
+> anything: the first difficulty uptick in the historic 10M run was at step 3,256,320. Submitting
+> 04 now would spend 9 × 15M steps on an ON arm whose Director configuration has never been tested
+> in the regime where it operates. 09's branch design settles that first.
+>
+> Two further corrections that change this file's plan:
+>
+> - **The three seeds are only now real.** Until 2026-09-09 `--seed` did not seed torch, numpy or
+>   global `random`, so "paired per seed" was not paired — same-seed runs were independent draws
+>   with a ~9.5-point spread. Fixed; but that spread is the noise floor any Director claim here must
+>   clear, and three seeds against it is thin.
+> - **The sparse ablation may not show what this file expects.** At 3M steps the fully sparse config
+>   scored *above* the shaped control (33.0% vs 30.0%), i.e. reward shaping cannot be shown to help.
+>   See [03](03-ppo-sweep.md)'s wave-2 results.
 **Blocks:** 06
 **Blocked by:** 01 (frozen cops), 02 (reproducibility), 03 (chosen config)
 

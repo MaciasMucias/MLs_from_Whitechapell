@@ -6,7 +6,7 @@ self-contained: a session can open any single file and execute it without readin
 **These docs are the working state, not a retrospective.** Updating the relevant file's Status and
 Session log is part of finishing a piece of work.
 
-Audit date: 2026-09-09. Branch `dev` @ `bea89b6`.
+Audit date: 2026-09-10. Branch `dev`.
 
 ---
 
@@ -16,8 +16,8 @@ Audit date: 2026-09-09. Branch `dev` @ `bea89b6`.
 |---|---|---|---|
 | [01](01-freeze-cops.md) | Freeze cop configuration | **done** | 03, 04, 06 |
 | [02](02-training-reproducibility.md) | Training reproducibility + cluster readiness | **done** | 03, 04 |
-| [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **ready to submit** | 04, 09 |
-| [09](09-director-tuning.md) | Director tuning | **ready to submit** (needs 03's lr/ent) | 04 |
+| [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
+| [09](09-director-tuning.md) | Director tuning | wave 1 null (runs too short); **branch design ready** | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | not started | 06 |
 | [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **code done**, awaiting 04 | — |
@@ -47,19 +47,34 @@ whole 04 final set — 2 Director arms + the reward ablation, **3 seeds each, 9 
 concurrent window instead of running sequentially. The seeds matter most: PPO seed variance can
 exceed the Director effect being claimed, so single-seed arms would not support the conclusion.
 
-**Sweep wave 1 is RUNNING** — job array **`1806901`**, submitted 2026-09-09 12:55, 18 tasks,
-9 concurrent, ~2.5h expected.
+### Cluster waves run so far (all complete)
+
+| array | wave | tasks | outcome |
+|---|---|---|---|
+| `1806901` | 03 sweep w1 | 18 | **lr=3e-4** decisively, both arms. ~30-point spreads. |
+| `1806936` | entropy boundary probe | 2 | **ent-coef 0.03** confirmed an *interior* optimum |
+| `1806976` | 03 sweep w2 | 12 | reward coefficients: **all inside noise**; keep defaults |
+| `1807070` | 09 director v1 | 17 | **null — runs ended before the curriculum starts** |
+
+**Chosen config: `--lr 3e-4 --ent-coef 0.03`.**
+
+**Next concrete step: submit 09 phase 2** — three base runs to 8M, whose checkpoints every Director
+arm then branches from:
 
 ```bash
-ssh cluster 'squeue -u $USER'                                    # progress
-ssh cluster 'cd ~/MLs_from_Whitechapel && tail -3 logs/wc-train_1806901_*.out'
-ssh cluster 'scancel 1806901'                                    # abort the wave
+ssh cluster 'cd ~/MLs_from_Whitechapel && git pull && \
+  sbatch --array=0-2%3 docs/completion/slurm/array.sbatch \
+         docs/completion/slurm/manifests/director_base.txt'
 ```
 
-**Next concrete step: read wave 1's ON block, pick `lr`/`ent-coef`, fill the `<LR>`/`<ENT>`
-placeholders in `sweep_w2.txt`, and submit wave 2** (`--array=0-11%9`). Rank on `eval/win_rate`;
-`charts/win_rate` is meaningless for ON runs (invariant 2b). Then 09, then 04. Full ordering in
-[`slurm/README.md`](slurm/README.md).
+Then pick the branch point (first checkpoint where *training* win rate sustains > 0.60), fill
+`<CK27>/<CK28>/<CK29>` into `director_branch.txt`, and submit its 15 tasks. Then 04.
+
+**Two measured numbers that govern how any of this is read.** The run-to-run noise floor is
+**~9.5 points** of `eval/win_rate` (wave 1's `sw1-lr3e4-ent003-on` 39.5% vs wave 2's identical
+`sw2-control` 30.0%) — most single-run differences are noise, which is why 09 phase 3 is seeded. And
+`--seed` controlled almost nothing until 2026-09-09: weight init, action sampling and minibatch
+order all ran on torch's OS-seeded default, so any pre-fix "paired seed" comparison was not paired.
 
 W&B runs offline on the compute nodes — sync from the login node afterwards with
 `wandb sync wandb/offline-*`. Remember: **never run Python on the login node**; its CPU lacks

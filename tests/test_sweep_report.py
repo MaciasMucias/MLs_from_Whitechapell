@@ -309,12 +309,15 @@ def test_seed_defaults_when_absent(tmp_path):
 
 
 def test_replicates_are_aggregated(tmp_path, capsys):
-    paths = [_seeded(tmp_path, "arm-a", s, w) for s, w in ((27, 30.0), (28, 36.0), (29, 33.0))]
+    paths = [
+        _seeded(tmp_path, "arm-a", s, w)
+        for s, w in ((27, 30.0), (28, 36.0), (29, 33.0))
+    ]
     report(paths)
     out = capsys.readouterr().out
     assert "Across seeds" in out
     assert "arm-a" in out
-    assert "33.0%" in out          # mean of 30/36/33
+    assert "33.0%" in out  # mean of 30/36/33
     assert "±3.0 [30.0-36.0]" in out
 
 

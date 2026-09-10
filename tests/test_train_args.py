@@ -89,7 +89,9 @@ def test_resume_and_branch_from_are_mutually_exclusive():
         parse_args(["--resume", "a.pt", "--branch-from", "b.pt"])
 
 
-@pytest.mark.parametrize("flag,attr", [("--resume", "resume"), ("--branch-from", "branch_from")])
+@pytest.mark.parametrize(
+    "flag,attr", [("--resume", "resume"), ("--branch-from", "branch_from")]
+)
 def test_each_checkpoint_source_parses_alone(flag, attr):
     a = parse_args([flag, "ck.pt"])
     assert getattr(a, attr) == "ck.pt"

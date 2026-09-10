@@ -50,6 +50,12 @@ _FLAG = re.compile(r"--(\S+)(?:\s+(?!--)(\S+))?")
 # is picking noise. 3M steps at 200 eval games is not a precise instrument.
 NOISE_PP = 3.0
 
+# What counts as the curriculum actually running. -0.95 rejects dithering just
+# off the -1.0 clamp; 5% of updates rejects a single late nudge. Workstream 09
+# scored -0.987 on 1/976 updates and would fail both.
+MIN_DIFFICULTY_MARGIN = -0.95
+MIN_OFF_FLOOR_FRACTION = 0.05
+
 
 @dataclass
 class Run:
@@ -64,17 +70,37 @@ class Run:
     last_arrest: float | None = None
     steps: int = 0
     finished: bool = False
+    seed: str = "?"
     final_difficulty: float | None = None
     max_difficulty: float | None = None
+    start_difficulty: float | None = None
+    updates: int = 0
+    updates_off_floor: int = 0
+
+    @property
+    def off_floor_fraction(self) -> float:
+        """Share of updates spent away from the starting difficulty."""
+        return self.updates_off_floor / self.updates if self.updates else 0.0
 
     @property
     def curriculum_engaged(self) -> bool:
-        """Did the P-controller ever move difficulty off its floor?
+        """Did the curriculum actually happen, as opposed to twitching once?
 
-        False means the run trained at a fixed suppression level throughout —
-        the Director was active but the *curriculum* never happened.
+        An earlier version returned True for any `max_difficulty > -1.0`. That
+        was far too generous: workstream 09's runs moved difficulty on update
+        976 of 976 and were reported as "curriculum engaged in 15/16 ON runs",
+        when in fact 975/976 of training ran at a constant difficulty — which is
+        why six configurations produced byte-identical policies.
+
+        A run counts as engaged only if difficulty moved by a visible margin AND
+        stayed off the floor for a non-trivial share of training. Both halves
+        matter: the margin rejects numerical dithering, the fraction rejects a
+        single late nudge.
         """
-        return self.max_difficulty is not None and self.max_difficulty > -1.0
+        if self.max_difficulty is None:
+            return False
+        moved = self.max_difficulty > MIN_DIFFICULTY_MARGIN
+        return moved and self.off_floor_fraction >= MIN_OFF_FLOOR_FRACTION
 
     @property
     def best_win(self) -> float:
@@ -103,6 +129,7 @@ def parse_log(path: str | Path) -> Run:
             run.name = flags.get("wandb-run", "?")
             run.lr = flags.get("lr", "?")
             run.ent = flags.get("ent-coef", "?")
+            run.seed = flags.get("seed", "27")  # train.py's default
             run.curriculum = "no-curriculum" not in flags
             continue
 
@@ -110,15 +137,19 @@ def parse_log(path: str | Path) -> Run:
         if m:
             step = int(m.group(1).replace(",", ""))
             run.steps = max(run.steps, step)
+            run.updates += 1
             d = _DIFF.search(line)
             if d:
                 value = float(d.group(1))
                 run.final_difficulty = value
-                run.max_difficulty = (
-                    value
-                    if run.max_difficulty is None
-                    else max(run.max_difficulty, value)
-                )
+                if run.max_difficulty is None:
+                    # First update's value is the floor this run started from.
+                    run.start_difficulty = value
+                    run.max_difficulty = value
+                else:
+                    run.max_difficulty = max(run.max_difficulty, value)
+                if run.start_difficulty is not None and value != run.start_difficulty:
+                    run.updates_off_floor += 1
             continue
 
         m = _EVAL.search(line)
@@ -140,6 +171,56 @@ def _fmt(value: float | None, spec: str = "6.2f") -> str:
     return "-" if value is None else format(value, spec)
 
 
+def _arm_key(run: Run) -> str:
+    """A run's configuration with the seed stripped out.
+
+    Run names in a seeded wave are `<arm>-s27`/`-s28`/`-s29`, so dropping a
+    trailing seed suffix groups replicates. Falls back to the full name, which
+    simply leaves an unseeded run in a group of its own.
+    """
+    return re.sub(r"[-_]s?\d+$", "", run.name)
+
+
+def _print_seed_groups(runs: list[Run]) -> None:
+    """Aggregate replicates so a seeded wave can be read without eyeballing.
+
+    Reports mean and half-range across seeds. Half-range rather than a standard
+    deviation because three seeds is far too few for the latter to mean much,
+    and the spread is what the reader actually needs against the noise floor.
+    """
+    groups: dict[str, list[Run]] = {}
+    for r in runs:
+        if r.evals:
+            groups.setdefault(_arm_key(r), []).append(r)
+
+    replicated = {k: v for k, v in groups.items() if len(v) > 1}
+    if not replicated:
+        return  # unseeded wave — the per-run table above is the whole story
+
+    print("Across seeds (mean ± half-range of best eval win%):")
+    col = f"  {'arm':<26} {'n':>2} {'mean':>7} {'range':>16} {'engaged':>8}"
+    print(col)
+    print("  " + "-" * (len(col) - 2))
+    for key, members in sorted(
+        replicated.items(),
+        key=lambda kv: -sum(m.best_win for m in kv[1]) / len(kv[1]),
+    ):
+        wins = [m.best_win for m in members]
+        mean = sum(wins) / len(wins)
+        half = (max(wins) - min(wins)) / 2
+        engaged = sum(m.curriculum_engaged for m in members)
+        print(
+            f"  {key:<26} {len(members):>2} {mean:>6.1f}% "
+            f"{f'±{half:.1f} [{min(wins):.1f}-{max(wins):.1f}]':>16} "
+            f"{f'{engaged}/{len(members)}':>8}"
+        )
+    print()
+    singles = len(groups) - len(replicated)
+    if singles:
+        print(f"  ({singles} configuration(s) had only one seed — not aggregated.)")
+        print()
+
+
 def report(paths: list[str], noise_pp: float = NOISE_PP) -> list[Run]:
     runs = [parse_log(p) for p in sorted(paths)]
     runs = [r for r in runs if r.evals or r.steps]
@@ -155,22 +236,24 @@ def report(paths: list[str], noise_pp: float = NOISE_PP) -> list[Run]:
     print()
 
     col = (
-        f"{'run':<24} {'arm':>4} {'lr':>7} {'ent':>7} {'steps':>10} "
+        f"{'run':<24} {'arm':>4} {'seed':>5} {'steps':>10} "
         f"{'best win%':>10} {'final':>7} {'diff_max':>9} {'diff_end':>9} "
-        f"{'hideout_u':>10} {'copdist':>8} {'arrest%':>8}"
+        f"{'off_floor%':>11} {'hideout_u':>10} {'copdist':>8} {'arrest%':>8}"
     )
     print(col)
     print("-" * len(col))
     for r in sorted(runs, key=lambda r: (-(r.best_win == r.best_win), -r.best_win)):
         print(
-            f"{r.name:<24} {r.arm:>4} {r.lr:>7} {r.ent:>7} {r.steps:>10,} "
+            f"{r.name:<24} {r.arm:>4} {r.seed:>5} {r.steps:>10,} "
             f"{_fmt(r.best_win, '9.1f'):>10} {_fmt(r.final_win, '6.1f'):>7} "
             f"{_fmt(r.max_difficulty, '8.3f'):>9} "
             f"{_fmt(r.final_difficulty, '8.3f'):>9} "
+            f"{r.off_floor_fraction * 100:>10.1f} "
             f"{_fmt(r.last_uncert):>10} {_fmt(r.last_copdist):>8} "
             f"{_fmt(r.last_arrest):>8}"
         )
     print()
+    _print_seed_groups(runs)
 
     # For a Director wave this is the finding, ahead of any ranking: if the
     # controller never left its floor, the runs are "train at fixed suppression",

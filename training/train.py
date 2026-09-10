@@ -269,17 +269,36 @@ def train(args: argparse.Namespace) -> None:
     # Restored on resume, otherwise a resumed run would overwrite a better
     # agent_best.pt with the first checkpoint it happens to evaluate.
     best_eval_win_rate: float = -1.0
-    if args.resume:
-        ckpt = torch.load(args.resume, map_location=device, weights_only=True)
+    # --resume continues one experiment; --branch-from forks a new one off a
+    # shared starting policy. Both load weights, optimizer and the step counter
+    # (so LR annealing stays on a single schedule) — they differ in what else
+    # they inherit.
+    source_ckpt = args.resume or args.branch_from
+    if source_ckpt:
+        ckpt = torch.load(source_ckpt, map_location=device, weights_only=True)
         resume_step = ckpt["step"]
         start_update = resume_step // batch_size + 1
-        wandb_resume_id = ckpt.get("wandb_run_id")
-        curriculum_difficulty = ckpt.get(
-            "curriculum_difficulty", args.initial_difficulty
-        )
-        best_eval_win_rate = ckpt.get("best_eval_win_rate", -1.0)
+        verb = "Resumed" if args.resume else "Branched"
+
+        if args.resume:
+            wandb_resume_id = ckpt.get("wandb_run_id")
+            curriculum_difficulty = ckpt.get(
+                "curriculum_difficulty", args.initial_difficulty
+            )
+            best_eval_win_rate = ckpt.get("best_eval_win_rate", -1.0)
+        else:
+            # Deliberately NOT inherited when branching:
+            #   wandb_run_id  — every branch needs its own run, or 15 forks all
+            #                   write into the base run's history.
+            #   curriculum_*  — the whole point of a branch is to vary these, so
+            #                   this command line's flags win.
+            #   best_eval_*   — starts at -1.0 so a branch that never beats its
+            #                   base still writes its own agent_best.pt.
+            print(f"  branch: curriculum flags from CLI, fresh W&B run, best reset")
+
         print(
-            f"Resumed from {args.resume} at step {resume_step:,} (update {start_update}/{n_updates})"
+            f"{verb} from {source_ckpt} at step {resume_step:,} "
+            f"(update {start_update}/{n_updates})"
         )
 
     wandb.init(
@@ -602,6 +621,9 @@ def train(args: argparse.Namespace) -> None:
                         "wandb_run_id": wandb.run.id,
                         "curriculum_difficulty": curriculum_difficulty,
                         "best_eval_win_rate": best_eval_win_rate,
+                        # Provenance: which checkpoint this run forked from, so a
+                        # branch's lineage survives outside the manifest.
+                        "branched_from": args.branch_from or "",
                         "eval_win_rate": (
                             eval_results["win_rate"] if eval_results else float("nan")
                         ),
@@ -657,7 +679,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Periodic checkpoints to retain (0 = keep all). agent_best.pt is "
         "never pruned",
     )
-    p.add_argument("--resume", default=None, metavar="CHECKPOINT")
+    # Two ways to start from an existing checkpoint, with opposite intent.
+    source = p.add_mutually_exclusive_group()
+    source.add_argument(
+        "--resume",
+        default=None,
+        metavar="CHECKPOINT",
+        help="Continue the SAME experiment: rejoins its W&B run and restores the "
+        "curriculum difficulty and best-so-far from the checkpoint",
+    )
+    source.add_argument(
+        "--branch-from",
+        default=None,
+        metavar="CHECKPOINT",
+        help="Fork a NEW experiment from this policy. Weights, optimizer and the "
+        "step counter carry over, but the curriculum flags on this command line "
+        "win over the checkpoint's, a fresh W&B run is started, and the "
+        "best-eval tracker restarts. Use to run several Director variants from "
+        "one shared starting point",
+    )
     p.add_argument(
         "--no-curriculum",
         action="store_true",

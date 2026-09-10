@@ -217,9 +217,39 @@ def test_pinned_difficulty_is_not_engaged(tmp_path):
     assert r.curriculum_engaged is False
 
 
-def test_barely_moving_still_counts_as_engaged(tmp_path):
+def test_barely_moving_does_not_count_as_engaged(tmp_path):
+    """Dithering just off the -1.0 clamp is not a curriculum."""
     r = parse_log(_log_diff(tmp_path, "nudged", ["-1.000", "-0.974"]))
+    assert r.curriculum_engaged is False
+
+
+def test_one_late_nudge_does_not_count_as_engaged(tmp_path):
+    """The workstream-09 shape: difficulty moves on the final update only.
+
+    09 reported 'curriculum engaged in 15/16 ON runs' on exactly this pattern,
+    while 975/976 of training ran at a constant difficulty. Guarding it.
+    """
+    diffs = ["-1.000"] * 40 + ["-0.500"]
+    r = parse_log(_log_diff(tmp_path, "late", diffs))
+    assert r.max_difficulty == -0.5  # moved a long way...
+    assert r.off_floor_fraction < 0.05  # ...but for almost no training
+    assert r.curriculum_engaged is False
+
+
+def test_sustained_movement_counts_as_engaged(tmp_path):
+    """Moved by a clear margin and stayed there — a real curriculum."""
+    diffs = ["-1.000", "-0.800", "-0.400", "0.000", "0.250", "0.250"]
+    r = parse_log(_log_diff(tmp_path, "ramped", diffs))
+    assert r.off_floor_fraction > 0.5
     assert r.curriculum_engaged is True
+
+
+def test_off_floor_is_measured_against_the_run_start_not_minus_one(tmp_path):
+    """A run pinned at a fixed -0.5 never leaves its own floor."""
+    r = parse_log(_log_diff(tmp_path, "fixed05", ["-0.500"] * 10))
+    assert r.start_difficulty == -0.5
+    assert r.off_floor_fraction == 0.0
+    assert r.curriculum_engaged is False
 
 
 def test_report_shouts_when_no_run_curricularised(tmp_path, capsys):
@@ -249,3 +279,53 @@ def test_difficulty_absent_does_not_crash(tmp_path):
     r = parse_log(_log(tmp_path, "nodiff", "3e-4", "0.01", [40.0]))
     assert r.max_difficulty is not None or r.max_difficulty is None
     assert r.best_win == 40.0
+
+
+# --- seed grouping ----------------------------------------------------------
+# A seeded wave has three runs per arm; without aggregation the reader is left
+# eyeballing triplets across 15 rows, which is the error this tool exists to
+# prevent.
+
+
+def _seeded(tmp_path, arm, seed, win):
+    text = HEADER.format(lr="3e-4", ent="0.03", name=f"{arm}-s{seed}", extra="")
+    text = text.replace("--wandb-run", f"--seed {seed} --wandb-run")
+    text += UPDATE.format(u=50, steps="153,600")
+    text += EVAL.format(win=win, unc="0.70", cd="1.10", ar="50.0")
+    text += "Training complete.\n"
+    p = tmp_path / f"wc-train_{arm}-s{seed}.out"
+    p.write_text(text)
+    return str(p)
+
+
+def test_seed_is_parsed(tmp_path):
+    r = parse_log(_seeded(tmp_path, "fixed-05", 28, 33.0))
+    assert r.seed == "28"
+
+
+def test_seed_defaults_when_absent(tmp_path):
+    """train.py's default is 27; an unseeded manifest line still groups."""
+    assert parse_log(_log(tmp_path, "x", "3e-4", "0.01", [40.0])).seed == "27"
+
+
+def test_replicates_are_aggregated(tmp_path, capsys):
+    paths = [_seeded(tmp_path, "arm-a", s, w) for s, w in ((27, 30.0), (28, 36.0), (29, 33.0))]
+    report(paths)
+    out = capsys.readouterr().out
+    assert "Across seeds" in out
+    assert "arm-a" in out
+    assert "33.0%" in out          # mean of 30/36/33
+    assert "±3.0 [30.0-36.0]" in out
+
+
+def test_arms_are_ranked_by_mean(tmp_path, capsys):
+    paths = [_seeded(tmp_path, "low", s, 20.0) for s in (27, 28)]
+    paths += [_seeded(tmp_path, "high", s, 45.0) for s in (27, 28)]
+    report(paths)
+    body = capsys.readouterr().out.split("Across seeds")[1]
+    assert body.index("high") < body.index("low")
+
+
+def test_unreplicated_wave_prints_no_aggregate(tmp_path, capsys):
+    report([_log(tmp_path, "solo", "3e-4", "0.01", [40.0])])
+    assert "Across seeds" not in capsys.readouterr().out

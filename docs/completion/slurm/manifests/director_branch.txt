@@ -1,8 +1,21 @@
 # Director branch wave — 09-director-tuning.md phase 3. 15 tasks, --array=0-14%9
 #
-# BEFORE SUBMITTING: replace <CK27>/<CK28>/<CK29> with the three base checkpoints
-# chosen from director_base.txt's runs — the first checkpoint in each where
-# TRAINING win rate sustains > 0.60. See that manifest for the grep.
+# FILLED 2026-09-10 from the base runs (array 1807190, 3/3 complete). Branch
+# points are the first checkpoint at or after training win rate sustained > 0.60
+# for 20 consecutive updates — where the P-controller would first have hardened.
+# Computed by tools/branch_point.py:
+#
+#   dbase-s27  sustained from step 4,380,672  ->  agent_0004454400.pt
+#   dbase-s28  sustained from step 4,420,608  ->  agent_0004454400.pt
+#   dbase-s29  sustained from step 4,780,032  ->  agent_0004915200.pt
+#
+# All three crossed within ~400k steps of each other, so the arms stay
+# comparable across seeds. Note this is 4.4-4.8M — every run in 03 and in 09
+# stopped at 3M, i.e. before any of these points.
+#
+# "Sustained", not first-crossing, deliberately: 09's runs each touched above
+# the band exactly once, on the final update, which was enough to make the wave
+# look engaged when it was not.
 #
 #   sbatch --array=0-14%9 docs/completion/slurm/array.sbatch \
 #          docs/completion/slurm/manifests/director_branch.txt
@@ -44,22 +57,22 @@
 # setpoint for ON arms, not a score.
 
 # --- fixed -1.0 (control: no curriculum) ---------------------------------
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -1.0 --curriculum-kp 0 --seed 27 --wandb-run dbr-fix10-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -1.0 --curriculum-kp 0 --seed 28 --wandb-run dbr-fix10-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -1.0 --curriculum-kp 0 --seed 29 --wandb-run dbr-fix10-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0 --seed 27 --wandb-run dbr-fix10-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0 --seed 28 --wandb-run dbr-fix10-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-kp 0 --seed 29 --wandb-run dbr-fix10-s29
 # --- fixed -0.5 (partial suppression, held constant) ----------------------
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -0.5 --curriculum-kp 0 --seed 27 --wandb-run dbr-fix05-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -0.5 --curriculum-kp 0 --seed 28 --wandb-run dbr-fix05-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -0.5 --curriculum-kp 0 --seed 29 --wandb-run dbr-fix05-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -0.5 --curriculum-kp 0 --seed 27 --wandb-run dbr-fix05-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -0.5 --curriculum-kp 0 --seed 28 --wandb-run dbr-fix05-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -0.5 --curriculum-kp 0 --seed 29 --wandb-run dbr-fix05-s29
 # --- adaptive, original band [0.40, 0.60] ---------------------------------
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run dbr-b4060-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run dbr-b4060-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run dbr-b4060-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run dbr-b4060-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run dbr-b4060-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run dbr-b4060-s29
 # --- adaptive, band lowered into reach [0.20, 0.35] -----------------------
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run dbr-b2035-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run dbr-b2035-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 29 --wandb-run dbr-b2035-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run dbr-b2035-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run dbr-b2035-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 29 --wandb-run dbr-b2035-s29
 # --- no Director ----------------------------------------------------------
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK27> --no-curriculum --seed 27 --wandb-run dbr-off-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK28> --no-curriculum --seed 28 --wandb-run dbr-off-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from <CK29> --no-curriculum --seed 29 --wandb-run dbr-off-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --no-curriculum --seed 27 --wandb-run dbr-off-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --no-curriculum --seed 28 --wandb-run dbr-off-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --no-curriculum --seed 29 --wandb-run dbr-off-s29

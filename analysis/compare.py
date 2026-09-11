@@ -39,6 +39,7 @@ import torch
 
 from agents.heuristic_cops import HeuristicCops
 from analysis.sessions import DEFAULT_DB, load_games, reconstruct_sessions
+from analysis.stats import cluster_bootstrap, design_effect, paired_difference
 from engine.env import legal_jack_edges
 from engine.game import run_game
 from engine.graph import Map, load_map
@@ -59,6 +60,10 @@ class HumanGame:
     """One participant game, with everything needed to replay its scenario."""
 
     row_id: int
+    # Which reconstructed participant this game belongs to. Games are clustered
+    # — three per participant — so any interval must resample participants, not
+    # games. Treating 57 games as 57 independent draws overstates precision.
+    participant: int
     map_name: str
     gaming_habit: str
     outcome: str
@@ -117,8 +122,12 @@ def load_human_games(
     small usable N, never for the headline number.
     """
     sessions, _ = reconstruct_sessions(load_games(db_path))
+    # row_id -> participant index, so the bootstrap can cluster correctly.
     wanted = {
-        g.row_id for s in sessions if include_flagged or s.is_usable for g in s.games
+        g.row_id: i
+        for i, s in enumerate(sessions)
+        if include_flagged or s.is_usable
+        for g in s.games
     }
     if not wanted:
         return []
@@ -140,6 +149,7 @@ def load_human_games(
         games.append(
             HumanGame(
                 row_id=row_id,
+                participant=wanted[row_id],
                 map_name=map_name,
                 gaming_habit=habit,
                 outcome=outcome,
@@ -269,12 +279,24 @@ def compare(
         return {}
 
     human_wins = sum(h.human_won for h in humans)
+    participants = {h.participant for h in humans}
+
+    # Cluster by participant: three games per person, so N games are not N
+    # independent observations. See analysis/stats.py.
+    human_clusters: dict[int, list[float]] = {}
+    for h in humans:
+        human_clusters.setdefault(h.participant, []).append(float(h.human_won))
+    human_ci = cluster_bootstrap(human_clusters)
+    deff = design_effect(human_clusters)
+
     print(
-        f"\nHuman games: {len(humans)}"
+        f"\nHuman games: {len(humans)} from {len(participants)} participants"
         f"{' (INCLUDING FLAGGED — not the headline number)' if include_flagged else ''}"
     )
+    print(f"Human win rate: {human_wins}/{len(humans)} = {human_ci}")
     print(
-        f"Human win rate: {human_wins}/{len(humans)} = {human_wins / len(humans):.1%}"
+        f"  95% CI clustered by participant; design effect {deff:.2f}, so a "
+        f"per-game\n  interval would have been about {deff ** 0.5:.2f}x too narrow."
     )
     print(f"Policy replays per scenario: {n_replays}\n")
 
@@ -298,9 +320,21 @@ def compare(
                 agree.desyncs + a.desyncs,
             )
 
+        # Paired, clustered by participant. Pairing is the point: both sides saw
+        # the identical board, so scenario difficulty cancels instead of
+        # inflating the variance of both arms. An interval clear of zero is the
+        # claim "the agent differs from the humans on the boards they played".
+        paired: dict[int, list[tuple[float, float]]] = {}
+        policy_clusters: dict[int, list[float]] = {}
+        for p, h in zip(per_game, humans):
+            paired.setdefault(h.participant, []).append((p, float(h.human_won)))
+            policy_clusters.setdefault(h.participant, []).append(p)
+
         results[label] = {
             "step": step,
             "policy_win_rate": sum(per_game) / len(per_game),
+            "policy_ci": cluster_bootstrap(policy_clusters),
+            "paired_diff": paired_difference(paired),
             "per_scenario": per_game,
             "agreement_rate": agree.rate,
             "decisions": agree.decisions,
@@ -347,6 +381,21 @@ def _print_table(results: dict, humans: list[HumanGame]) -> None:
     print()
     print(f"'human lost/won' = the policy's win rate on the boards humans lost / won.")
     print(f"'agree%' = share of the humans' own decisions the policy would have made.")
+    print()
+
+    # The headline claim needs an interval, not a delta. Paired and clustered by
+    # participant — see analysis/stats.py for why the clustering is not optional.
+    print("Paired policy - human, 95% CI clustered by participant:")
+    for label, m in results.items():
+        d = m["paired_diff"]
+        verdict = (
+            "excludes zero" if d.low > 0 or d.high < 0 else "INCLUDES ZERO - not significant"
+        )
+        print(f"  {label:<24} {d}   {verdict}")
+    print()
+    print("  An interval clear of zero supports 'the agent differs from the humans")
+    print("  on the boards they actually played'. One spanning zero does not, no")
+    print("  matter how large the point estimate looks.")
     print()
     if any(m["desyncs"] for m in results.values()):
         print("WARNING: desyncs > 0 — the replay could not be followed through the")

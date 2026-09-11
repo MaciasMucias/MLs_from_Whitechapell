@@ -17,7 +17,7 @@ Audit date: 2026-09-10. Branch `dev`.
 | [01](01-freeze-cops.md) | Freeze cop configuration | **done** | 03, 04, 06 |
 | [02](02-training-reproducibility.md) | Training reproducibility + cluster readiness | **done** | 03, 04 |
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
-| [09](09-director-tuning.md) | Director tuning | wave 1 null (runs too short); **branch design ready** | 04 |
+| [09](09-director-tuning.md) | Director tuning | **done** — Director does not help (93.2% off vs 88.3% best ON) | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | not started | 06 |
 | [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **code done**, awaiting 04 | — |

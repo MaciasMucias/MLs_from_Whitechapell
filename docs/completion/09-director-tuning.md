@@ -1,11 +1,77 @@
 # 09 — Director tuning
 
-**Status:** **wave 1 complete (null), redesigned.** Array `1807070` (17 tasks × 3M steps) finished
-2026-09-10. It found nothing, for a reason that invalidates its design rather than its grid — see
-below. Replaced by a two-phase branch design: `director_base.txt` (3) then `director_branch.txt` (15).
-**Blocks:** 04 — the headline ON arm is not worth 3 seeds until the Director is tested in the regime
-where it actually operates.
-**Blocked by:** nothing. `--branch-from` is implemented and verified; phase 2 is ready to submit.
+**Status:** **DONE (2026-09-11). The Director does not help — no Director 93.2% vs 88.3% for the
+best ON arm, ranges non-overlapping, 3 seeds each.** Three waves: `1807070` (17 × 3M, null — runs
+ended before the curriculum starts), `1807190` (3 base runs), `1807209` (15 branch runs, the result).
+
+**Consequence for 04:** its Director ON/OFF comparison now has an answer before it runs. 04 should
+still run — it supplies the from-scratch OFF number this wave cannot (see the caveat below) — but
+its ON arm is no longer a candidate for the headline policy. Consider re-scoping it toward the
+reward ablation plus a clean OFF baseline.
+
+---
+
+## RESULT (2026-09-11, array `1807209`, 15/15) — the Director does not help
+
+The branch design worked: **the curriculum engaged in both adaptive arms**, `off_floor% = 100` in
+all six, ramping from −1.0 into *injection* territory (`diff_max` +0.19 and +0.54). This is the
+first fair test of the Director, and it loses.
+
+All arms branch from the same three base checkpoints and run to 15M. Eval is Director-free
+(invariant 2), so every arm is scored against full-strength `COPS_STUDY_V2`.
+
+| arm | training condition | mean best eval win% | range | engaged |
+|---|---|---|---|---|
+| **`off`** | **no Director** | **93.2%** | 92.5–94.0 | 0/3 |
+| `fix05` | fixed −0.5 | 88.3% | 87.0–90.5 | 0/3 |
+| `b4060` | adaptive, band [0.40,0.60] | 81.3% | 76.0–86.5 | 3/3 |
+| `b2035` | adaptive, band [0.20,0.35] | 61.3% | 57.5–64.0 | 3/3 |
+| `fix10` | fixed −1.0 | 50.7% | 46.0–56.0 | 0/3 |
+
+**No Director wins outright**, by 4.9 points over the next arm, and the ranges do not overlap
+(92.5–94.0 vs 87.0–90.5). Against a ~9.5-point single-run noise floor this is the first Director
+comparison in the project with separation you can actually lean on.
+
+### The mechanism is monotone: handicapping the cops during training hurts
+
+Among the *fixed* levels the ordering is clean and monotone in how much help Jack got:
+
+| training difficulty | −1.0 (cops blind) | −0.5 | 0.0 (full strength) |
+|---|---|---|---|
+| final eval win% | 50.7 | 88.3 | 93.2 |
+
+The behavioural diagnostics say why. More suppression during training produces a policy that does
+not respect cops at evaluation time:
+
+| arm | copdist | arrest% |
+|---|---|---|
+| `off` | 1.46–1.57 | 6.0–7.5 |
+| `fix05` | 1.42–1.46 | 9.0–15.0 |
+| `fix10` | 1.01–1.06 | 49.0–57.0 |
+
+A policy trained against blind cops walks straight past them and is arrested ~8x more often than one
+trained against real ones.
+
+### The adaptive arms do not rescue it, and over-hardening makes it worse
+
+`b2035` ramped difficulty to **+0.54** — cops *better informed than the evaluation cops* — and scored
+20 points below `b4060`, which only reached +0.19. Pushing past difficulty 0 is a train/test mismatch
+in the opposite direction, and it costs.
+
+So the curriculum's problem is not that it fails to engage (it does now) or that it is mistuned
+(two bands, both worse than off). **Every form of information handicap tested made the final policy
+worse.**
+
+### The one caveat that bounds this claim
+
+**All five arms share a base trained at difficulty −1.0 for 4.4–4.9M steps.** The comparison
+*between* arms is clean — identical prefix, identical seeds — but `dbr-off` is "suppressed prefix,
+then no Director", not a pure no-Director run. The absolute claim "the Director hurts" therefore
+still needs a from-scratch `--no-curriculum` 15M run to compare against.
+
+**That run is 04's OFF arm**, so 04 supplies it at no extra cost. If from-scratch OFF beats 93.2%,
+the suppressed prefix hurt too and the result strengthens. Report the branch-wave numbers as a
+*controlled* comparison and the 04 number as the absolute one.
 
 ---
 
@@ -370,3 +436,13 @@ untuned arm that loses for reasons nobody looked into.
   starting difficulty so a fixed −0.5 run correctly reads as never leaving its floor. Added an
   `off_floor%` column and seed-aware aggregation (mean ± half-range), since the branch wave is the
   first with replicates.
+- 2026-09-11 — **branch wave `1807209` complete, 15/15. The Director does not help.** The redesign
+  worked in the sense that mattered: both adaptive arms show `off_floor% = 100` and ramped from
+  −1.0 into injection territory, so the controller was genuinely live. It still lost. No Director
+  93.2%, fixed −0.5 88.3%, adaptive [0.40,0.60] 81.3%, adaptive [0.20,0.35] 61.3%, fixed −1.0
+  50.7% — ranges on the top two do not overlap. Handicapping the cops during training is monotonically
+  harmful, and the diagnostics say why: a policy raised against blind cops runs ~0.45 closer to them
+  and is arrested ~8x more often at evaluation.
+- 2026-09-11 — bounded the claim: all arms share a −1.0 prefix, so `dbr-off` is "suppressed prefix
+  then no Director", not a pure control. 04's OFF arm supplies the from-scratch number; until then
+  report this as a controlled between-arm comparison, not an absolute one.

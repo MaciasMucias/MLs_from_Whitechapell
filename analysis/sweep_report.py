@@ -36,6 +36,10 @@ _EVAL = re.compile(
     r"(?:.*?timeout=(?P<timeout>[\d.]+)%)?"
 )
 _STEPS = re.compile(r"^update=\S+\s+steps=([\d,]+)")
+# Same line, named groups, for exporting the full training curve.
+_UPD_FIELDS = re.compile(
+    r"^update=\S+\s+steps=(?P<steps>[\d,]+).*?win_rate=(?P<win>[\d.]+)"
+)
 # curriculum/difficulty, printed on every update line as e.g. "difficulty=-1.000".
 # For a Director run this is the progress signal that charts/win_rate is not:
 # pinned at -1.000 means the P-controller never ramped and the run trained
@@ -60,11 +64,16 @@ MIN_OFF_FLOOR_FRACTION = 0.05
 @dataclass
 class Run:
     log: str
+    log_path: str = ""
     name: str = "?"
     lr: str = "?"
     ent: str = "?"
     curriculum: bool = True
     evals: list[tuple[int, float]] = field(default_factory=list)  # (step, win%)
+    # Every field of every eval line, for plotting and for export to CSV.
+    # `evals` above stays a (step, win%) list because the ranking code and its
+    # tests are built on it; this carries the rest without disturbing them.
+    eval_rows: list[dict] = field(default_factory=list)
     last_uncert: float | None = None
     last_copdist: float | None = None
     last_arrest: float | None = None
@@ -116,7 +125,7 @@ class Run:
 
 
 def parse_log(path: str | Path) -> Run:
-    run = Run(log=Path(path).name)
+    run = Run(log=Path(path).name, log_path=str(path))
     text = Path(path).read_text(errors="replace")
     step = 0
 
@@ -162,9 +171,27 @@ def parse_log(path: str | Path) -> Run:
             ):
                 if m.group(key) is not None:
                     setattr(run, attr, float(m.group(key)))
+            run.eval_rows.append(
+                {
+                    "step": step,
+                    "win_rate": float(m.group("win")),
+                    "hideout_uncert": _opt(m.group("unc")),
+                    "copdist": _opt(m.group("copdist")),
+                    "arrest_pct": _opt(m.group("arrest")),
+                    "timeout_pct": _opt(m.group("timeout")),
+                    # Difficulty in force when this eval ran — needed to plot the
+                    # curriculum ramp against policy quality on one axis.
+                    "difficulty": run.final_difficulty,
+                }
+            )
 
     run.finished = "Training complete." in text
     return run
+
+
+def _opt(group: str | None) -> float | None:
+    """A regex group that may be absent — older logs lack the newer eval fields."""
+    return None if group is None else float(group)
 
 
 def _fmt(value: float | None, spec: str = "6.2f") -> str:

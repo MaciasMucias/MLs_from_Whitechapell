@@ -1,0 +1,77 @@
+# Director v3 — closing the two gaps in the 09 conclusion. 18 tasks, --array=0-17%9
+#
+#   sbatch --array=0-17%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/director_v3.txt
+#
+# ### WHY ###
+#
+# The branch wave (1807209) showed every Director configuration it tested losing
+# to no-Director, at all 69 evaluation points, never once ahead. But it tested
+# only 2 of the Director's knobs in a regime where the controller was live, and
+# it has a structural confound. Two gaps:
+#
+#   A. EVERY branch arm carries a 4.4-4.9M-step prefix trained at difficulty
+#      -1.0. So "dbr-off" is really "suppressed prefix, then no Director" — the
+#      Director as DESIGNED (on from step 0, ramping naturally, as in the
+#      historic mdw4ndpi run) has never been run against a from-scratch OFF.
+#
+#   B. --curriculum-kp, --curriculum-max-step and --curriculum-ratchet were only
+#      ever swept in wave 1807070, which is void: the curriculum never engaged
+#      there, so those knobs were untested rather than disproven. Both valid
+#      adaptive arms used the default kp=0.1.
+#
+# ### THE PREDICTION THIS TESTS ###
+#
+# The fixed-difficulty dose-response is monotone (-1.0 -> 50.7%, -0.5 -> 88.3%,
+# none -> 93.2%). If less suppression is monotonically better, then any
+# controller spending time at negative difficulty is worse than one that does
+# not: SLOW kp means more time suppressed and should be WORSE, fast kp should be
+# better, and the limit of infinitely-fast kp is exactly no Director.
+#
+# So the prediction is: kp-002 < kp-010 < kp-030 < off. If that ordering does NOT
+# hold, the monotone story is wrong and there is a curriculum effect worth
+# chasing. That is the outcome to watch for — this wave is designed to be able to
+# falsify the conclusion, not to confirm it.
+#
+# Caveat kept in view: the dose-response SATURATES near zero (-1.0->-0.5 gains
+# 37.6 points, -0.5->0.0 only 4.9). A shallow peak just below zero would be
+# invisible at three sample points. That is gap C, not covered here — a finer
+# fixed grid (-0.25, -0.1, +0.1) would be the follow-up if this wave's ordering
+# holds but the margin to `off` stays small.
+
+# === PART 1: the Director as designed, from scratch (6 tasks) =================
+# No branching, no suppressed prefix. Curriculum ON at its defaults (initial
+# difficulty -1.0, kp 0.1, band [0.40,0.60]) versus --no-curriculum, same seeds.
+# fs-off doubles as 04's OFF arm and as the absolute baseline the branch wave
+# could not provide.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --seed 27 --wandb-run fs-on-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --seed 28 --wandb-run fs-on-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --seed 29 --wandb-run fs-on-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --no-curriculum --seed 27 --wandb-run fs-off-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --no-curriculum --seed 28 --wandb-run fs-off-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --no-curriculum --seed 29 --wandb-run fs-off-s29
+
+# === PART 2: ramp shape, in the regime where the controller is live (12) ======
+# Branch from the same three bases as 1807209, band fixed at [0.40,0.60], so the
+# ONLY thing varying against dbr-b4060 is the ramp shape. dbr-b4060 IS the kp=0.1
+# control and is already measured (81.3% [76.0-86.5]) — not re-run here.
+#
+# kp 0.02 — five times slower than the control. More time at high suppression.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.02 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run kp-002-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.02 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run kp-002-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-kp 0.02 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run kp-002-s29
+# kp 0.3 — three times faster. Reaches difficulty 0 sooner; should be BETTER if
+# the monotone story holds.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.3 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run kp-030-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.3 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run kp-030-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-kp 0.3 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run kp-030-s29
+# Rate limit 0.01/update at kp 0.1 — caps how fast difficulty may move at all,
+# independent of the error size.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-max-step 0.01 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run kp-cap001-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-max-step 0.01 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run kp-cap001-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-max-step 0.01 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run kp-cap001-s29
+# Ratchet at kp 0.1 — difficulty may only ever increase, never relax back toward
+# suppression. Under the monotone story this should HELP relative to b4060.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-ratchet --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run kp-ratchet-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-ratchet --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run kp-ratchet-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-kp 0.1 --curriculum-ratchet --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run kp-ratchet-s29

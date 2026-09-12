@@ -81,6 +81,30 @@ uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 1
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run cap000-b4060-s27
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run cap000-b4060-s28
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run cap000-b4060-s29
+# --- never stop injecting, held at +0.15 (2 readings, both added 2026-09-12) -
+#
+# READING 1 - fix015: difficulty PINNED at +0.15 for the whole run (kp 0 makes
+# delta zero, so it cannot move). Constant mild injection after the warmup.
+#
+# This is the genuinely missing point. The fixed dose-response measured so far
+# stops at zero:
+#     -1.0 -> 50.7%     -0.5 -> 88.3%     0.0 (off) -> 93.2%
+# Positive fixed difficulty has NEVER been run. If fix015 lands below 93.2% the
+# curve peaks at zero and injection never pays; if above, mild permanent
+# injection beats leaving the cops alone. Either way it completes the curve,
+# which is the figure the thesis wants.
+#
+# READING 2 - ratchet015: ramp up, never come back down, stop at +0.15.
+# Note kp-ratchet in array 1807292 ALREADY never decreased (0 decreases across
+# the run) and held at +0.210, scoring 81.7%. So this differs only by capping
+# 0.21 -> 0.15. Included because it is the literal question, but expect a small
+# effect; fix015 is the informative one.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty 0.15 --curriculum-kp 0 --seed 27 --wandb-run fix015-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty 0.15 --curriculum-kp 0 --seed 28 --wandb-run fix015-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty 0.15 --curriculum-kp 0 --seed 29 --wandb-run fix015-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-ratchet --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run ratchet015-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-ratchet --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run ratchet015-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-ratchet --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run ratchet015-s29
 # --- the rescue test: b2035's band, now capped ------------------------------
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run cap015-b2035-s27
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run cap015-b2035-s28

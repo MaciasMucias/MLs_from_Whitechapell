@@ -1,6 +1,6 @@
-# Director ceiling test — 9 tasks, --array=0-8%9
+# Director ceiling test — 18 tasks, --array=0-17%9
 #
-#   sbatch --array=0-8%9 docs/completion/slurm/array.sbatch \
+#   sbatch --array=0-17%9 docs/completion/slurm/array.sbatch \
 #          docs/completion/slurm/manifests/director_cap.txt
 #
 # ### THE IDEA ###
@@ -94,17 +94,30 @@ uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 1
 # injection beats leaving the cops alone. Either way it completes the curve,
 # which is the figure the thesis wants.
 #
-# READING 2 - ratchet015: ramp up, never come back down, stop at +0.15.
-# Note kp-ratchet in array 1807292 ALREADY never decreased (0 decreases across
-# the run) and held at +0.210, scoring 81.7%. So this differs only by capping
-# 0.21 -> 0.15. Included because it is the literal question, but expect a small
-# effect; fix015 is the informative one.
+# READING 2 - fsCap015: the low-band ceiling design FROM SCRATCH, no warmup.
+#
+# Replaced the planned ratchet015 arm, which was redundant: kp-ratchet in array
+# 1807292 already never decreased across its whole run and held at +0.210
+# (81.7%), so capping 0.21 -> 0.15 would have measured almost nothing.
+#
+# This arm is the better use of three tasks. Every capped arm above branches from
+# a base that spent 4.4M steps at difficulty -1.0, and that warmup is the ONE
+# effect that has shown up robustly anywhere in this workstream (+8.0 points,
+# dbr-off 93.2% vs fs-off 85.2%, non-overlapping). So all of them inherit it and
+# none can separate "early boost" from "warmup, then boost".
+#
+# Running the same low band from scratch disentangles the two. The agent should
+# cross the 0.20 band top somewhere around 1-2M steps and be boosted from there,
+# with no inherited warmup. Compare against:
+#     cap015-b1020  same design WITH the warmup
+#     fs-off 85.2%  no curriculum at all, also from scratch
+#     fs-on  83.2%  uncapped adaptive, also from scratch
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty 0.15 --curriculum-kp 0 --seed 27 --wandb-run fix015-s27
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty 0.15 --curriculum-kp 0 --seed 28 --wandb-run fix015-s28
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty 0.15 --curriculum-kp 0 --seed 29 --wandb-run fix015-s29
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-ratchet --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run ratchet015-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-ratchet --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run ratchet015-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-ratchet --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run ratchet015-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 27 --wandb-run fscap015-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 28 --wandb-run fscap015-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 29 --wandb-run fscap015-s29
 # --- the rescue test: b2035's band, now capped ------------------------------
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run cap015-b2035-s27
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run cap015-b2035-s28

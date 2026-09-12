@@ -41,8 +41,16 @@ from pathlib import Path
 from analysis.sweep_report import _UPD_FIELDS, _arm_key, parse_log
 
 EVAL_COLUMNS = [
-    "run", "arm", "seed", "step", "win_rate", "hideout_uncert",
-    "copdist", "arrest_pct", "timeout_pct", "difficulty",
+    "run",
+    "arm",
+    "seed",
+    "step",
+    "win_rate",
+    "hideout_uncert",
+    "copdist",
+    "arrest_pct",
+    "timeout_pct",
+    "difficulty",
 ]
 TRAIN_COLUMNS = ["run", "arm", "seed", "step", "train_win_rate", "difficulty"]
 
@@ -77,10 +85,16 @@ def export(
             # the final difficulty is exact rather than whatever the stride hit.
             kept = rows[::every] + ([rows[-1]] if rows and len(rows) % every else [])
             for step, wr, diff in kept:
-                w.writerow({
-                    "run": r.name, "arm": _arm_key(r), "seed": r.seed,
-                    "step": step, "train_win_rate": wr, "difficulty": diff,
-                })
+                w.writerow(
+                    {
+                        "run": r.name,
+                        "arm": _arm_key(r),
+                        "seed": r.seed,
+                        "step": step,
+                        "train_win_rate": wr,
+                        "difficulty": diff,
+                    }
+                )
                 n_train += 1
 
     return {"runs": len(runs), "eval_rows": n_eval, "training_rows": n_train}

@@ -296,7 +296,7 @@ def compare(
     print(f"Human win rate: {human_wins}/{len(humans)} = {human_ci}")
     print(
         f"  95% CI clustered by participant; design effect {deff:.2f}, so a "
-        f"per-game\n  interval would have been about {deff ** 0.5:.2f}x too narrow."
+        f"per-game\n  interval would have been about {deff**0.5:.2f}x too narrow."
     )
     print(f"Policy replays per scenario: {n_replays}\n")
 
@@ -389,7 +389,9 @@ def _print_table(results: dict, humans: list[HumanGame]) -> None:
     for label, m in results.items():
         d = m["paired_diff"]
         verdict = (
-            "excludes zero" if d.low > 0 or d.high < 0 else "INCLUDES ZERO - not significant"
+            "excludes zero"
+            if d.low > 0 or d.high < 0
+            else "INCLUDES ZERO - not significant"
         )
         print(f"  {label:<24} {d}   {verdict}")
     print()

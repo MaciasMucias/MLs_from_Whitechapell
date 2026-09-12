@@ -134,9 +134,7 @@ def design_effect(clusters: dict[int, list[float]]) -> float:
 
     # Between-cluster variance of the cluster means, weighted by cluster size.
     between = sum(
-        len(v) * ((sum(v) / len(v)) - grand) ** 2
-        for v in clusters.values()
-        if v
+        len(v) * ((sum(v) / len(v)) - grand) ** 2 for v in clusters.values() if v
     ) / max(len(sizes) - 1, 1)
     icc = max(0.0, min(1.0, (between / len(flat)) / total_var))
     mean_size = sum(sizes) / len(sizes)

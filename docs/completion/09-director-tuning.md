@@ -1,17 +1,92 @@
 # 09 — Director tuning
 
-**Status:** **DONE (2026-09-11). The Director does not help — no Director 93.2% vs 88.3% for the
-best ON arm, ranges non-overlapping, 3 seeds each.** Three waves: `1807070` (17 × 3M, null — runs
-ended before the curriculum starts), `1807190` (3 base runs), `1807209` (15 branch runs, the result).
+**Status:** **2026-09-12 — conclusion revised. The adaptive Director has no measurable effect; a
+fixed two-phase warmup does (+8 points).** Four waves: `1807070` (null — runs too short),
+`1807190` (bases), `1807209` (branch wave — confounded, see the correction), `1807292` (18
+from-scratch + ramp-shape runs, the result that settles it).
 
-**Consequence for 04:** its Director ON/OFF comparison now has an answer before it runs. 04 should
-still run — it supplies the from-scratch OFF number this wave cannot (see the caveat below) — but
-its ON arm is no longer a candidate for the headline policy. Consider re-scoping it toward the
-reward ablation plus a clean OFF baseline.
+Headline numbers, all 15M steps / 3 seeds:
+`dbr-off` (warmup → full strength) **93.2%** > `fs-off` (no curriculum) 85.2% ≈ `fs-on`
+(Director as designed) 83.2% ≈ every ramp variant (81.7–85.8%).
+
+**Consequence for 04:** the ON/OFF comparison is answered — there is no difference. The interesting
+arm is now the **two-phase warmup**, which is the only configuration that beat baseline. Re-scope 04
+around that plus the reward ablation, and drop the adaptive ON arm to a confirmatory seed at most.
 
 ---
 
-## RESULT (2026-09-11, array `1807209`, 15/15) — the Director does not help
+## CORRECTION (2026-09-12, array `1807292`, 18/18) — "the Director is detrimental" was wrong
+
+The conclusion below is **superseded**. Tested without the branch design's
+confound, the Director neither helps nor hurts, and the ramp shape does not
+matter at all. From scratch, 15M steps, 3 seeds each:
+
+| arm | mean | range | converged difficulty |
+|---|---|---|---|
+| `kp-002` (slowest ramp) | 85.8% | [79.5–89.5] | +0.18 to +0.21 |
+| **`fs-off` (no Director)** | **85.2%** | [81.5–88.5] | — |
+| `kp-030` (fastest ramp) | 84.0% | [78.0–88.5] | +0.20 to +0.22 |
+| `fs-on` (Director as designed) | 83.2% | [80.5–85.5] | +0.18 to +0.21 |
+| `kp-cap001` (rate-limited) | 82.7% | [76.5–86.0] | +0.16 to +0.21 |
+| `kp-ratchet` | 81.7% | [76.5–86.0] | +0.18 to +0.21 |
+
+Total spread across all six arms is **4.1 points** against per-arm half-ranges of
+2.5–5.2. Everything overlaps everything. `fs-on` vs `fs-off` — the Director as
+designed against no Director — differ by 2 points with heavily overlapping
+ranges.
+
+**The monotone prediction failed.** This file predicted `kp-002 < kp-010 < kp-030
+< off`, on the reasoning that a slower ramp spends longer suppressed. Observed:
+`kp-002` is *highest* and `kp-030` is *below* `off`. The ordering is noise.
+
+**Why ramp shape is irrelevant — the mechanism.** Every adaptive arm converged to
+difficulty **+0.16 to +0.22** regardless of kp (0.02 vs 0.3), rate limit, or
+ratchet. The controller finds the same equilibrium by different routes, so how it
+travels there cannot matter much. `off_floor%` is 100% for the branch arms and
+72–74% for the from-scratch ones, so the controller was live throughout.
+
+### What actually does have an effect: a fixed suppressed warmup
+
+The one robust signal across every wave. Both arms below are "no Director for the
+second phase", same seeds, same 15M total; they differ only in whether the first
+~4.5M steps ran at difficulty −1.0:
+
+| | mean | range |
+|---|---|---|
+| `dbr-off` — 4.5M suppressed warmup, then full-strength cops | **93.2%** | [92.5–94.0] |
+| `fs-off` — full-strength cops throughout | 85.2% | [81.5–88.5] |
+
+**+8.0 points, non-overlapping ranges**, and higher than anything in the
+from-scratch wave. A hand-designed two-phase curriculum helps substantially. The
+*adaptive* controller does not improve on no curriculum, because it settles at
+~+0.2 injection, which is worth about the same as baseline.
+
+### Where the earlier conclusion went wrong
+
+The branch wave compared arms that all shared a suppressed warmup, so `dbr-off`
+carried the warmup benefit while `dbr-fix10` stayed suppressed for all 15M. That
+made the gap look like "Director bad" when it was really "warmup good, permanent
+suppression bad". Two different things.
+
+**This is the second misreading in this workstream** — the first was "the
+controller has no operating range", which was actually runs ending too early.
+Both were caught by building the experiment that could falsify them. The lesson
+for the writeup: every Director claim here needed a from-scratch control, and the
+branch design, while efficient, could not provide one.
+
+### Revised claim for the thesis
+
+- Adaptive difficulty control: **no measurable effect**, and insensitive to all
+  of its tuning parameters, because it converges to the same equilibrium.
+- A fixed two-phase curriculum (train easy, then hard): **+8 points**, robust
+  across seeds.
+- Over-hardening past ~+0.25: **catastrophic** (`b2035` at +0.54 → 61.3%).
+
+---
+
+## SUPERSEDED (2026-09-11, array `1807209`, 15/15) — "the Director does not help"
+
+*Kept for the record; the confound is explained above.*
 
 The branch design worked: **the curriculum engaged in both adaptive arms**, `off_floor% = 100` in
 all six, ramping from −1.0 into *injection* territory (`diff_max` +0.19 and +0.54). This is the

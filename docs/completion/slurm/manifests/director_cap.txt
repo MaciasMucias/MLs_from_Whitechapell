@@ -65,6 +65,22 @@ uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 1
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run cap015-b4060-s27
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run cap015-b4060-s28
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run cap015-b4060-s29
+# --- ceiling 0.0: suppression only, the controller may NEVER inject ---------
+# Added 2026-09-12 after array 1807292. The one robust effect anywhere in this
+# workstream is a fixed suppressed warmup followed by full-strength cops:
+# dbr-off 93.2% vs fs-off 85.2%, non-overlapping. Meanwhile every adaptive arm
+# converged to ~+0.2 injection and landed at 81-86%, indistinguishable from no
+# curriculum at all.
+#
+# A ceiling of 0.0 makes the controller ramp -1.0 -> 0.0 and stop. That is the
+# ADAPTIVE analogue of the two-phase design that actually worked: it finds the
+# moment to stop helping instead of having it hand-picked, and it never hands the
+# cops knowledge they did not earn. On the evidence this is now the most
+# promising untested configuration - more so than the +0.15 ceiling, since the
+# arms already stop near +0.2 on their own and 0.15 is barely a constraint.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run cap000-b4060-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run cap000-b4060-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run cap000-b4060-s29
 # --- the rescue test: b2035's band, now capped ------------------------------
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run cap015-b2035-s27
 uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run cap015-b2035-s28

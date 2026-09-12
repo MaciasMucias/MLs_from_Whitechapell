@@ -1,0 +1,71 @@
+# Director ceiling test — 9 tasks, --array=0-8%9
+#
+#   sbatch --array=0-8%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/director_cap.txt
+#
+# ### THE IDEA ###
+#
+# Cap how far the controller may raise difficulty, so the cops never enter what
+# the user called "the supernatural realm" — positive difficulty INJECTS
+# knowledge they never earned, and past roughly +0.2 they stop resembling any
+# opponent the agent is evaluated against.
+#
+# ### WHY THE DATA SAYS THIS IS THE MOST PROMISING UNTESTED CONFIG ###
+#
+# From the branch wave (array 1807209), adaptive runs sorted by how far
+# difficulty actually ran:
+#
+#   b4060 x3   peak +0.18 to +0.20   ->  76-86%
+#   b2035 x3   peak +0.47 to +0.54   ->  57-64%
+#
+# And binning every late-training eval (>10M steps) by the difficulty in force:
+#
+#   difficulty <= 0.00    mean win 67.7%   (n=297)
+#   difficulty 0.00-0.25  mean win 76.4%   (n= 99)   <-- peak
+#   difficulty 0.25-0.45  mean win 54.1%   (n= 67)
+#   difficulty > 0.45     mean win 58.5%   (n= 32)
+#
+# There is an INTERIOR OPTIMUM near +0.1 to +0.2. Mild injection beats none;
+# heavy injection is where it collapses. So b2035 did not fail because adaptive
+# difficulty is useless — it failed because nothing stopped it running past the
+# useful range. (The binned view is confounded by arm, so it is corroboration,
+# not proof. These runs are the clean test.)
+#
+# Until 2026-09-12 there was no way to express this: the clamp was hardcoded at
+# +/-1.0. --curriculum-max-difficulty adds it, defaulting to 1.0 so every
+# earlier run is reproduced exactly.
+#
+# ### THE ARMS ###
+#
+# All branch from the SAME dbase checkpoints as array 1807209, so they are
+# directly comparable to b4060 (81.3%) and b2035 (61.3%) rather than to a
+# differently-warmed-up baseline.
+#
+#   cap015-b1020  ceiling +0.15, band [0.10,0.20] — the proposal as stated:
+#                 raise difficulty once the agent clears ~20%, and stop at 0.15.
+#   cap015-b4060  ceiling +0.15, band [0.40,0.60] — same band as b4060, so the
+#                 ONLY difference from that arm is the ceiling. Isolates it.
+#   cap015-b2035  ceiling +0.15, band [0.20,0.35] — b2035 with the cap. Directly
+#                 tests whether the ceiling rescues the arm that collapsed.
+#
+# ### HOW TO READ IT ###
+#
+# cap015-b2035 vs b2035 (61.3%) is the sharpest single comparison in the wave:
+# same band, same bases, same seeds, ceiling the only change. A large gain there
+# means over-hardening was the whole problem.
+#
+# The bar to beat overall is dbr-off at 93.2% — no Director, same bases. If a
+# capped arm clears that, the Director earns its place in the thesis after all.
+
+# --- the proposal: ceiling +0.15, harden above ~20% win rate ---------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 27 --wandb-run cap015-b1020-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 28 --wandb-run cap015-b1020-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 29 --wandb-run cap015-b1020-s29
+# --- ceiling isolated: same band as b4060, only the cap differs -------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 27 --wandb-run cap015-b4060-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 28 --wandb-run cap015-b4060-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.40 --curriculum-target-high 0.60 --seed 29 --wandb-run cap015-b4060-s29
+# --- the rescue test: b2035's band, now capped ------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run cap015-b2035-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run cap015-b2035-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.15 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 29 --wandb-run cap015-b2035-s29

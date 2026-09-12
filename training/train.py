@@ -548,7 +548,17 @@ def train(args: argparse.Namespace) -> None:
                     # Ratchet: difficulty may only ever get harder, never fall back.
                     if args.curriculum_ratchet:
                         delta = max(0.0, delta)
-                    new_difficulty = max(-1.0, min(1.0, curriculum_difficulty + delta))
+                    # Bound the range the controller may explore. The ceiling is
+                    # the one that matters: positive difficulty INJECTS knowledge
+                    # the cops never earned, and past roughly +0.2 they stop
+                    # resembling any opponent the agent is evaluated against.
+                    # Measured on array 1807209 — adaptive runs that stopped near
+                    # +0.19 scored 76-86%, those that ran to +0.47-0.54 scored
+                    # 57-64%, and late-training evals peak in the 0.00-0.25 band.
+                    new_difficulty = max(
+                        args.curriculum_min_difficulty,
+                        min(args.curriculum_max_difficulty, curriculum_difficulty + delta),
+                    )
                     if new_difficulty != curriculum_difficulty:
                         curriculum_difficulty = new_difficulty
                         envs.set_difficulty(curriculum_difficulty)
@@ -726,6 +736,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=2.0,
         help="Cap on how far difficulty may move in one update. The difficulty "
         "range is 2.0 wide, so the default never binds",
+    )
+    p.add_argument(
+        "--curriculum-max-difficulty",
+        type=float,
+        default=1.0,
+        help="Ceiling the controller may raise difficulty to. Positive values "
+        "INJECT knowledge the cops never earned; past ~+0.2 they stop "
+        "resembling the evaluation opponent. 1.0 (default) is the old "
+        "unbounded behaviour",
+    )
+    p.add_argument(
+        "--curriculum-min-difficulty",
+        type=float,
+        default=-1.0,
+        help="Floor the controller may lower difficulty to. -1.0 (default) is "
+        "full suppression",
     )
     p.add_argument(
         "--curriculum-ratchet",

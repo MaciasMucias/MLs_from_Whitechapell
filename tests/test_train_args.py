@@ -108,3 +108,39 @@ def test_unknown_flag_is_rejected():
     """Guards manifest typos — argparse exits rather than ignoring."""
     with pytest.raises(SystemExit):
         parse_args(["--ent-cof", "0.01"])
+
+
+# --- difficulty bounds ------------------------------------------------------
+# The ceiling is the load-bearing one. Positive difficulty INJECTS knowledge the
+# cops never earned; measured on array 1807209, adaptive runs that stopped near
+# +0.19 scored 76-86% while those that ran to +0.47-0.54 scored 57-64%.
+
+
+def test_difficulty_bounds_default_to_the_full_range():
+    """Defaults must reproduce the old hardcoded +/-1.0 clamp exactly."""
+    a = parse_args([])
+    assert a.curriculum_max_difficulty == 1.0
+    assert a.curriculum_min_difficulty == -1.0
+
+
+def test_difficulty_ceiling_is_settable():
+    a = parse_args(["--curriculum-max-difficulty", "0.15"])
+    assert a.curriculum_max_difficulty == 0.15
+    assert a.curriculum_min_difficulty == -1.0  # floor untouched
+
+
+def test_difficulty_floor_is_settable():
+    a = parse_args(["--curriculum-min-difficulty", "-0.5"])
+    assert a.curriculum_min_difficulty == -0.5
+
+
+def test_a_ceiling_at_zero_forbids_injection_entirely():
+    """difficulty <= 0 is suppression only — cops never get unearned knowledge."""
+    assert parse_args(["--curriculum-max-difficulty", "0"]).curriculum_max_difficulty == 0.0
+
+
+def test_bounds_can_pin_difficulty_to_a_single_value():
+    """min == max is another way to hold difficulty fixed, alongside kp=0."""
+    a = parse_args(["--curriculum-min-difficulty", "-0.5",
+                    "--curriculum-max-difficulty", "-0.5"])
+    assert a.curriculum_min_difficulty == a.curriculum_max_difficulty == -0.5

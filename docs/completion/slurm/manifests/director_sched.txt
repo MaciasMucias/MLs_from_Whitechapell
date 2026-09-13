@@ -1,0 +1,89 @@
+# Director schedule study — 18 tasks, --array=0-17%9
+#
+#   sbatch --array=0-17%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/director_sched.txt
+#
+# Two questions, each with its own control.
+#
+# ============================================================================
+# Q1. IS -1.0 A DEGENERATE FLOOR?
+# ============================================================================
+#
+# CurriculumDirector suppresses each discovered node when `rng.random() > |d|`.
+# random() returns [0,1), so at |d| = 1.0 that test is ALWAYS false:
+#
+#     -1.00  ->   0.00% of discovered nodes survive
+#     -0.95  ->   5.05%
+#     -0.90  ->  10.11%
+#
+# -1.0 is therefore not "very strong suppression" but a qualitatively different
+# regime: the cops receive ZERO information ever, beyond Jack's public start.
+# Searching is pointless for them, so Jack gets NO training signal that being
+# seen matters — an entire strategy class is unlearnable.
+#
+# That matches the measured pathology of permanent -1.0 (fix10, 50.7%): copdist
+# 1.03 and arrest 52%, i.e. it walks straight past cops because in training that
+# was free.
+#
+# And every warmup run so far started at exactly -1.0, including the ones behind
+# the best results (dbr-off 93.2%, cap000 92.8%). If -0.95 keeps the signal alive
+# while staying nearly as easy, everything downstream may improve.
+#
+#   fix095       pinned at -0.95 for the whole run. Compare to fix10 (-1.0,
+#                50.7%). A large gain is the cleanest possible demonstration of
+#                the boundary effect.
+#   fsc000-i095  from scratch, start -0.95, ceiling 0.0.
+#   fsc000-i100  from scratch, start -1.0, ceiling 0.0 — the control for it.
+#                (cap000-b4060's 92.8% cannot serve: it branched off a -1.0 base,
+#                so it already carries the thing under test.)
+#
+# ============================================================================
+# Q2. AT CEILING 0.0, DOES THE TARGET BAND MATTER?
+# ============================================================================
+#
+# The band's job is pacing — how long the run sits at whatever ceiling it has.
+# Measured at ceiling +0.15, where the ceiling is HARMFUL, slower is better:
+#
+#   band          reaches ceiling   % of run there   win%
+#   [0.40,0.60]        12.0M              25%        81.7
+#   [0.20,0.35]         6.7M              76%        77.8
+#   [0.10,0.20]         4.7M              93%        73.2
+#
+# At ceiling 0.0 the ceiling is the OPTIMUM, so the effect should invert: arrive
+# sooner, spend more of training there. cap000-b4060 ([0.40,0.60]) reaches 0.0 at
+# 5.5M and spends 90% there, scoring 92.8%.
+#
+# But there is a competing force. The suppressed warmup is worth +17 points
+# (73.2% vs 56.2% for the same design from scratch), and ramping faster means
+# LESS warmup. So the band trades time-at-optimum against time-learning-easy,
+# and the best pace may be interior rather than at either extreme. That is the
+# result worth having: a band x ceiling interaction where the sign flips.
+#
+#   c000-b1020   fastest ramp - most time at optimum, least warmup
+#   c000-b2035   fast
+#   (cap000-b4060 already measured: 92.8%, reaches 0.0 at 5.5M, 90% there)
+#   c000-b6080   slowest ramp - most warmup, least time at optimum
+#
+# All Q2 arms branch from the same bases as array 1807359, so they compare
+# directly against cap000-b4060.
+
+# --- Q1: is -1.0 degenerate? ------------------------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -0.95 --curriculum-kp 0 --seed 27 --wandb-run fix095-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -0.95 --curriculum-kp 0 --seed 28 --wandb-run fix095-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -0.95 --curriculum-kp 0 --seed 29 --wandb-run fix095-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -0.95 --curriculum-max-difficulty 0.0 --seed 27 --wandb-run fsc000-i095-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -0.95 --curriculum-max-difficulty 0.0 --seed 28 --wandb-run fsc000-i095-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -0.95 --curriculum-max-difficulty 0.0 --seed 29 --wandb-run fsc000-i095-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 27 --wandb-run fsc000-i100-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 28 --wandb-run fsc000-i100-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 29 --wandb-run fsc000-i100-s29
+# --- Q2: band x ceiling interaction, all at ceiling 0.0 ---------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 27 --wandb-run c000-b1020-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 28 --wandb-run c000-b1020-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.10 --curriculum-target-high 0.20 --seed 29 --wandb-run c000-b1020-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 27 --wandb-run c000-b2035-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 28 --wandb-run c000-b2035-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.20 --curriculum-target-high 0.35 --seed 29 --wandb-run c000-b2035-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s27/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.60 --curriculum-target-high 0.80 --seed 27 --wandb-run c000-b6080-s27
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s28/agent_0004454400.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.60 --curriculum-target-high 0.80 --seed 28 --wandb-run c000-b6080-s28
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --branch-from checkpoints/dbase-s29/agent_0004915200.pt --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --curriculum-target-low 0.60 --curriculum-target-high 0.80 --seed 29 --wandb-run c000-b6080-s29

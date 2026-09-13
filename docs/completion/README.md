@@ -6,7 +6,10 @@ self-contained: a session can open any single file and execute it without readin
 **These docs are the working state, not a retrospective.** Updating the relevant file's Status and
 Session log is part of finishing a piece of work.
 
-Audit date: 2026-09-10. Branch `dev`.
+Audit date: 2026-09-13. Branch `dev`.
+
+**[FINDINGS.md](FINDINGS.md) collects every experimental result worth putting in the thesis**, with
+evidence and caveats. Read that before writing any chapter.
 
 ---
 

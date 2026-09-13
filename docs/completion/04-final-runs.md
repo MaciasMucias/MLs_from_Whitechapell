@@ -1,22 +1,35 @@
 # 04 — Final runs: Director on/off
 
-**Status:** not started — **and its ON arm's premise is not yet verified.** Do not submit before
-[09](09-director-tuning.md) phase 3 reports.
+**Status:** **ready to submit.** `slurm/manifests/final.txt` is filled and validated
+(`uv run pytest tests/test_run_manifests.py`, 671 passed). 09 is closed and supplied the ON arm's
+configuration: `--initial-difficulty -1.0 --curriculum-max-difficulty 0.0`, default band.
 
-> **Blocking caveat added 2026-09-10.** Every 3M-step run so far ended *before* the curriculum does
-> anything: the first difficulty uptick in the historic 10M run was at step 3,256,320. Submitting
-> 04 now would spend 9 × 15M steps on an ON arm whose Director configuration has never been tested
-> in the regime where it operates. 09's branch design settles that first.
+> **The 2026-09-10 blocking caveat is cleared (2026-09-13).** It said the ON arm's Director config
+> had never been tested in the regime where it operates. Five further waves did exactly that; see
+> [09](09-director-tuning.md). The three concerns it raised, resolved:
 >
-> Two further corrections that change this file's plan:
->
-> - **The three seeds are only now real.** Until 2026-09-09 `--seed` did not seed torch, numpy or
->   global `random`, so "paired per seed" was not paired — same-seed runs were independent draws
->   with a ~9.5-point spread. Fixed; but that spread is the noise floor any Director claim here must
->   clear, and three seeds against it is thin.
-> - **The sparse ablation may not show what this file expects.** At 3M steps the fully sparse config
->   scored *above* the shaped control (33.0% vs 30.0%), i.e. reward shaping cannot be shown to help.
->   See [03](03-ppo-sweep.md)'s wave-2 results.
+> - *"Runs end before the curriculum does anything"* — fixed by `--branch-from` and by moving to 15M
+>   steps. The first uptick is at 4.4–4.8M; every seeded wave since `1807209` shows the controller
+>   live (`off_floor%` 72–100).
+> - *"The three seeds are only now real"* — still true and still the binding constraint. The
+>   ~9.5-point noise floor is why 04 runs 3 seeds per arm and why it re-measures on fresh ones.
+> - *"The sparse ablation may not show what this file expects"* — confirmed. At 3M the sparse config
+>   scored *above* the shaped control (33.0% vs 30.0%). Run it anyway at 15M and report it as a null
+>   if that is what it is; "reward shaping cannot be shown to help" is a legitimate finding.
+
+### Why 04 re-runs arms that already exist
+
+`fsc000-i100` (array `1807390`) is this file's ON arm flag-for-flag — 15M steps, from scratch,
+`lr 3e-4`, `ent-coef 0.03`, default band, `--curriculum-max-difficulty 0.0`, seeds 27/28/29. `fs-off`
+(array `1807292`) is its OFF arm. Together they already give **92.0% [91.0–93.0] vs 85.2%
+[81.5–88.5]**, paired per seed, **+6.8 points**.
+
+That is the tuning estimate, not the headline. `--curriculum-max-difficulty 0.0` was *selected* as
+the best of ~6 ceiling arms, and a maximum over 6 arms at a 9.5-point noise floor is biased upward.
+The OFF arm carries no such bias, so the effect's *sign* is safe either way — its *magnitude* is
+what 04 measures, on **fresh seeds 31/32/33**. The tuning study picks the configuration; 04 reports
+the number. Keep both in the writeup and say which is which.
+
 **Blocks:** 06
 **Blocked by:** 01 (frozen cops), 02 (reproducibility), 03 (chosen config)
 
@@ -164,3 +177,10 @@ uv run python -m training.eval checkpoints/<run>/agent_best.pt --n-games 500
   full 9-run final set (2 Director arms + sparse, 3 seeds each) fits in one window. Reward ablation
   promoted from "cut this first" to affordable. Flagged the 174 SPS walltime floor as the one thing
   that could force the final runs onto GPU.
+- 2026-09-13 — **unblocked and filled.** 09 closed with `--curriculum-max-difficulty 0.0` (default
+  band). Filled `final.txt` with lr 3e-4 / ent 0.03 and the Director flags on seeds **31/32/33**,
+  deliberately not the tuning study's 27/28/29: `fsc000-i100` and `fs-off` already constitute this
+  file's two arms at 92.0% vs 85.2%, but the ON config was selected as the best of ~6 ceiling arms
+  and so carries a winner's curse at the 9.5-point noise floor. 04 re-measures it clean. Validated
+  with `tests/test_run_manifests.py` (671 passed) before submitting — the manifest test is what
+  catches a `--gamma`/`--reward-gamma` slip or an off-spec `--n-envs` for free on the laptop.

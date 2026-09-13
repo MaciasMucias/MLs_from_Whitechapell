@@ -1,35 +1,48 @@
 # Final runs — 04-final-runs.md. 9 tasks, submit with --array=0-8%9
 #
-# PREREQUISITES
+#   sbatch --array=0-8%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/final.txt
+#
+# PREREQUISITES — all met 2026-09-13
 #   01        cops frozen at COPS_STUDY_V2
 #   02-C1     reward coefficients exposed as CLI flags (the sparse arm needs them)
 #   02-C2     best-checkpoint tracking + pruning (9 concurrent runs x ~1.1GB otherwise)
-#   03        <LR> and <ENT> below replaced with the sweep's chosen values
+#   03        lr 3e-4, ent-coef 0.03
+#   09        Director config chosen: --curriculum-max-difficulty 0.0
 #
 # INVARIANTS
 #   - identical --n-envs/--n-steps across every line AND the sweep (batch = n_steps * n_envs)
 #   - the same three seeds in every arm, so the comparison is paired per seed
 #   - --wandb-run doubles as the checkpoint subdirectory name (train.py:291)
 #
-# Director ON — the headline arm.
-# ADD THE DIRECTOR FLAGS CHOSEN BY 09 to all three lines (--initial-difficulty,
-# --curriculum-kp, --curriculum-max-step, --curriculum-ratchet, band). Leaving
-# them at defaults reruns the one configuration that already lost to the OFF arm
-# on a fair Director-free evaluation. See 09-director-tuning.md.
+# WHY SEEDS 31/32/33 AND NOT 27/28/29.
+# The tuning waves (1807292, 1807359, 1807390) already ran this exact ON config
+# from scratch as `fsc000-i100` (92.0% [91.0-93.0]) and this exact OFF config as
+# `fs-off` (85.2% [81.5-88.5]), both on seeds 27/28/29. Those are a fine estimate
+# but not a clean headline: --curriculum-max-difficulty 0.0 was SELECTED as the
+# best of ~6 ceiling arms, and selecting the max over 6 arms at a 9.5-point noise
+# floor inflates the winner. So 04 re-measures the chosen config on fresh seeds.
+# The tuning study picks the configuration; 04 reports the number.
+#
+# Director ON — the headline arm. Flags chosen by 09-director-tuning.md:
+# adaptive suppression that relaxes to full strength and is FORBIDDEN to inject.
+# Default band [0.4, 0.6] — 1807390 measured the band as a null at this ceiling,
+# so do NOT pass --curriculum-target-low/high.
 #
 # Rank these against the OFF arm on eval/win_rate ONLY. charts/win_rate on an ON
 # run is the P-controller's setpoint (~0.5 by construction), not a score.
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 27 --wandb-run director-on-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 28 --wandb-run director-on-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 29 --wandb-run director-on-s29
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 31 --wandb-run director-on-s31
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 32 --wandb-run director-on-s32
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 33 --wandb-run director-on-s33
 # Director OFF — the paired comparison arm. Identical but for --no-curriculum.
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 27 --no-curriculum --wandb-run director-off-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 28 --no-curriculum --wandb-run director-off-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 29 --no-curriculum --wandb-run director-off-s29
-# Sparse reward ablation (DESIGN_REQUIREMENTS 7.3) — terminal reward only, curriculum ON.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --no-curriculum --seed 31 --wandb-run director-off-s31
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --no-curriculum --seed 32 --wandb-run director-off-s32
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --no-curriculum --seed 33 --wandb-run director-off-s33
+# Sparse reward ablation (DESIGN_REQUIREMENTS 7.3) — terminal reward only, curriculum ON
+# with the same chosen config as the ON arm, so it ablates reward shaping alone.
 # The flags are --reward-*, NOT --alpha/--beta/...: a bare "--gamma 0" would set
 # PPO's discount factor to zero instead of disabling the terminal bonus, and
-# would do so silently. See 02-C1.
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 27 --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sparse-s27
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 28 --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sparse-s28
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr <LR> --ent-coef <ENT> --seed 29 --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sparse-s29
+# would do so silently. See 02-C1; pinned by tests/test_run_manifests.py.
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 31 --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sparse-s31
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 32 --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sparse-s32
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 33 --reward-alpha 0 --reward-beta 0 --reward-delta 0 --reward-gamma 0 --reward-zeta 0 --wandb-run sparse-s33

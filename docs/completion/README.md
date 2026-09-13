@@ -6,7 +6,7 @@ self-contained: a session can open any single file and execute it without readin
 **These docs are the working state, not a retrospective.** Updating the relevant file's Status and
 Session log is part of finishing a piece of work.
 
-Audit date: 2026-09-13. Branch `dev`.
+Audit date: 2026-09-13 (cluster re-read after array `1807390` landed). Branch `dev`.
 
 **[FINDINGS.md](FINDINGS.md) collects every experimental result worth putting in the thesis**, with
 evidence and caveats. Read that before writing any chapter.
@@ -20,8 +20,8 @@ evidence and caveats. Read that before writing any chapter.
 | [01](01-freeze-cops.md) | Freeze cop configuration | **done** | 03, 04, 06 |
 | [02](02-training-reproducibility.md) | Training reproducibility + cluster readiness | **done** | 03, 04 |
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
-| [09](09-director-tuning.md) | Director tuning | **done** — curriculum helps if it never injects; use `--curriculum-max-difficulty 0` | 04 |
-| [04](04-final-runs.md) | Final runs — Director on/off | not started | 06 |
+| [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
+| [04](04-final-runs.md) | Final runs — Director on/off | **ready to submit** — `final.txt` filled and validated | 06 |
 | [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **code done**, awaiting 04 | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
@@ -50,40 +50,8 @@ whole 04 final set — 2 Director arms + the reward ablation, **3 seeds each, 9 
 concurrent window instead of running sequentially. The seeds matter most: PPO seed variance can
 exceed the Director effect being claimed, so single-seed arms would not support the conclusion.
 
-### IN FLIGHT — array `1807390`, submitted 2026-09-14 04:20, 18 tasks, ~9-10h
 
-The schedule study ([`slurm/manifests/director_sched.txt`](slurm/manifests/director_sched.txt)).
-Read it with:
-
-```bash
-ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807390_*.out"'
-```
-
-Then export and pull the data (two separate ssh calls — the export's stdout
-corrupts a combined tar stream):
-
-```bash
-ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_1807390_*.out" \
-  --prefix director_sched --out-dir results'
-ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/director_sched_eval.csv \
-  results/director_sched_training.csv' | tar xz --strip-components=1 -C docs/completion/results
-```
-
-**Two questions, each with its own control:**
-
-| compare | answers |
-|---|---|
-| `fix095` vs `fix10` (50.7%) | is −1.0 a *degenerate* floor? At −1.0 exactly **0%** of discovered nodes survive (`random() > 1.0` is always false), so cops learn nothing ever and Jack has no signal that being seen matters. −0.95 leaves 5%. A large gain here is the boundary effect. |
-| `fsc000-i095` vs `fsc000-i100` | the same question as a *warmup*, from scratch. **`cap000-b4060` cannot be the control** — it branched off a −1.0 base, so it already carries the thing under test. |
-| `c000-b1020` / `b2035` / `b6080` vs `cap000-b4060` (92.8%) | does the band matter at ceiling 0.0? At ceiling +0.15 slower was better (81.7 / 77.8 / 73.2 for progressively faster ramps). At ceiling 0.0 the ceiling *is* the optimum, so the sign should flip — but faster also means less warmup, and the warmup is worth +17 points, so the best pace may be interior. |
-
-**If `fix095` or `fsc000-i095` wins clearly, the base runs need re-doing at −0.95**, and every
-downstream result built on a −1.0 warmup is provisional. That is the outcome with the largest
-consequences, so check it first.
-
-### Cluster waves run so far (all complete)
+### Cluster waves run so far — all complete, nothing in flight
 
 | array | wave | tasks | outcome |
 |---|---|---|---|
@@ -91,26 +59,55 @@ consequences, so check it first.
 | `1806936` | entropy boundary probe | 2 | **ent-coef 0.03** confirmed an *interior* optimum |
 | `1806976` | 03 sweep w2 | 12 | reward coefficients: **all inside noise**; keep defaults |
 | `1807070` | 09 director v1 | 17 | **null — runs ended before the curriculum starts** |
+| `1807190` | 09 bases | 3 | the curriculum's first uptick is at 4.4–4.8M steps |
+| `1807209` | 09 branch | 15 | "the Director does not help" — **later found confounded** |
+| `1807292` | 09 from scratch + ramp shape | 18 | **correction:** ramp shape is irrelevant; the *warmup* is what helps |
+| `1807359` | 09 ceilings | 18 | **the result: `--curriculum-max-difficulty 0.0`**, 92.8% |
+| `1807390` | 09 schedule study | 18 | **both remaining knobs closed** — see below |
 
-**Chosen config: `--lr 3e-4 --ent-coef 0.03`.**
+**Chosen config: `--lr 3e-4 --ent-coef 0.03 --curriculum-max-difficulty 0.0`** (default band).
 
-**Next concrete step: submit 09 phase 2** — three base runs to 8M, whose checkpoints every Director
-arm then branches from:
+### What `1807390` settled (2026-09-13)
+
+Two questions, one of which could have invalidated everything upstream of it. Full write-up in
+[09](09-director-tuning.md).
+
+- **The −1.0 floor is degenerate, but harmlessly so.** `random() > |d|` is never true at |d| = 1.0,
+  so 0% of discovered nodes survive and an entire strategy class is unlearnable. Held permanently
+  that costs 13.8 points (`fix095` 64.5% vs `fix10` 50.7%, non-overlapping). **As a warmup it is
+  fine** — `fsc000-i100` (−1.0) 92.0% vs `fsc000-i095` (−0.95) 89.3%, inside the noise floor,
+  because a degenerate floor is simply a longer warmup and the warmup is worth +17 points.
+  **So the base runs stand and no downstream result is provisional.**
+- **The target band at ceiling 0.0 is a null.** 90.5 / 91.8 / 92.5 / 92.8 across four bands — 2.3
+  points of spread, non-monotone. Pacing only matters when it controls time spent somewhere harmful;
+  at ceiling 0.0 the ceiling is the optimum, so it does not. Use the default band, do not tune it.
+
+**09 is closed.** Every Director knob is either chosen or measured as a null.
+
+### Next concrete step: submit 04
+
+`slurm/manifests/final.txt` is filled and validated (`uv run pytest tests/test_run_manifests.py`).
 
 ```bash
 ssh cluster 'cd ~/MLs_from_Whitechapel && git pull && \
-  sbatch --array=0-2%3 docs/completion/slurm/array.sbatch \
-         docs/completion/slurm/manifests/director_base.txt'
+  sbatch --array=0-8%9 docs/completion/slurm/array.sbatch \
+         docs/completion/slurm/manifests/final.txt'
 ```
 
-Then pick the branch point (first checkpoint where *training* win rate sustains > 0.60), fill
-`<CK27>/<CK28>/<CK29>` into `director_branch.txt`, and submit its 15 tasks. Then 04.
+Nine tasks, ~5–7h, one window: `director-on` / `director-off` / `sparse`, three seeds each.
+
+**Why 04 re-runs a configuration that has already been run.** `fsc000-i100` (1807390) is 04's ON arm
+flag-for-flag and `fs-off` (1807292) is its OFF arm, giving **92.0% vs 85.2%** paired per seed. But
+`--curriculum-max-difficulty 0.0` was *selected* as the best of ~6 ceiling arms, and the maximum over
+6 arms at a 9.5-point noise floor is biased upward. 04 therefore re-measures it on **fresh seeds
+31/32/33**. The tuning study picks the configuration; 04 reports the number.
 
 **Two measured numbers that govern how any of this is read.** The run-to-run noise floor is
 **~9.5 points** of `eval/win_rate` (wave 1's `sw1-lr3e4-ent003-on` 39.5% vs wave 2's identical
-`sw2-control` 30.0%) — most single-run differences are noise, which is why 09 phase 3 is seeded. And
-`--seed` controlled almost nothing until 2026-09-09: weight init, action sampling and minibatch
-order all ran on torch's OS-seeded default, so any pre-fix "paired seed" comparison was not paired.
+`sw2-control` 30.0%) — most single-run differences are noise, which is why every 09 wave from
+`1807209` on is seeded. And `--seed` controlled almost nothing until 2026-09-09: weight init, action
+sampling and minibatch order all ran on torch's OS-seeded default, so any pre-fix "paired seed"
+comparison was not paired.
 
 W&B runs offline on the compute nodes — sync from the login node afterwards with
 `wandb sync wandb/offline-*`. Remember: **never run Python on the login node**; its CPU lacks

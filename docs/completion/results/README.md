@@ -22,7 +22,10 @@ from losing the evidence behind the thesis's main claim. `slurm_logs.tar.gz`
 | `sweep_w2` | 1806976 | 12 | reward coefficients: every change inside the noise floor |
 | `director_v1` | 1807070 | 17 | null — runs ended before the curriculum starts |
 | `director_base` | 1807190 | 3 | the curriculum's first uptick is at 4.4–4.8M steps |
-| **`director_branch`** | **1807209** | **15** | **the headline: the Director does not help** |
+| `director_branch` | 1807209 | 15 | "the Director does not help" — **superseded, confounded** |
+| `director_v3` | 1807292 | 18 | ramp shape is irrelevant; the *suppressed warmup* is what helps |
+| **`director_cap`** | **1807359** | **18** | **the headline: the curriculum works if forbidden to inject** |
+| `director_sched` | 1807390 | 18 | the −1.0 floor is degenerate but harmless as a warmup; the band is a null |
 
 ## Schema
 
@@ -55,10 +58,14 @@ from losing the evidence behind the thesis's main claim. `slurm_logs.tar.gz`
 
 ## Figures these support
 
-1. **The headline.** Final `win_rate` by arm from `director_branch_eval.csv`, one
-   point per seed. Reproduces: off 93.2% [92.5–94.0], fix05 88.3% [87.0–90.5],
-   b4060 81.3% [76.0–86.5], b2035 61.3% [57.5–64.0], fix10 50.7% [46.0–56.0].
-   The top two ranges do not overlap.
+1. **The headline.** Final `win_rate` by arm from `director_cap_eval.csv`, one
+   point per seed: ceiling 0.0 **92.8%** [92.5–93.0], ceiling +0.15 81.7%
+   [77.0–85.5], uncapped 81.3% [76.0–86.5] and 61.3% [57.5–64.0]. A curriculum
+   forbidden to inject ties the best number in the project; injection costs in
+   proportion to its magnitude.
+   *`director_branch_eval.csv` was the headline until 2026-09-12 and is no longer* —
+   all five of its arms share a −1.0 prefix, so it cannot separate "Director bad"
+   from "warmup good". Plot it as the confounded wave it is, or not at all.
 2. **The dose-response.** Final `win_rate` against *fixed* training difficulty
    (−1.0 → 50.7, −0.5 → 88.3, none → 93.2) — monotone: handicapping the cops
    during training is monotonically harmful.
@@ -80,3 +87,24 @@ All five arms branch from a base trained at difficulty −1.0 for 4.4–4.9M ste
 so `dbr-off` is "suppressed prefix, then no Director" — not a pure control. The
 *between-arm* comparison is clean (identical prefix, identical seeds); the
 absolute number needs a from-scratch `--no-curriculum` run, which is 04's OFF arm.
+
+## The two nulls, and why they belong in the thesis
+
+Both from `director_sched_eval.csv` (array 1807390). A measured null is a result
+when it closes a knob the reader would otherwise expect to be tuned.
+
+6. **The degenerate floor.** `win_rate` for `fix095` (64.5% [62.5–68.5]) against
+   `fix10` from `director_cap_eval.csv` (50.7% [46.0–56.0]). `random() > |d|` is
+   never true at |d| = 1.0, so 0% of discovered nodes survive against 5.05% at
+   −0.95 — an implementation boundary worth 13.8 points. Pair with `copdist` /
+   `arrest_pct` to show cop-avoidance partly restored (1.17/37% vs 1.03/53%).
+7. **Why it does not matter in practice.** `fsc000-i100` (92.0%) against
+   `fsc000-i095` (89.3%), plus `difficulty` vs `step` from
+   `director_sched_training.csv` for both. The −1.0 runs sit pinned at the floor
+   for ~26% of training and the −0.95 runs leave almost immediately: degeneracy
+   buys a longer warmup, and the two effects cancel.
+8. **The band is a null at ceiling 0.0.** Four bands, 90.5 / 91.8 / 92.5 / 92.8,
+   2.3 points of spread, non-monotone. Contrast against the same four bands at
+   ceiling +0.15 in `director_cap_eval.csv` (8.5-point spread, monotone) — the
+   interaction is the figure: pacing matters only when it controls how long a run
+   sits somewhere harmful.

@@ -1,18 +1,103 @@
 # 09 — Director tuning
 
 **Status:** **DONE (2026-09-13). The curriculum works — but only if it is forbidden from
-injecting.** Five waves: `1807070` (null, runs too short), `1807190` (bases), `1807209` (branch —
-confounded), `1807292` (from scratch + ramp shape), `1807359` (ceilings — the result).
+injecting.** Six waves: `1807070` (null, runs too short), `1807190` (bases), `1807209` (branch —
+confounded), `1807292` (from scratch + ramp shape), `1807359` (ceilings — the result), `1807390`
+(schedule study — the floor and the band, both closed out).
 
-**Recommended configuration: `--curriculum-max-difficulty 0.0`.** Adaptive suppression that relaxes
-to full strength and never injects: **92.8%** [92.5–93.0], tying the best number seen anywhere
+**Recommended configuration: `--curriculum-max-difficulty 0.0`, default band, from scratch.**
+Adaptive suppression that relaxes to full strength and never injects: **92.8%** [92.5–93.0] when
+branched, **92.0%** [91.0–93.0] when run from scratch, tying the best number seen anywhere
 (`dbr-off` 93.2%) and beating no-curriculum-at-all (`fs-off` 85.2%).
 
 **Consequence for 04:** the ON arm is worth running after all, but as `--curriculum-max-difficulty 0`
-rather than the original unbounded Director. The OFF arm stays as the baseline.
+rather than the original unbounded Director. The OFF arm stays as the baseline. `final.txt` is
+filled with this configuration on fresh seeds 31/32/33 — see "Why 04 re-measures" below.
 
 ---
 
+## SCHEDULE STUDY (2026-09-13, array `1807390`, 18/18) — both remaining knobs are closed
+
+Two questions, each with its own from-scratch control. Neither changes the recommendation; one of
+them was capable of invalidating every result in this file, and did not.
+
+### 1. −1.0 is a degenerate floor — but only when it is permanent
+
+`CurriculumDirector` suppresses each discovered node when `rng.random() > |d|`. `random()` returns
+[0, 1), so at |d| = 1.0 that test is **never true**: 0% of discovered nodes survive, against 5.05% at
+−0.95. −1.0 is therefore not "very strong suppression" but a qualitatively different regime — the
+cops receive zero information ever, searching is pointless for them, and Jack gets no training signal
+that being seen matters. An entire strategy class is unlearnable.
+
+Held constant for the whole run, that costs 13.8 points:
+
+| arm | training condition | mean | range | copdist | arrest% |
+|---|---|---|---|---|---|
+| `fix095` | pinned −0.95 | **64.5%** | [62.5–68.5] | 1.13–1.21 | 33.5–40.0 |
+| `fix10` (1807359) | pinned −1.0 | 50.7% | [46.0–56.0] | 1.01–1.06 | 49.0–57.0 |
+
+Non-overlapping ranges, and the behavioural signature moves the right way — 5% of the information
+surviving is enough to partly restore cop avoidance. Both are still pathological against the
+~1.50 copdist / ~7% arrest of the good arms, so this is a boundary effect on top of the known
+"permanent suppression is bad" result, not a replacement for it.
+
+**As a warmup the effect inverts, and that is the case that matters.** Same ceiling, same band, from
+scratch, differing only in where the ramp starts:
+
+| arm | start | mean | range | off_floor% |
+|---|---|---|---|---|
+| `fsc000-i100` | −1.0 | **92.0%** | [91.0–93.0] | 72.4 / 72.7 / 74.3 |
+| `fsc000-i095` | −0.95 | 89.3% | [87.0–91.0] | 99.1 / 100.0 / 100.0 |
+
+−1.0 wins by 2.7 points, well inside the ~9.5-point noise floor, so the honest reading is "no
+difference" — but it is certainly not worse. `off_floor%` gives the mechanism: the −1.0 runs sit
+pinned at the floor for ~26% of training while the −0.95 runs leave it almost immediately. A
+degenerate floor is a *longer warmup*, and the warmup is worth +17 points. The two effects point in
+opposite directions and roughly cancel.
+
+**Consequence: the base runs stand.** Every warmup in this project started at exactly −1.0, including
+the ones behind `dbr-off` (93.2%) and `cap000` (92.8%). This was the outcome with the largest blast
+radius — a clear `-0.95` win would have made every downstream result provisional and forced the bases
+to be re-run. It did not happen. Nothing needs re-doing.
+
+### 2. At ceiling 0.0 the target band does not matter
+
+The band paces the ramp: how fast difficulty climbs, hence how long the run sits at its ceiling. All
+four arms branch from the same bases, ceiling 0.0, differing only in the band:
+
+| band | arm | mean | range |
+|---|---|---|---|
+| [0.10, 0.20] — fastest ramp | `c000-b1020` | 91.8% | [89.0–93.5] |
+| [0.20, 0.35] | `c000-b2035` | 90.5% | [89.5–92.0] |
+| [0.40, 0.60] — default | `cap000-b4060` (1807359) | **92.8%** | [92.5–93.0] |
+| [0.60, 0.80] — slowest ramp | `c000-b6080` | 92.5% | [90.5–94.5] |
+
+**Total spread 2.3 points** against per-arm half-ranges of 1.0–2.2. Flat, and non-monotone — the
+fastest and the slowest ramp are both near the top. This file predicted the sign would *flip* versus
+the +0.15 ceiling, where slower was better; it did not flip, it vanished.
+
+**Why, and it is the coherent story rather than a shrug.** The band only matters when it controls how
+long a run spends somewhere *harmful*. At ceiling +0.15 the ceiling is harmful, so pacing was worth
+8.5 points and ordered monotonically (81.7 / 77.8 / 73.2 for progressively faster ramps). At ceiling
+0.0 the ceiling *is* the optimum, so every pace ends up somewhere good and the two competing forces —
+time-at-optimum versus time-in-warmup — trade off evenly across the whole range. There is no interior
+optimum to find. **Use the default band and do not tune it.**
+
+### Why 04 re-measures a configuration that has already been run
+
+`fsc000-i100` is, flag for flag, 04's Director-ON arm: 15M steps, from scratch, `lr 3e-4`,
+`ent-coef 0.03`, default band, `--curriculum-max-difficulty 0.0`, seeds 27/28/29. `fs-off` from
+`1807292` is exactly its OFF arm. So the headline comparison already exists at **92.0% vs 85.2%**,
+paired per seed, +6.8 points.
+
+That is a sound estimate but not a clean headline. `--curriculum-max-difficulty 0.0` was **selected**
+as the best of ~6 ceiling arms, and taking the maximum over 6 arms at a 9.5-point noise floor
+inflates the winner — the standard winner's-curse problem. The OFF arm has no such issue, having
+never been selected on. So 04 re-measures the chosen configuration on **fresh seeds 31/32/33**: the
+tuning study picks the configuration, 04 reports the number. Quote 92.0% here as the tuning estimate
+and 04's figure as the result.
+
+---
 ## FINAL RESULT (2026-09-13, array `1807359`, 18/18) — the curriculum works, if it never injects
 
 Five waves and two reversals later, the picture is coherent. **The best configuration found is an
@@ -589,3 +674,19 @@ untuned arm that loses for reasons nobody looked into.
 - 2026-09-11 — bounded the claim: all arms share a −1.0 prefix, so `dbr-off` is "suppressed prefix
   then no Director", not a pure control. 04's OFF arm supplies the from-scratch number; until then
   report this as a controlled between-arm comparison, not an absolute one.
+- 2026-09-13 — **schedule study `1807390` complete, 18/18. Both remaining knobs closed; nothing
+  needs re-doing.** The −1.0 floor is genuinely degenerate (`random() > 1.0` is never true, so 0% of
+  discovered nodes survive) and costs 13.8 points when held permanently — `fix095` 64.5% vs `fix10`
+  50.7%, non-overlapping. But as a *warmup* it is fine, in fact marginally ahead: `fsc000-i100`
+  92.0% vs `fsc000-i095` 89.3%, inside the noise floor. `off_floor%` explains it — the −1.0 runs
+  stay pinned at the floor for ~26% of training against the −0.95 runs' ~1%, so degeneracy buys a
+  longer warmup and the two effects cancel. **This was the outcome with the largest blast radius**
+  (a −0.95 win would have made every −1.0-warmup result provisional and forced the bases to be
+  re-run) and it resolved the safe way. The target band at ceiling 0.0 is a clean null: 90.5 / 91.8 /
+  92.5 / 92.8 across four bands, 2.3 points of spread, non-monotone. The predicted sign flip versus
+  the +0.15 ceiling did not flip — it vanished, because pacing only matters when it controls time
+  spent somewhere harmful. Use the default band. **09 is closed.**
+- 2026-09-13 — filled `final.txt` for 04 and flagged the selection effect. `fsc000-i100`/`fs-off`
+  are already 04's two arms flag-for-flag (92.0% vs 85.2%, paired), but the ON config was selected
+  as the best of ~6 ceiling arms, so its 92.0% carries a winner's curse at a 9.5-point noise floor.
+  04 re-measures it on fresh seeds 31/32/33 rather than quoting the tuning study as the headline.

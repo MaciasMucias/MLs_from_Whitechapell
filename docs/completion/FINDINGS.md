@@ -23,6 +23,22 @@ evaluations per run, 3 seeds per arm. Raw data in [`results/`](results/).
 **~+9 points over no curriculum**, robust to whether you report best, final or a
 last-5 mean. `--curriculum-max-difficulty 0.0` is the recommended configuration.
 
+**Replicated from scratch, which removes the table's one caveat.** `cap000` above
+branches from a base trained at −1.0, so strictly it is "suppressed prefix, then
+capped curriculum" while `fs-off` is a pure from-scratch control — a mismatch a
+reader is entitled to object to. Array `1807390` ran the same configuration from
+scratch: `fsc000-i100` reaches **92.0%** [91.0–93.0] best against `fs-off`'s
+85.2% [81.5–88.5], **+6.8 points on a fully matched pair, paired per seed**. The
+headline survives without the branch design.
+
+> **Caveat on the exact number.** `--curriculum-max-difficulty 0.0` was *selected*
+> as the best of ~6 ceiling arms, so 92.0% is a maximum over arms at a ~9.5-point
+> noise floor and is biased upward — the usual winner's curse. The OFF arm was
+> never selected on, so the *sign* of the effect is safe; the magnitude is not.
+> Workstream 04 re-measures the chosen configuration on fresh seeds 31/32/33 and
+> **04's figure is the one to quote in the thesis**, with this as the tuning
+> estimate that chose the configuration.
+
 ### The dose-response peaks exactly at zero
 
 Difficulty held constant after a suppressed warmup:
@@ -204,6 +220,53 @@ Each of these silently corrupted a result before it was caught.
 
 ---
 
+## 7b. An implementation boundary that looks like a hyperparameter
+
+Worth a short subsection of its own: the most dangerous bug found in this project
+was never a crash, and it sat inside the contribution being measured.
+
+`CurriculumDirector` suppresses each discovered node when `rng.random() > |d|`.
+`random()` returns [0, 1), so at **|d| = 1.0 that test is never true**:
+
+| difficulty | −1.00 | −0.95 | −0.90 |
+|---|---|---|---|
+| % of discovered nodes surviving | **0.00** | 5.05 | 10.11 |
+
+−1.0 is therefore not "very strong suppression" on a continuum but a
+qualitatively different regime — the cops receive zero information ever, beyond
+Jack's public start. Searching is pointless for them, so **Jack gets no training
+signal that being seen matters at all**, and an entire strategy class is
+unlearnable. Held constant for a whole run it costs 13.8 points:
+
+| arm | training condition | mean | range | copdist | arrest% |
+|---|---|---|---|---|---|
+| `fix095` | pinned −0.95 | **64.5** | [62.5–68.5] | 1.13–1.21 | 33.5–40.0 |
+| `fix10` | pinned −1.0 | 50.7 | [46.0–56.0] | 1.01–1.06 | 49.0–57.0 |
+
+Non-overlapping, and the behavioural diagnostics move the right way — 5% of the
+information surviving partly restores cop avoidance.
+
+**It did not contaminate the results, and the reason is worth stating.** Every
+warmup in this project started at exactly −1.0, including the runs behind the
+headline. Tested as a *warmup* rather than a permanent setting, the effect
+inverts and vanishes into the noise floor:
+
+| arm | start, ramping to ceiling 0.0 | mean | range | % of training at the floor |
+|---|---|---|---|---|
+| `fsc000-i100` | −1.0 | **92.0** | [91.0–93.0] | ~26 |
+| `fsc000-i095` | −0.95 | 89.3 | [87.0–91.0] | ~1 |
+
+A degenerate floor is simply a *longer warmup*, and the warmup is worth +17
+points (§4). The two effects point in opposite directions and roughly cancel.
+
+The methodological point for the writeup: a parameter's extreme value can leave
+its continuum and become a different mechanism, and no amount of sweeping the
+interior would reveal it. It was found by reading the implementation and asking
+what `random() > 1.0` returns — then tested, because the answer alone does not
+say whether it matters.
+
+---
+
 ## 8. Negative and null results worth reporting
 
 - **Reward shaping cannot be shown to help.** At 3M steps the fully sparse
@@ -214,6 +277,15 @@ Each of these silently corrupted a result before it was caught.
   (~30-point spreads); `ent-coef=0.03` is an interior optimum confirmed by
   probing 0.06 (26.5%) and 0.10 (16.5%). Entropy interacts with lr and is **not**
   monotone on its own — at `lr=1e-3` more entropy hurts badly.
+- **The curriculum's target band does not matter at ceiling 0.0.** Four bands
+  from [0.10,0.20] to [0.60,0.80]: 90.5 / 91.8 / 92.5 / 92.8, **2.3 points of
+  spread** against per-arm half-ranges of 1.0–2.2, and non-monotone. The band
+  paces the ramp, so it only matters when it controls how long a run sits
+  somewhere *harmful* — at ceiling +0.15 the same four bands spread 8.5 points
+  and ordered monotonically (slower is better), and at ceiling 0.0, where the
+  ceiling is the optimum, the effect vanishes rather than flipping sign. This is
+  a band x ceiling interaction, and it is the more interesting way to report it.
+  **Use the default band; do not tune it.**
 - **Board-size ablation** was never implemented (`course_1/2/3` are same-size
   scenario variants). Report as a limitation.
 
@@ -223,7 +295,7 @@ Each of these silently corrupted a result before it was caught.
 
 | | |
 |---|---|
-| Chart-ready CSVs | [`results/`](results/) — one row per evaluation and per update, all six waves |
+| Chart-ready CSVs | [`results/`](results/) — one row per evaluation and per update, all nine waves |
 | Raw provenance | `results/slurm_logs.tar.gz` |
 | Policies | `checkpoints/` (local, gitignored, ~14 GB) |
 | Participant data | `data/study/games_<date>.sqlite` (gitignored — retention is an ethics decision) |

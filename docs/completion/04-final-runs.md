@@ -1,6 +1,6 @@
 # 04 — Final runs: Director on/off
 
-**Status:** **ready to submit.** `slurm/manifests/final.txt` is filled and validated
+**Status:** **IN FLIGHT — array `1807480`, submitted 2026-09-13 16:58, 9 tasks, ~5–7h.** `slurm/manifests/final.txt` is filled and validated
 (`uv run pytest tests/test_run_manifests.py`, 671 passed). 09 is closed and supplied the ON arm's
 configuration: `--initial-difficulty -1.0 --curriculum-max-difficulty 0.0`, default band.
 

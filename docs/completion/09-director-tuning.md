@@ -1,17 +1,85 @@
 # 09 — Director tuning
 
-**Status:** **2026-09-12 — conclusion revised. The adaptive Director has no measurable effect; a
-fixed two-phase warmup does (+8 points).** Four waves: `1807070` (null — runs too short),
-`1807190` (bases), `1807209` (branch wave — confounded, see the correction), `1807292` (18
-from-scratch + ramp-shape runs, the result that settles it).
+**Status:** **DONE (2026-09-13). The curriculum works — but only if it is forbidden from
+injecting.** Five waves: `1807070` (null, runs too short), `1807190` (bases), `1807209` (branch —
+confounded), `1807292` (from scratch + ramp shape), `1807359` (ceilings — the result).
 
-Headline numbers, all 15M steps / 3 seeds:
-`dbr-off` (warmup → full strength) **93.2%** > `fs-off` (no curriculum) 85.2% ≈ `fs-on`
-(Director as designed) 83.2% ≈ every ramp variant (81.7–85.8%).
+**Recommended configuration: `--curriculum-max-difficulty 0.0`.** Adaptive suppression that relaxes
+to full strength and never injects: **92.8%** [92.5–93.0], tying the best number seen anywhere
+(`dbr-off` 93.2%) and beating no-curriculum-at-all (`fs-off` 85.2%).
 
-**Consequence for 04:** the ON/OFF comparison is answered — there is no difference. The interesting
-arm is now the **two-phase warmup**, which is the only configuration that beat baseline. Re-scope 04
-around that plus the reward ablation, and drop the adaptive ON arm to a confirmatory seed at most.
+**Consequence for 04:** the ON arm is worth running after all, but as `--curriculum-max-difficulty 0`
+rather than the original unbounded Director. The OFF arm stays as the baseline.
+
+---
+
+## FINAL RESULT (2026-09-13, array `1807359`, 18/18) — the curriculum works, if it never injects
+
+Five waves and two reversals later, the picture is coherent. **The best configuration found is an
+adaptive curriculum forbidden from injecting**, and it matches the best number seen anywhere.
+
+### 1. The fixed dose-response peaks at zero
+
+Difficulty held constant after the suppressed warmup:
+
+| fixed difficulty | −1.0 | −0.5 | **0.0** | +0.15 |
+|---|---|---|---|---|
+| eval win% | 50.7 | 88.3 | **93.2** | 72.3 |
+| range | [46.0–56.0] | [87.0–90.5] | [92.5–94.0] | [66.0–75.5] |
+
+A clean inverted-U. Suppressing hurts, and so does injecting — **knowledge the cops never earned
+costs ~21 points**. There is no interior optimum on the positive side.
+
+> This kills the "interior optimum at +0.1 to +0.2" reported on 2026-09-12, which came from binning
+> evals by difficulty *across* arms. It was flagged as confounded at the time; the per-arm test
+> settles it. Do not quote the binned figure.
+
+### 2. Adaptive control is fine — the ceiling is what matters
+
+All branching from the same bases, so only the ceiling differs:
+
+| ceiling | reached | eval win% |
+|---|---|---|
+| **0.0 (never inject)** | 0.0 | **92.8%** [92.5–93.0] |
+| +0.15 | +0.15 | 81.7% [77.0–85.5] |
+| uncapped | +0.19 | 81.3% [76.0–86.5] |
+| uncapped | +0.54 | 61.3% [57.5–64.0] |
+
+Two things fall out:
+
+- **`cap000` (92.8%) ties `dbr-off` (93.2%) and fixed-0.0.** The controller finds the right schedule
+  by itself, *provided it cannot overshoot*. Adaptivity neither helps nor hurts; forbidding
+  injection is the whole game.
+- **A ceiling only helps when it binds.** +0.15 against an uncapped arm that stopped at +0.19 changed
+  nothing (81.7 vs 81.3) — predicted in advance. Against the arm that ran to +0.54 it recovered
+  **+16.5 points** (77.8 vs 61.3).
+
+### 3. The suppressed warmup is worth a lot
+
+Same ceiling and band, differing only in whether the first 4.4M steps ran suppressed:
+
+| | eval win% |
+|---|---|
+| `cap015-b1020` — with warmup | 73.2% [68.0–78.5] |
+| `fscap015` — from scratch | **56.2%** [55.5–56.5] |
+
+**+17 points for the warmup**, corroborating the +8 seen in `dbr-off` vs `fs-off`. Boosting the cops
+early *without* first letting the agent learn against weak ones is the worst thing tested short of
+permanent full suppression. `fscap015`'s behavioural signature says why: copdist ~1.12 and **arrest
+~43%**, against ~1.40 and ~18% for the warmed-up arms.
+
+### The claim for the thesis
+
+1. **A curriculum helps: ~+8 points** over training at full strength throughout, via an early
+   suppression phase that relaxes to full strength.
+2. **Adaptive scheduling is neither better nor worse than a hand-picked two-phase schedule** — 92.8%
+   vs 93.2%. Its value is that it finds the transition point without tuning.
+3. **Injection is harmful in proportion to its magnitude**, and the Director's original unbounded
+   design permitted it. `--curriculum-max-difficulty 0.0` is the fix.
+4. **Order matters:** suppress first, then relax. Boosting early from scratch costs 17 points.
+
+**Recommended configuration:** `--curriculum-max-difficulty 0.0` with the default band, from scratch.
+That is the arm to carry into 04 and 06.
 
 ---
 

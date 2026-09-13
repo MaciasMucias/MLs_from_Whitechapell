@@ -557,7 +557,10 @@ def train(args: argparse.Namespace) -> None:
                     # 57-64%, and late-training evals peak in the 0.00-0.25 band.
                     new_difficulty = max(
                         args.curriculum_min_difficulty,
-                        min(args.curriculum_max_difficulty, curriculum_difficulty + delta),
+                        min(
+                            args.curriculum_max_difficulty,
+                            curriculum_difficulty + delta,
+                        ),
                     )
                     if new_difficulty != curriculum_difficulty:
                         curriculum_difficulty = new_difficulty

@@ -136,11 +136,15 @@ def test_difficulty_floor_is_settable():
 
 def test_a_ceiling_at_zero_forbids_injection_entirely():
     """difficulty <= 0 is suppression only — cops never get unearned knowledge."""
-    assert parse_args(["--curriculum-max-difficulty", "0"]).curriculum_max_difficulty == 0.0
+    assert (
+        parse_args(["--curriculum-max-difficulty", "0"]).curriculum_max_difficulty
+        == 0.0
+    )
 
 
 def test_bounds_can_pin_difficulty_to_a_single_value():
     """min == max is another way to hold difficulty fixed, alongside kp=0."""
-    a = parse_args(["--curriculum-min-difficulty", "-0.5",
-                    "--curriculum-max-difficulty", "-0.5"])
+    a = parse_args(
+        ["--curriculum-min-difficulty", "-0.5", "--curriculum-max-difficulty", "-0.5"]
+    )
     assert a.curriculum_min_difficulty == a.curriculum_max_difficulty == -0.5

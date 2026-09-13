@@ -50,6 +50,39 @@ whole 04 final set — 2 Director arms + the reward ablation, **3 seeds each, 9 
 concurrent window instead of running sequentially. The seeds matter most: PPO seed variance can
 exceed the Director effect being claimed, so single-seed arms would not support the conclusion.
 
+### IN FLIGHT — array `1807390`, submitted 2026-09-14 04:20, 18 tasks, ~9-10h
+
+The schedule study ([`slurm/manifests/director_sched.txt`](slurm/manifests/director_sched.txt)).
+Read it with:
+
+```bash
+ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
+  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807390_*.out"'
+```
+
+Then export and pull the data (two separate ssh calls — the export's stdout
+corrupts a combined tar stream):
+
+```bash
+ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
+  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_1807390_*.out" \
+  --prefix director_sched --out-dir results'
+ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/director_sched_eval.csv \
+  results/director_sched_training.csv' | tar xz --strip-components=1 -C docs/completion/results
+```
+
+**Two questions, each with its own control:**
+
+| compare | answers |
+|---|---|
+| `fix095` vs `fix10` (50.7%) | is −1.0 a *degenerate* floor? At −1.0 exactly **0%** of discovered nodes survive (`random() > 1.0` is always false), so cops learn nothing ever and Jack has no signal that being seen matters. −0.95 leaves 5%. A large gain here is the boundary effect. |
+| `fsc000-i095` vs `fsc000-i100` | the same question as a *warmup*, from scratch. **`cap000-b4060` cannot be the control** — it branched off a −1.0 base, so it already carries the thing under test. |
+| `c000-b1020` / `b2035` / `b6080` vs `cap000-b4060` (92.8%) | does the band matter at ceiling 0.0? At ceiling +0.15 slower was better (81.7 / 77.8 / 73.2 for progressively faster ramps). At ceiling 0.0 the ceiling *is* the optimum, so the sign should flip — but faster also means less warmup, and the warmup is worth +17 points, so the best pace may be interior. |
+
+**If `fix095` or `fsc000-i095` wins clearly, the base runs need re-doing at −0.95**, and every
+downstream result built on a −1.0 warmup is provisional. That is the outcome with the largest
+consequences, so check it first.
+
 ### Cluster waves run so far (all complete)
 
 | array | wave | tasks | outcome |

@@ -9,13 +9,17 @@ the cluster continuing to exist.
 Two files, because the thesis needs two kinds of figure:
 
 `<prefix>_eval.csv` — one row per evaluation (every checkpoint save)
-    run, arm, seed, step, win_rate, hideout_uncert, copdist, arrest_pct,
+    run, arm, seed, step, win_rate, score, hideout_uncert, copdist, arrest_pct,
     timeout_pct, difficulty
     Drives: final-performance bar charts with per-seed points; eval win rate
     vs training step; the behavioural mechanism (copdist / arrest_pct).
 
 `<prefix>_training.csv` — one row per update, downsampled
-    run, arm, seed, step, train_win_rate, difficulty
+    run, arm, seed, step, train_win_rate, train_score, difficulty, then the
+    per-episode reward terms (r_objective, r_alpha, r_beta, r_zeta, r_delta)
+    and map coverage (coverage, visit_entropy) from the nearest preceding
+    "reward:" line. score and the reward columns are empty for runs before
+    workstream 10 (2026-09-14), whose logs do not print them.
     Drives: the curriculum ramp figure — difficulty against step, which is what
     shows the controller engaging (or not).
 
@@ -46,13 +50,29 @@ EVAL_COLUMNS = [
     "seed",
     "step",
     "win_rate",
+    "score",
     "hideout_uncert",
     "copdist",
     "arrest_pct",
     "timeout_pct",
     "difficulty",
 ]
-TRAIN_COLUMNS = ["run", "arm", "seed", "step", "train_win_rate", "difficulty"]
+REWARD_FIELDS = ["objective", "alpha", "beta", "zeta", "delta"]
+EXPLORE_FIELDS = ["coverage", "visit_entropy"]
+TRAIN_COLUMNS = [
+    "run",
+    "arm",
+    "seed",
+    "step",
+    "train_win_rate",
+    "train_score",
+    "difficulty",
+    *(f"r_{k}" for k in REWARD_FIELDS),
+    *EXPLORE_FIELDS,
+]
+_SCORE = re.compile(r"\bscore=([\d.]+)")
+_REWARD = re.compile(r"^\s*reward:\s")
+_KV = re.compile(r"(\w+)=([-+]?[\d.eE+-]+)")
 
 
 def export(
@@ -84,7 +104,7 @@ def export(
             # reads identically at every 10th point. Always keep the last row so
             # the final difficulty is exact rather than whatever the stride hit.
             kept = rows[::every] + ([rows[-1]] if rows and len(rows) % every else [])
-            for step, wr, diff in kept:
+            for step, wr, diff, extra in kept:
                 w.writerow(
                     {
                         "run": r.name,
@@ -93,6 +113,7 @@ def export(
                         "step": step,
                         "train_win_rate": wr,
                         "difficulty": diff,
+                        **extra,
                     }
                 )
                 n_train += 1
@@ -100,18 +121,37 @@ def export(
     return {"runs": len(runs), "eval_rows": n_eval, "training_rows": n_train}
 
 
-def _training_rows(path: str) -> list[tuple[int, float, float | None]]:
-    """(step, training win rate, difficulty) for every update line in a log."""
+def _training_rows(path: str) -> list[tuple[int, float, float | None, dict]]:
+    """(step, training win rate, difficulty, extras) for every update line.
+
+    extras holds train_score from the update line, and the reward terms and
+    coverage from the most recent "reward:" line. That line is printed after
+    every 10th update, so it is attached to its own update and carried forward
+    onto the updates in between.
+    """
     rows = []
+    latest: dict[str, float] = {}
     for line in Path(path).read_text(errors="replace").splitlines():
+        if _REWARD.match(line):
+            kv = dict(_KV.findall(line))
+            latest = {f"r_{k}": float(kv[k]) for k in REWARD_FIELDS if k in kv}
+            latest.update({k: float(kv[k]) for k in EXPLORE_FIELDS if k in kv})
+            if rows:
+                rows[-1][3].update(latest)
+            continue
         m = _UPD_FIELDS.match(line)
         if m:
             d = re.search(r"\bdifficulty=([-+]?[\d.]+)", line)
+            s = _SCORE.search(line)
+            extra = dict(latest)
+            if s:
+                extra["train_score"] = float(s.group(1))
             rows.append(
                 (
                     int(m.group("steps").replace(",", "")),
                     float(m.group("win")),
                     float(d.group(1)) if d else None,
+                    extra,
                 )
             )
     return rows

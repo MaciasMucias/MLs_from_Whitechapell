@@ -13,7 +13,7 @@ from agents.heuristic_cops import HeuristicCops
 from engine.env import legal_jack_edges
 from engine.game import step_round
 from engine.graph import Map
-from engine.graph_utils import jack_bfs_distances
+from engine.metrics import hideout_uncertainty, normalized_distance_for_state
 from server.session import (
     get_session,
     new_session,
@@ -110,19 +110,19 @@ async def _jack_move_impl(game_id: str, body: JackMoveRequest, request: Request)
             )
         )
 
+    # The participant score's inputs. The browser turns these into points
+    # (game.js); the RL reward uses the same functions, so both are one
+    # definition — see engine/metrics.py (SCORE_STUDY_V1).
     _state = session.ctx.state
     _game_map = session.ctx.game_map
-    _bfs = jack_bfs_distances(_state.hideout, _game_map)
-    _max_dist = max(_bfs.values()) if _bfs else 1
-    _curr_dist = _bfs.get(_state.jack_pos, _max_dist)
-    _norm_dist = _curr_dist / _max_dist if _max_dist > 0 else 0.0
-    score_info: dict = {"normalized_distance": _norm_dist}
+    score_info: dict = {
+        "normalized_distance": normalized_distance_for_state(_state, _game_map)
+    }
     if terminated and winner == "jack":
         _pmf = HeuristicCops.compute_pmf(_state, _game_map)
         _zone = _state.hideout_zone
         if _zone:
-            _nonzero = sum(1 for h in _zone if _pmf.get(h, 0.0) > 0.0)
-            score_info["hideout_uncertainty"] = _nonzero / len(_zone)
+            score_info["hideout_uncertainty"] = hideout_uncertainty(_zone, _pmf)
 
     view = state_view(session)
     view["events"] = events

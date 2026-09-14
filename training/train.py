@@ -27,8 +27,9 @@ from torch.optim import Adam
 
 from agents.curriculum_director import INITIAL_DIFFICULTY
 from engine.graph import load_map
+from engine.metrics import SCORE_STUDY_V1_STEALTH
 from training.checkpoints import BEST_NAME, prune_checkpoints
-from training.env import JackEnv
+from training.env import REWARD_OBJECTIVES, REWARD_TERMS, JackEnv
 from training.eval import eval_policy
 from training.model import Agent
 
@@ -44,14 +45,15 @@ def _worker_fn(
     seeds: list[int],
     use_curriculum: bool = False,
     initial_difficulty: float = INITIAL_DIFFICULTY,
-    reward_coefs: dict[str, float] | None = None,
+    reward_coefs: dict[str, float | str] | None = None,
 ) -> None:
     """
     Env worker. Owns len(seeds) independent JackEnv instances and steps them
     sequentially per message. Loads its own map copy (Map is not picklable).
 
-    reward_coefs carries the shaping coefficients (alpha/beta/delta/gamma/zeta)
-    through to each JackEnv; it is a plain dict so it survives spawn pickling.
+    reward_coefs carries the reward configuration (alpha/beta/delta/gamma/zeta,
+    discount, objective) through to each JackEnv; it is a plain dict so it
+    survives spawn pickling.
 
     Auto-resets each env on termination; the reset obs/mask are returned in
     the same message so the main process never needs a separate round-trip.
@@ -136,7 +138,7 @@ class AsyncVectorJackEnv:
         seed: int,
         use_curriculum: bool = False,
         initial_difficulty: float = INITIAL_DIFFICULTY,
-        reward_coefs: dict[str, float] | None = None,
+        reward_coefs: dict[str, float | str] | None = None,
     ) -> None:
         assert n_envs % n_workers == 0, "n_envs must be divisible by n_workers"
         self.n = n_envs
@@ -248,6 +250,10 @@ def train(args: argparse.Namespace) -> None:
         "delta": args.reward_delta,
         "gamma": args.reward_gamma,
         "zeta": args.reward_zeta,
+        # Potential-based shaping is only policy-invariant if it discounts with
+        # the same gamma as the return it shapes — PPO's --gamma.
+        "discount": args.gamma,
+        "objective": args.reward_objective,
     }
     sample_env = JackEnv(game_map)
     sample_obs, _ = sample_env.reset()
@@ -346,6 +352,11 @@ def train(args: argparse.Namespace) -> None:
 
         ep_returns: deque[float] = deque(maxlen=100)
         ep_wins: deque[bool] = deque(maxlen=100)
+        # Participant score per episode (the objective, whatever the reward is),
+        # per-episode sums of each reward term, and the latest map-coverage stats.
+        ep_scores: deque[float] = deque(maxlen=100)
+        ep_terms: dict[str, deque[float]] = {k: deque(maxlen=100) for k in REWARD_TERMS}
+        explore_latest: dict[int, dict[str, float]] = {}
         ep_return_buf = np.zeros(args.n_envs)
         ep_length_buf = np.zeros(args.n_envs, dtype=int)
 
@@ -399,6 +410,12 @@ def train(args: argparse.Namespace) -> None:
                     if term or trunc:
                         ep_returns.append(float(ep_return_buf[i]))
                         ep_wins.append(info.get("winner") == "jack")
+                        if "score" in info:
+                            ep_scores.append(float(info["score"]))
+                        for k, v in info.get("reward_terms", {}).items():
+                            ep_terms[k].append(float(v))
+                        if "explore" in info:
+                            explore_latest[i] = info["explore"]
                         ep_return_buf[i] = 0.0
                         ep_length_buf[i] = 0
 
@@ -484,6 +501,24 @@ def train(args: argparse.Namespace) -> None:
             recent_wins = ep_wins
             mean_return = sum(recent_ret) / len(recent_ret) if recent_ret else 0.0
             win_rate = sum(recent_wins) / len(recent_wins) if recent_wins else 0.0
+            mean_score = sum(ep_scores) / len(ep_scores) if ep_scores else 0.0
+            term_means = {
+                k: (sum(v) / len(v) if v else 0.0) for k, v in ep_terms.items()
+            }
+            # Each term's share of the return's total magnitude — how weights
+            # are stated ("alpha is 8% of the return") instead of by feel.
+            term_mag = sum(abs(v) for v in term_means.values()) or 1.0
+            reward_log = {f"reward/{k}": v for k, v in term_means.items()}
+            reward_log.update(
+                {f"reward/{k}_share": abs(v) / term_mag for k, v in term_means.items()}
+            )
+            if explore_latest:
+                reward_log["explore/coverage"] = sum(
+                    e["coverage"] for e in explore_latest.values()
+                ) / len(explore_latest)
+                reward_log["explore/visit_entropy"] = sum(
+                    e["visit_entropy"] for e in explore_latest.values()
+                ) / len(explore_latest)
             mean_pg = sum(pg_losses) / len(pg_losses)
             mean_vf = sum(vf_losses) / len(vf_losses)
             mean_ent = sum(ent_losses) / len(ent_losses)
@@ -498,6 +533,7 @@ def train(args: argparse.Namespace) -> None:
                 f"episodes={len(ep_returns)} "
                 f"return={mean_return:.3f} "
                 f"win_rate={win_rate:.3f} "
+                f"score={mean_score:.3f} "
                 f"difficulty={curriculum_difficulty:+.3f} "
                 f"pg={mean_pg:.4f} "
                 f"vf={mean_vf:.4f} "
@@ -505,9 +541,21 @@ def train(args: argparse.Namespace) -> None:
                 f"clip_frac={mean_clip:.3f} "
                 f"lr={current_lr:.2e}"
             )
+            # Per-episode reward terms and map coverage. W&B runs offline on the
+            # cluster, so anything analysis needs must also reach the Slurm log;
+            # analysis/export_results.py parses this line. Every 10th update
+            # matches the training CSV's downsampling stride.
+            if update % 10 == 0 or update == n_updates:
+                print(
+                    "  reward: "
+                    + " ".join(f"{k}={v:.4f}" for k, v in term_means.items())
+                    + f" coverage={reward_log.get('explore/coverage', 0.0):.3f}"
+                    + f" visit_entropy={reward_log.get('explore/visit_entropy', 0.0):.3f}"
+                )
             wandb.log(
                 {
                     "charts/win_rate": win_rate,
+                    "charts/score": mean_score,
                     "charts/mean_return": mean_return,
                     "charts/episodes": len(ep_returns),
                     "charts/sps": sps,
@@ -518,6 +566,7 @@ def train(args: argparse.Namespace) -> None:
                     "losses/clip_frac": mean_clip,
                     "train/lr": current_lr,
                     "curriculum/difficulty": curriculum_difficulty,
+                    **reward_log,
                     "global_step": global_step,
                 },
             )
@@ -582,6 +631,7 @@ def train(args: argparse.Namespace) -> None:
                     agent.train()
                     print(
                         f"  eval: win_rate={eval_results['win_rate']:.1%} "
+                        f"score={eval_results['mean_score']:.3f} "
                         f"turns={eval_results['mean_turns']:.1f} "
                         f"turns(W)={eval_results['mean_turns_on_win']:.1f} "
                         f"hideout_u={eval_results['mean_hideout_uncert']:.2f} "
@@ -592,6 +642,9 @@ def train(args: argparse.Namespace) -> None:
                     wandb.log(
                         {
                             "eval/win_rate": eval_results["win_rate"],
+                            # The participant score, Director-free: the primary
+                            # number from workstream 10 on.
+                            "eval/score": eval_results["mean_score"],
                             "eval/mean_turns": eval_results["mean_turns"],
                             "eval/mean_turns_on_win": eval_results["mean_turns_on_win"],
                             "eval/mean_turns_on_loss": eval_results[
@@ -777,10 +830,20 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--reward-gamma",
         type=float,
-        default=0.5,
-        help="Terminal hideout-uncertainty bonus (NOT the PPO discount, see --gamma)",
+        default=SCORE_STUDY_V1_STEALTH,
+        help="Stealth weight: hideout_uncertainty bonus on a win (NOT the PPO "
+        "discount, see --gamma). Defaults to the participant score's 0.5 — part "
+        "of the objective, not a tunable shaping weight",
     )
     p.add_argument("--reward-zeta", type=float, default=0.1, help="Cop-distance delta")
+    p.add_argument(
+        "--reward-objective",
+        choices=REWARD_OBJECTIVES,
+        default="score",
+        help="score: the participant score as terminal reward with exact "
+        "potential-based shaping (from 2026-09-14). legacy: the +/-1 reward "
+        "every earlier run trained on — use only to reproduce those runs",
+    )
     p.add_argument(
         "--eval-games",
         type=int,

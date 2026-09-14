@@ -25,9 +25,14 @@ import torch
 from agents.base import AgentOutput, JackAgent
 from agents.heuristic_cops import COPS_PRERETUNE_V1, HeuristicCops
 from agents.random_agents import RandomJack
-from engine.game import run_game
+from engine.game import GameRecord, run_game
 from engine.graph import JackEdge, Map, load_map
-from engine.metrics import hideout_uncertainty
+from engine.metrics import (
+    hideout_distances,
+    hideout_uncertainty,
+    normalized_distance,
+    participant_score,
+)
 from engine.state import GameState
 from training.model import Agent
 from training.obs import build_obs, precompute_distances
@@ -83,6 +88,28 @@ def _min_cop_distance(
     )
 
 
+def game_score(record: GameRecord, game_map: Map) -> tuple[float, float | None]:
+    """The participant score for one finished game, and its hideout uncertainty.
+
+    Scored exactly as a human's game was: progress is the best (1 - d/d_max)
+    over the positions after each of Jack's moves, starting from 0, and a win
+    adds the stealth bonus. Uncertainty is None on a loss.
+    """
+    if not record.history:
+        return 0.0, None
+    final = record.history[-1].state_after_round
+    dists, d_max = hideout_distances(final.hideout, game_map)
+    best_progress = max(
+        1.0 - normalized_distance(rr.state_after_round.jack_pos, dists, d_max)
+        for rr in record.history
+    )
+    if record.winner != "jack":
+        return participant_score(best_progress, False, 0.0), None
+    pmf = HeuristicCops.compute_pmf(final, game_map)
+    u = hideout_uncertainty(final.hideout_zone, pmf)
+    return participant_score(best_progress, True, u), u
+
+
 def eval_agent(
     jack_agent: JackAgent,
     game_map: Map,
@@ -110,6 +137,7 @@ def eval_agent(
     turns_on_loss: list[int] = []
     hideout_uncerts: list[float] = []
     cop_dists: list[float] = []
+    scores: list[float] = []
 
     for _ in range(n_games):
         record = run_game(game_map, jack_agent, cops, director=None, rng=rng)
@@ -126,12 +154,12 @@ def eval_agent(
         if per_round:
             cop_dists.append(sum(per_round) / len(per_round))
 
+        score, uncertainty = game_score(record, game_map)
+        scores.append(score)
         if record.winner == "jack":
             wins += 1
             turns_on_win.append(t)
-            final = record.history[-1].state_after_round
-            pmf = HeuristicCops.compute_pmf(final, game_map)
-            hideout_uncerts.append(hideout_uncertainty(final.hideout_zone, pmf))
+            hideout_uncerts.append(uncertainty)
         else:
             turns_on_loss.append(t)
             # Losses split into "caught" and "ran out of time". A cop step that
@@ -148,6 +176,9 @@ def eval_agent(
     losses = n_games - wins
     return {
         "win_rate": wins / n_games,
+        # Mean participant score (SCORE_STUDY_V1, normalised: x10,000 for the
+        # points humans saw). The primary eval number from workstream 10 on.
+        "mean_score": sum(scores) / n_games,
         "mean_turns": sum(turns_all) / n_games,
         "mean_turns_on_win": sum(turns_on_win) / max(len(turns_on_win), 1),
         "mean_turns_on_loss": sum(turns_on_loss) / max(len(turns_on_loss), 1),
@@ -216,7 +247,7 @@ def _print_table(
     print(header)
     print()
     col = (
-        f"{'checkpoint':<{_COL_W}}  {'step':>7}  {'win%':>6}  {'turns':>6}  "
+        f"{'checkpoint':<{_COL_W}}  {'step':>7}  {'score':>6}  {'win%':>6}  {'turns':>6}  "
         f"{'turns(W)':>8}  {'turns(L)':>8}  {'hideout_u':>9}  "
         f"{'copdist':>7}  {'arrest%':>7}  {'timeout%':>8}"
     )
@@ -226,6 +257,7 @@ def _print_table(
         step_str = _fmt_step(step) if step is not None else "-"
         print(
             f"{label:<{_COL_W}}  {step_str:>7}  "
+            f"{m['mean_score']:>6.3f}  "
             f"{m['win_rate']:>5.1%}  "
             f"{m['mean_turns']:>6.1f}  "
             f"{m['mean_turns_on_win']:>8.1f}  "

@@ -183,3 +183,87 @@ def test_a_policy_can_be_run_on_a_reconstructed_scenario(
     )
     assert record.initial_state == state
     assert record.winner in {"jack", "cops"}
+
+
+# --- workstream 10: humans scored on the participant score --------------------
+
+
+def _human(entry, row_id):
+    from analysis.compare import HumanGame
+
+    replay = entry["replay"]
+    return HumanGame(
+        row_id=int(row_id),
+        participant=0,
+        map_name=entry["map_name"],
+        gaming_habit=entry["gaming_habit"],
+        outcome=entry["outcome"],
+        turns_survived=entry["turns_survived"],
+        initial_state=scenario_from_replay(replay),
+        jack_moves=[r["jack_to"] for r in replay["rounds"]],
+    )
+
+
+# The cops a game was played against. Rows 46-48 predate the 2026-06-11 retune
+# (played 2026-05-30), rows 60-62 follow it (2026-07-04).
+PRE_RETUNE = ["46", "47", "48"]
+POST_RETUNE = ["60", "61", "62"]
+
+
+def _cops_for(row_id):
+    from agents.heuristic_cops import COPS_PRERETUNE_V1
+
+    return COPS_PRERETUNE_V1 if row_id in PRE_RETUNE else None
+
+
+@pytest.mark.parametrize("row_id", PRE_RETUNE + POST_RETUNE)
+def test_human_game_replays_to_its_stored_outcome(
+    participant_games, course_maps, row_id
+):
+    """Scores are recomputed, so the replay must reproduce the real game."""
+    from analysis.compare import replay_human
+
+    entry = participant_games[row_id]
+    record = replay_human(
+        course_maps[entry["map_name"]], _human(entry, row_id), _cops_for(row_id)
+    )
+    assert record is not None
+    assert record.winner == entry["outcome"]
+    assert record.turns_survived == entry["turns_survived"]
+
+
+def test_a_pre_retune_game_does_not_replay_under_todays_cops(
+    participant_games, course_maps
+):
+    """Row 46 was an arrest in 4 rounds against the old cops. Against
+    COPS_STUDY_V2 the same moves are a different game, and must be rejected
+    rather than scored."""
+    from analysis.compare import replay_human
+
+    entry = participant_games["46"]
+    assert replay_human(course_maps[entry["map_name"]], _human(entry, "46")) is None
+
+
+@pytest.mark.parametrize("row_id", PRE_RETUNE + POST_RETUNE)
+def test_human_score_is_in_the_participant_score_range(
+    participant_games, course_maps, row_id
+):
+    from analysis.compare import human_score
+
+    entry = participant_games[row_id]
+    score = human_score(
+        course_maps[entry["map_name"]], _human(entry, row_id), _cops_for(row_id)
+    )
+    if entry["outcome"] == "jack":
+        assert 1.0 <= score <= 1.5
+    else:
+        assert 0.0 <= score < 1.0
+
+
+def test_a_move_that_never_happened_is_not_scored(participant_games, course_maps):
+    from analysis.compare import human_score
+
+    entry = participant_games["61"]
+    human = _human(entry, "61")
+    human.jack_moves = [-1] + human.jack_moves[1:]  # illegal first move
+    assert human_score(course_maps[entry["map_name"]], human) is None

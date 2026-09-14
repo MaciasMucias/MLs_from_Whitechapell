@@ -27,9 +27,11 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# "  eval: win_rate=61.5% turns=8.4 turns(W)=9.6 turns(L)=6.4 hideout_u=0.75 ..."
+# "  eval: win_rate=61.5% score=1.123 turns=8.4 turns(W)=9.6 hideout_u=0.75 ..."
+# score (the participant score) exists from workstream 10 on; older logs lack it.
 _EVAL = re.compile(
     r"eval:\s*win_rate=(?P<win>[\d.]+)%"
+    r"(?:\s+score=(?P<score>[\d.]+))?"
     r"(?:.*?hideout_u=(?P<unc>[\d.]+))?"
     r"(?:.*?copdist=(?P<copdist>[\d.]+))?"
     r"(?:.*?arrest=(?P<arrest>[\d.]+)%)?"
@@ -70,6 +72,7 @@ class Run:
     ent: str = "?"
     curriculum: bool = True
     evals: list[tuple[int, float]] = field(default_factory=list)  # (step, win%)
+    scores: list[tuple[int, float]] = field(default_factory=list)  # (step, score)
     # Every field of every eval line, for plotting and for export to CSV.
     # `evals` above stays a (step, win%) list because the ranking code and its
     # tests are built on it; this carries the rest without disturbing them.
@@ -120,6 +123,25 @@ class Run:
         return self.evals[-1][1] if self.evals else float("nan")
 
     @property
+    def has_score(self) -> bool:
+        return bool(self.scores)
+
+    @property
+    def final_score(self) -> float:
+        return self.scores[-1][1] if self.scores else float("nan")
+
+    @property
+    def last5_score(self) -> float:
+        """Mean of the last five eval scores.
+
+        Preferred over a best-ever figure for workstream 10: every in-training
+        eval replays the same boards (eval RNG seeded with --seed), so a max over
+        ~69 evals is selected on those boards and biased upward.
+        """
+        tail = [s for _, s in self.scores[-5:]]
+        return sum(tail) / len(tail) if tail else float("nan")
+
+    @property
     def arm(self) -> str:
         return "ON" if self.curriculum else "OFF"
 
@@ -164,6 +186,8 @@ def parse_log(path: str | Path) -> Run:
         m = _EVAL.search(line)
         if m:
             run.evals.append((step, float(m.group("win"))))
+            if m.group("score") is not None:
+                run.scores.append((step, float(m.group("score"))))
             for attr, key in (
                 ("last_uncert", "unc"),
                 ("last_copdist", "copdist"),
@@ -175,6 +199,7 @@ def parse_log(path: str | Path) -> Run:
                 {
                     "step": step,
                     "win_rate": float(m.group("win")),
+                    "score": _opt(m.group("score")),
                     "hideout_uncert": _opt(m.group("unc")),
                     "copdist": _opt(m.group("copdist")),
                     "arrest_pct": _opt(m.group("arrest")),
@@ -242,6 +267,28 @@ def _print_seed_groups(runs: list[Run]) -> None:
             f"{f'{engaged}/{len(members)}':>8}"
         )
     print()
+
+    scored = {k: v for k, v in replicated.items() if all(m.has_score for m in v)}
+    if scored:
+        # The primary number from workstream 10 on. Last-5 mean, not best-ever:
+        # in-training evals replay one fixed board set, so "best" is selected.
+        print("Across seeds (mean ± half-range of last-5 eval participant score):")
+        col = f"  {'arm':<26} {'n':>2} {'mean':>7} {'range':>18}"
+        print(col)
+        print("  " + "-" * (len(col) - 2))
+        for key, members in sorted(
+            scored.items(),
+            key=lambda kv: -sum(m.last5_score for m in kv[1]) / len(kv[1]),
+        ):
+            vals = [m.last5_score for m in members]
+            mean = sum(vals) / len(vals)
+            half = (max(vals) - min(vals)) / 2
+            print(
+                f"  {key:<26} {len(members):>2} {mean:>7.3f} "
+                f"{f'±{half:.3f} [{min(vals):.3f}-{max(vals):.3f}]':>18}"
+            )
+        print()
+
     singles = len(groups) - len(replicated)
     if singles:
         print(f"  ({singles} configuration(s) had only one seed — not aggregated.)")

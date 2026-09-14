@@ -269,7 +269,13 @@ say whether it matters.
 
 ## 8. Negative and null results worth reporting
 
-- **Reward shaping cannot be shown to help.** At 3M steps the fully sparse
+- ~~**Reward shaping cannot be shown to help.**~~ **Retracted 2026-09-14 — do not report.** Both the
+  3M sweep and 04's 15M `sparse` arm zeroed `gamma` too, and `gamma` is part of the objective (the
+  participant score's stealth term), not shaping. Those arms removed part of the goal; that is why
+  their hideout uncertainty fell (0.65–0.69 vs 0.75–0.78). Rescored roughly on the objective, 04's
+  `sparse` ≈ 1.26 against `director-on` ≈ 1.27, so the apparent advantage disappears. Shaping is
+  re-tested properly in [10](10-reward-design.md), with the objective held fixed. Original text:
+  **Reward shaping cannot be shown to help.** At 3M steps the fully sparse
   configuration (all five coefficients zero) scored *above* the shaped control
   (33.0% vs 30.0%) — inside noise, but there is no evidence the shaping earns its
   complexity. Keep the defaults; do not claim they help.

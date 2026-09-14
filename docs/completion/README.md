@@ -21,13 +21,14 @@ evidence and caveats. Read that before writing any chapter.
 | [02](02-training-reproducibility.md) | Training reproducibility + cluster readiness | **done** | 03, 04 |
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
-| [04](04-final-runs.md) | Final runs — Director on/off | **IN FLIGHT** — array `1807480`, 9 tasks | 06 |
+| [04](04-final-runs.md) | Final runs — Director on/off | **runs complete** (`1807480`, 9/9); write-up and re-eval pending. Its `sparse` arm is not a valid shaping ablation — see 10 | — |
+| [10](10-reward-design.md) | Reward design | **code done, ready to submit** — reward = participant score; 18-task `reward.txt` | 06 |
 | [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
-| [06](06-comparison.md) | Human-vs-RL comparison | **code done**, awaiting 04 | — |
+| [06](06-comparison.md) | Human-vs-RL comparison | **code done** (now scores humans on the participant score), awaiting 10 | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 
-Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 06**. Workstreams 05 and 07, and the code parts of 06,
+Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 10 -> 06**. (10 was added 2026-09-14: 06's checkpoints now come from its wave, trained on the participant score.) Workstreams 05 and 07, and the code parts of 06,
 are laptop work that runs in parallel with cluster time.
 
 **09 was added 2026-09-09** and inserted ahead of 04. The Director had exactly one configuration ever
@@ -197,6 +198,14 @@ the results rather than fail loudly.
    `tests/test_run_manifests.py`. See [02-C1](02-training-reproducibility.md).
 7. **`--n-envs 12 --n-workers 12`** across every sweep and final run, so batch size stays 3,072 and
    the runs stay comparable. Also enforced by `tests/test_run_manifests.py`.
+
+8. **The reward objective is the participant score, `SCORE_STUDY_V1`** (`engine/metrics.py`):
+   progress + 0.5 × hideout uncertainty on a win — what participants were scored on and told about.
+   Frozen like the cops, and pinned against `frontend_participant/game.js` by `tests/test_reward.py`.
+   `--reward-gamma` is part of that objective and is never tuned. α/β/ζ must stay **exactly
+   potential-based** (they may change learning speed, never the optimum); delta is the one sanctioned
+   non-potential term, as a decaying exploration bonus. Every run before 2026-09-14 trained on
+   `--reward-objective legacy`. See [10](10-reward-design.md).
 
 ---
 

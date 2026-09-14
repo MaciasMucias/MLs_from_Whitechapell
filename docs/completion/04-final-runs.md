@@ -184,3 +184,11 @@ uv run python -m training.eval checkpoints/<run>/agent_best.pt --n-games 500
   and so carries a winner's curse at the 9.5-point noise floor. 04 re-measures it clean. Validated
   with `tests/test_run_manifests.py` (671 passed) before submitting — the manifest test is what
   catches a `--gamma`/`--reward-gamma` slip or an off-spec `--n-envs` for free on the laptop.
+- 2026-09-14 — **array `1807480` complete, 9/9, sanity gate passed** (ON left −1.0 in 3/3, OFF pinned
+  in 3/3). In-training best eval: `sparse` 95.0% [93.0–96.5], `director-on` 93.2% [92.5–94.5],
+  `director-off` 90.7% [89.5–91.5]; ON > OFF on every seed. The gap shrank from the tuning estimate
+  (+6.8) because **OFF moved up** (85.2 → 90.7), not because ON was inflated: ON replicated.
+  **The `sparse` arm is not a valid shaping ablation**: it zeroed `gamma`, which is part of the
+  objective (see [10](10-reward-design.md)). The Director result stands under the legacy reward, but
+  06's checkpoints now come from workstream 10's wave, trained on the participant score.
+  Export, fresh-seed re-evaluation and write-up are still pending.

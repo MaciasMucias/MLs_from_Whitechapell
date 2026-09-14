@@ -14,7 +14,11 @@ counterpart faced.
 Two analyses, from the same reconstruction:
 
 * **Outcome** (E2) — replay each human scenario N times per checkpoint. Answers
-  "would the agent have won the games this person lost?"
+  "would the agent have won the games this person lost?" Reported both as win
+  rate and as the **participant score** (engine/metrics.py, SCORE_STUDY_V1) —
+  the quantity humans were told they were scored on and, from workstream 10,
+  the quantity the agent is trained to maximise. The score is the like-for-like
+  comparison; win rate is kept for continuity.
 * **Move agreement** (E3) — at every state the human actually reached, ask what
   the policy would have chosen. No new games are played. Answers something the
   win rate cannot: *does the Director change how the agent plays, or only how
@@ -41,10 +45,11 @@ from agents.heuristic_cops import HeuristicCops
 from analysis.sessions import DEFAULT_DB, load_games, reconstruct_sessions
 from analysis.stats import cluster_bootstrap, design_effect, paired_difference
 from engine.env import legal_jack_edges
-from engine.game import run_game
+from engine.game import GameRecord, StepContext, run_game, step_round
 from engine.graph import Map, load_map
+from engine.metrics import SCORE_PROGRESS_POINTS
 from engine.state import CopKnowledge, GameState
-from training.eval import PolicyAgent, load_checkpoint
+from training.eval import PolicyAgent, game_score, load_checkpoint
 
 MAPS_DIR = Path("maps")
 COURSE_INDEX = MAPS_DIR / "course_participant.json"
@@ -173,12 +178,26 @@ def policy_on_scenario(
     n_replays: int,
     seed: int,
 ) -> float:
-    """Win rate over n_replays of the identical board.
+    """Win rate over n_replays of the identical board."""
+    return policy_on_scenario_scored(
+        jack_agent, game_map, initial_state, n_replays, seed
+    )[0]
+
+
+def policy_on_scenario_scored(
+    jack_agent,
+    game_map: Map,
+    initial_state: GameState,
+    n_replays: int,
+    seed: int,
+) -> tuple[float, float]:
+    """(win rate, mean participant score) over n_replays of the identical board.
 
     Repeats are needed because `PolicyAgent` samples rather than acting greedily;
     the scenario is fixed but the policy is not deterministic.
     """
     wins = 0
+    score_total = 0.0
     for i in range(n_replays):
         record = run_game(
             game_map,
@@ -189,7 +208,63 @@ def policy_on_scenario(
             initial_state=initial_state,
         )
         wins += record.winner == "jack"
-    return wins / n_replays
+        score_total += game_score(record, game_map)[0]
+    return wins / n_replays, score_total / n_replays
+
+
+def replay_human(
+    game_map: Map, human: HumanGame, cop_params: dict | None = None
+) -> GameRecord | None:
+    """Re-run the human's own moves through the engine, to score their game.
+
+    The database stores outcomes and moves but not scores (the browser kept
+    those in sessionStorage), so the score is recomputed. `HeuristicCops` is
+    deterministic given a state, so this reproduces the original game — but
+    ONLY under the cop configuration the human actually faced.
+
+    cop_params defaults to COPS_STUDY_V2 (None), which is correct for every
+    game from the 2026-06-11 retune on, and so for all production study data
+    (2026-08-05 onward). An older game needs COPS_PRERETUNE_V1: under today's
+    cops it silently becomes a different game (fixture row 46 is one).
+
+    Returns None unless the replay reproduces the stored outcome AND length —
+    an illegal recorded move, a different winner or a different number of
+    rounds all mean this is not the game the human played, and a score for it
+    would be a score for a game that never happened.
+    """
+    ctx = StepContext(
+        game_map=game_map,
+        state=human.initial_state,
+        terminated=False,
+        winner=None,
+        blocking=False,
+        turn_limit=None,
+    )
+    cops = HeuristicCops(**(cop_params or {}))
+    cops.on_episode_start(human.initial_state, game_map)
+    for human_move in human.jack_moves:
+        if ctx.terminated:
+            break
+        legal = legal_jack_edges(ctx.state, game_map, blocking=False)
+        edge = next((e for e in legal if e.destination.id == human_move), None)
+        if edge is None:
+            return None
+        step_round(ctx, edge, cops, director=None)
+    if (
+        not ctx.terminated
+        or ctx.winner != human.outcome
+        or len(ctx.history) != human.turns_survived
+    ):
+        return None
+    return GameRecord(game_map, human.initial_state, ctx.winner, ctx.history)
+
+
+def human_score(
+    game_map: Map, human: HumanGame, cop_params: dict | None = None
+) -> float | None:
+    """The participant score this human earned, or None if it cannot be replayed."""
+    record = replay_human(game_map, human, cop_params)
+    return None if record is None else game_score(record, game_map)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +299,6 @@ def move_agreement(
 
     No games are played here — this is analysis of states that already happened.
     """
-    from engine.game import StepContext, step_round
-
     ctx = StepContext(
         game_map=game_map,
         state=human.initial_state,
@@ -298,6 +371,30 @@ def compare(
         f"  95% CI clustered by participant; design effect {deff:.2f}, so a "
         f"per-game\n  interval would have been about {deff**0.5:.2f}x too narrow."
     )
+
+    # Human scores, recomputed by replaying each game (see replay_human).
+    human_scores: dict[int, float] = {}
+    for h in humans:
+        sc = human_score(maps[h.map_name], h)
+        if sc is not None:
+            human_scores[h.row_id] = sc
+    score_unreplayable = len(humans) - len(human_scores)
+    human_score_clusters: dict[int, list[float]] = {}
+    for h in humans:
+        if h.row_id in human_scores:
+            human_score_clusters.setdefault(h.participant, []).append(
+                human_scores[h.row_id]
+            )
+    human_score_ci = cluster_bootstrap(human_score_clusters)
+    print(
+        f"Human participant score: {human_score_ci}  "
+        f"(x{SCORE_PROGRESS_POINTS:,} = points shown to participants)"
+    )
+    if score_unreplayable:
+        print(
+            f"  WARNING: {score_unreplayable} game(s) could not be replayed to "
+            f"the stored outcome and are left out of every score comparison."
+        )
     print(f"Policy replays per scenario: {n_replays}\n")
 
     results: dict[str, dict] = {}
@@ -306,13 +403,15 @@ def compare(
         label = Path(path).parent.name or Path(path).stem
         print(f"  {label} (step {step:,}) ...", flush=True)
 
-        per_game, agree = [], AgreementResult(0, 0, 0)
+        per_game, per_game_score, agree = [], [], AgreementResult(0, 0, 0)
         for h in humans:
             game_map = maps[h.map_name]
             jack = PolicyAgent(agent, game_map, device)
-            per_game.append(
-                policy_on_scenario(jack, game_map, h.initial_state, n_replays, seed)
+            win_rate, mean_score = policy_on_scenario_scored(
+                jack, game_map, h.initial_state, n_replays, seed
             )
+            per_game.append(win_rate)
+            per_game_score.append(mean_score)
             a = move_agreement(jack, game_map, h)
             agree = AgreementResult(
                 agree.decisions + a.decisions,
@@ -330,8 +429,23 @@ def compare(
             paired.setdefault(h.participant, []).append((p, float(h.human_won)))
             policy_clusters.setdefault(h.participant, []).append(p)
 
+        paired_score: dict[int, list[tuple[float, float]]] = {}
+        policy_score_clusters: dict[int, list[float]] = {}
+        for p, h in zip(per_game_score, humans):
+            if h.row_id in human_scores:
+                paired_score.setdefault(h.participant, []).append(
+                    (p, human_scores[h.row_id])
+                )
+                policy_score_clusters.setdefault(h.participant, []).append(p)
+
         results[label] = {
             "step": step,
+            "policy_score": _mean(
+                [p for p, h in zip(per_game_score, humans) if h.row_id in human_scores]
+            ),
+            "policy_score_ci": cluster_bootstrap(policy_score_clusters),
+            "paired_score_diff": paired_difference(paired_score),
+            "human_score": _mean(list(human_scores.values())),
             "policy_win_rate": sum(per_game) / len(per_game),
             "policy_ci": cluster_bootstrap(policy_clusters),
             "paired_diff": paired_difference(paired),
@@ -363,7 +477,8 @@ def _print_table(results: dict, humans: list[HumanGame]) -> None:
     n_won = len(humans) - n_lost
     print()
     col = (
-        f"{'checkpoint':<24} {'step':>8} {'policy win%':>12} {'vs human':>9} "
+        f"{'checkpoint':<24} {'step':>8} {'score':>7} {'vs human':>9} "
+        f"{'policy win%':>12} {'vs human':>9} "
         f"{f'human lost (n={n_lost})':>20} {f'human won (n={n_won})':>19} "
         f"{'agree%':>8} {'desync':>7}"
     )
@@ -372,8 +487,11 @@ def _print_table(results: dict, humans: list[HumanGame]) -> None:
     human_rate = sum(h.human_won for h in humans) / len(humans)
     for label, m in results.items():
         delta = m["policy_win_rate"] - human_rate
+        score_delta = m["policy_score"] - m["human_score"]
         print(
-            f"{label:<24} {m['step'] / 1e6:>7.2f}M {m['policy_win_rate']:>11.1%} "
+            f"{label:<24} {m['step'] / 1e6:>7.2f}M {m['policy_score']:>7.3f} "
+            f"{score_delta:>+9.3f} "
+            f"{m['policy_win_rate']:>11.1%} "
             f"{delta:>+8.1%} {m['where_human_lost']:>19.1%} "
             f"{m['where_human_won']:>18.1%} "
             f"{m['agreement_rate']:>7.1%} {m['desyncs']:>7}"
@@ -385,7 +503,17 @@ def _print_table(results: dict, humans: list[HumanGame]) -> None:
 
     # The headline claim needs an interval, not a delta. Paired and clustered by
     # participant — see analysis/stats.py for why the clustering is not optional.
-    print("Paired policy - human, 95% CI clustered by participant:")
+    print("Paired policy - human PARTICIPANT SCORE, 95% CI clustered by participant:")
+    for label, m in results.items():
+        d = m["paired_score_diff"]
+        verdict = (
+            "excludes zero"
+            if d.low > 0 or d.high < 0
+            else "INCLUDES ZERO - not significant"
+        )
+        print(f"  {label:<24} {d}   {verdict}")
+    print()
+    print("Paired policy - human WIN RATE, 95% CI clustered by participant:")
     for label, m in results.items():
         d = m["paired_diff"]
         verdict = (

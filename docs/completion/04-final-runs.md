@@ -190,5 +190,6 @@ uv run python -m training.eval checkpoints/<run>/agent_best.pt --n-games 500
   (+6.8) because **OFF moved up** (85.2 → 90.7), not because ON was inflated: ON replicated.
   **The `sparse` arm is not a valid shaping ablation**: it zeroed `gamma`, which is part of the
   objective (see [10](10-reward-design.md)). The Director result stands under the legacy reward, but
-  06's checkpoints now come from workstream 10's wave, trained on the participant score.
+  06's checkpoints now come from workstream 10's wave, trained to win stealthily and reported on
+  the participant score.
   Export, fresh-seed re-evaluation and write-up are still pending.

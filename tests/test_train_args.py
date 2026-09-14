@@ -51,14 +51,15 @@ def test_reward_coefficient_defaults():
     assert (a.reward_gamma, a.reward_zeta) == (0.5, 0.1)
 
 
-def test_reward_objective_defaults_to_the_participant_score():
-    """New runs train on SCORE_STUDY_V1; legacy exists only to reproduce old waves."""
+def test_reward_objective_defaults_to_stealth():
+    """New runs win stealthily (-1 / 1 + 0.5U); score and legacy stay selectable."""
     from engine.metrics import SCORE_STUDY_V1_STEALTH
 
     a = parse_args([])
-    assert a.reward_objective == "score"
+    assert a.reward_objective == "stealth"
     assert a.reward_gamma == SCORE_STUDY_V1_STEALTH
-    assert parse_args(["--reward-objective", "legacy"]).reward_objective == "legacy"
+    for choice in ("score", "legacy"):
+        assert parse_args(["--reward-objective", choice]).reward_objective == choice
 
 
 def test_unknown_reward_objective_is_rejected():

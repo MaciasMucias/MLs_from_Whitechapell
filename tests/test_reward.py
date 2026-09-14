@@ -145,9 +145,39 @@ def test_game_score_matches_browser_arithmetic(gm):
     assert n_wins and n_losses, "sample must exercise both outcomes"
 
 
-def test_env_terminal_reward_is_the_participant_score(gm):
-    """With every auxiliary term off, the return is exactly the score."""
+def test_stealth_terminal_reward_is_minus_one_or_the_winning_score(gm):
+    """The default objective: -1 on any loss, the participant score on a win.
+
+    No partial credit for getting close — that is what separates it from the
+    score objective, and why it is the default (docs/completion/10-reward-design.md).
+    """
     env = JackEnv(gm, alpha=0, beta=0, delta=0, zeta=0, rng=random.Random(5))
+    assert env._objective == "stealth"
+    act_rng = random.Random(5)
+    outcomes = set()
+    for _ in range(15):
+        _, info = env.reset()
+        ret, done = 0.0, False
+        while not done:
+            _, r, done, _, info = env.step(_seek(env, info, act_rng))
+            ret += r
+        outcomes.add(info["winner"])
+        if info["winner"] == "jack":
+            # A win pays exactly the participant score, in [1, 1.5].
+            assert ret == pytest.approx(info["score"], abs=1e-12)
+            assert 1.0 <= ret <= 1.5
+        else:
+            assert ret == -1.0
+            # ...while the score reported for the same loss still carries progress.
+            assert 0.0 <= info["score"] < 1.0
+    assert outcomes == {"jack", "cops"}
+
+
+def test_score_objective_return_is_the_participant_score(gm):
+    """objective="score": with every auxiliary term off, the return is the score."""
+    env = JackEnv(
+        gm, alpha=0, beta=0, delta=0, zeta=0, objective="score", rng=random.Random(5)
+    )
     act_rng = random.Random(5)
     outcomes = set()
     for _ in range(15):

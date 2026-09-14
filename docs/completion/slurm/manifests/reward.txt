@@ -3,30 +3,38 @@
 #   sbatch --array=0-17%9 docs/completion/slurm/array.sbatch \
 #          docs/completion/slurm/manifests/reward.txt
 #
-# 18 <= the 20-job submit cap, so one array; %9 runs it in two ~7h windows.
+# 18 <= the 20-job submit cap, so one array; %9 runs it in two ~6-7h windows.
 # See docs/completion/10-reward-design.md.
 #
-# WHAT CHANGED UNDERNEATH (2026-09-14). --reward-objective score is now the
-# default and is passed explicitly below anyway:
-#   - terminal reward = the participant score humans were given (SCORE_STUDY_V1):
-#     best progress on a loss in [0,1), 1 + 0.5 * hideout_uncertainty on a win.
-#     --reward-gamma 0.5 is part of the objective, inherited, never varied here.
+# OBJECTIVE: --reward-objective stealth (user decision, 2026-09-14), passed
+# explicitly on every line:
+#   - terminal reward: -1 on a loss, 1 + 0.5 * hideout_uncertainty on a win.
+#     --reward-gamma 0.5 is the participant score's stealth weight — part of the
+#     objective, inherited, never varied here.
 #   - alpha/beta/zeta = exact potential-based shaping, F = w(gamma*Phi(s') - Phi(s)),
 #     Phi(terminal) = 0. They can change learning speed, not the optimum.
 #   - delta = decaying count-based exploration bonus, unchanged from before.
-# Every earlier wave trained on --reward-objective legacy (+/-1 terminal).
+# Every agent is still REPORTED on the full participant score (eval/score).
+#
+# HISTORY. This manifest first ran as array 1807573 with --reward-objective score
+# (runs w10-*), which pays a loss its best progress. It was cancelled ~1h in:
+# dying next to the hideout (~0.9) was worth almost as much as a bare win (1.0),
+# weakening the signal to escape. Runs here are renamed w10s-* so they cannot
+# collide with the cancelled runs' checkpoint directories.
+# Every wave before 2026-09-14 trained on --reward-objective legacy.
 #
 # DESIGN: 3 nested reward conditions x 2 curriculum conditions x 3 seeds.
 #
 #               | curriculum (max-difficulty 0) | no curriculum
-#   obj         | w10-obj-cur                   | w10-obj-off     objective only
-#   dlt         | w10-dlt-cur                   | w10-dlt-off     + delta
-#   shp         | w10-shp-cur                   | w10-shp-off     + delta + alpha/beta/zeta
+#   obj         | w10s-obj-cur                  | w10s-obj-off    objective only
+#   dlt         | w10s-dlt-cur                  | w10s-dlt-off    + delta
+#   shp         | w10s-shp-cur                  | w10s-shp-off    + delta + alpha/beta/zeta
 #
 # Adjacent rows isolate one thing each:
 #   obj -> dlt   the exploration bonus. Judge on FINAL score (last-5 eval) and
-#                explore/coverage — delta is not potential-based, and the claim
+#                visit_entropy — delta is not potential-based, and the claim
 #                under test is that it raises final score via map coverage.
+#                (coverage saturates near 1.0 within 200k steps; entropy moves.)
 #   dlt -> shp   the shaping. Judge on SAMPLE EFFICIENCY (steps to 80%/90% of
 #                final score, area under the eval score curve). Exact
 #                potential-based shaping cannot change the optimum, so a final-
@@ -38,23 +46,23 @@
 # Rank on eval/score (Director-free), never charts/* on a curriculum run.
 
 # --- obj: objective only --------------------------------------------------------
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 41 --wandb-run w10-obj-cur-s41
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 42 --wandb-run w10-obj-cur-s42
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 43 --wandb-run w10-obj-cur-s43
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 41 --wandb-run w10-obj-off-s41
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 42 --wandb-run w10-obj-off-s42
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 43 --wandb-run w10-obj-off-s43
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 41 --wandb-run w10s-obj-cur-s41
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 42 --wandb-run w10s-obj-cur-s42
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 43 --wandb-run w10s-obj-cur-s43
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 41 --wandb-run w10s-obj-off-s41
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 42 --wandb-run w10s-obj-off-s42
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 43 --wandb-run w10s-obj-off-s43
 # --- dlt: objective + delta -----------------------------------------------------
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 41 --wandb-run w10-dlt-cur-s41
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 42 --wandb-run w10-dlt-cur-s42
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 43 --wandb-run w10-dlt-cur-s43
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 41 --wandb-run w10-dlt-off-s41
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 42 --wandb-run w10-dlt-off-s42
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 43 --wandb-run w10-dlt-off-s43
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 41 --wandb-run w10s-dlt-cur-s41
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 42 --wandb-run w10s-dlt-cur-s42
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 43 --wandb-run w10s-dlt-cur-s43
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 41 --wandb-run w10s-dlt-off-s41
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 42 --wandb-run w10s-dlt-off-s42
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 43 --wandb-run w10s-dlt-off-s43
 # --- shp: objective + delta + exact potential-based alpha/beta/zeta (current weights)
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 41 --wandb-run w10-shp-cur-s41
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 42 --wandb-run w10-shp-cur-s42
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 43 --wandb-run w10-shp-cur-s43
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 41 --wandb-run w10-shp-off-s41
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 42 --wandb-run w10-shp-off-s42
-uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective score --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 43 --wandb-run w10-shp-off-s43
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 41 --wandb-run w10s-shp-cur-s41
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 42 --wandb-run w10s-shp-cur-s42
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 43 --wandb-run w10s-shp-cur-s43
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 41 --wandb-run w10s-shp-off-s41
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 42 --wandb-run w10s-shp-off-s42
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 43 --wandb-run w10s-shp-off-s43

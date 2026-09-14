@@ -1,8 +1,10 @@
 # 10 — Reward design
 
-**Status:** **IN FLIGHT — array `1807573` (18 tasks, submitted 2026-09-14).** Code done 2026-09-14. The reward now optimises the
-participant score, α/β/ζ are exact potential-based shaping, and delta is kept as a decaying
-exploration bonus. 18-task manifest `slurm/manifests/reward.txt` written and validated.
+**Status:** **ready to resubmit** with `--reward-objective stealth` (the array id is recorded in
+[README](README.md)). Training rewards **winning stealthily**: −1 on a loss, 1 + 0.5 × hideout
+uncertainty on a win. α/β/ζ are exact potential-based shaping, delta is kept as a decaying
+exploration bonus, and every agent is **reported** on the full participant score. The first
+submission, `1807573` with `--reward-objective score`, was cancelled ~1h in (see Finding 1b).
 
 **Blocks:** 06 (its checkpoints come from this wave, not 04's)
 **Blocked by:** 03 (lr/ent), 09 (`--curriculum-max-difficulty 0`)
@@ -33,12 +35,37 @@ the score is **progress + 0.5 · U · [win]**, in [0, 1) on a loss and [1, 1.5] 
 even tells players that arriving too fast gives the hideout away.
 
 So `--reward-gamma 0.5` was never really a guess: it's the study's own scoring rule. Like the cops
-(`COPS_STUDY_V2`), it's **frozen** as `SCORE_STUDY_V1` in `engine/metrics.py`. The RL agent now
-maximises the same quantity humans were scored on, which makes the human-vs-RL comparison one
-objective rather than two.
+(`COPS_STUDY_V2`), it's **frozen** as `SCORE_STUDY_V1` in `engine/metrics.py`, and it's the
+**measure** every agent and every human is reported on.
 
-**The old RL terminal reward differed from it in two ways.** A loss was a flat −1, while humans got
-credit for the progress they made. And the stealth bonus rode on ±1 rather than on progress.
+## Finding 1b — train on "win stealthily", report on the participant score
+
+The participant score bundles two separate choices: the **stealth** weight, and **progress credit on
+a loss**. Only the first is part of "win stealthily". The first implementation adopted both,
+training on the full score, where a loss earns its best progress in [0, 1). That shrank the gap
+between winning and dying one step from the hideout from ~2 to as little as ~0.1. Because progress
+is the *best* reached, approaching early and then being caught kept the credit too. A 200k-step smoke
+run scored 0.78 at a 7% win rate, earning mostly near-miss credit.
+
+**Decision (user, 2026-09-14): option 2.** `--reward-objective stealth`, now the default:
+
+| | loss | win |
+|---|---|---|
+| `stealth` (**trained on**) | −1 | 1 + 0.5 · U |
+| participant score (**reported on**) | best progress, [0, 1) | 1 + 0.5 · U |
+| `legacy` (every run before 2026-09-14) | −1 | 1 + 0.5 · U, with inexact shaping |
+
+On a win the two are identical. They differ only in whether near-misses are paid. The comparison
+with humans still uses the participant score, computed after the fact from each game. The small cost:
+humans may have chased points (including progress on losses) while the agent chases escapes, so on
+losing boards the comparison isn't quite like-for-like. The scoring screen was more feedback than
+goal, so escaping is the better-grounded reading of what good Jack play is.
+
+`--reward-objective score` stays available, and array `1807573` briefly ran it before cancellation.
+Its checkpoints and logs are not results.
+
+**The old RL terminal reward vs the study score.** A loss was a flat −1 while humans got progress
+credit; `stealth` keeps that on purpose. The stealth bonus was already present.
 
 ## Finding 2 — the five terms are three different kinds of thing
 
@@ -93,8 +120,9 @@ Director result (ON > OFF) holds under either reading.
 - **`server/routes.py`** — `score_info` now calls those functions. It's a pure refactor: the old
   inline formula is kept verbatim in `tests/test_reward.py` and checked equal on every node of 25
   scenarios. Production behaviour is unchanged (invariant 3).
-- **`training/env.py`** — `objective="score"` (default): terminal reward = participant score, exact
-  potential-based α/β/ζ (`discount` = PPO `--gamma`), delta unchanged. `objective="legacy"`
+- **`training/env.py`** — `objective="stealth"` (default): terminal −1 / 1 + 0.5 · U, exact
+  potential-based α/β/ζ (`discount` = PPO `--gamma`), delta unchanged. `objective="score"`: the same
+  but a loss pays its best progress, exactly the participant score. `objective="legacy"`
   reproduces the pre-change reward for rerunning old waves. It's pinned by an embedded golden
   trajectory recorded from the old env (10 games, 5 wins); the only difference is ~1e-17
   float-summation order. Episode `info` now carries `score`, `reward_terms` and `explore`
@@ -138,13 +166,14 @@ was left alone to keep resume and branch behaviour unchanged.
 ## The experiment — `slurm/manifests/reward.txt`
 
 18 tasks = 3 nested reward conditions × 2 curriculum conditions × 3 fresh seeds (41/42/43), 15M
-steps, `lr 3e-4`, `ent-coef 0.03`, `--reward-objective score`.
+steps, `lr 3e-4`, `ent-coef 0.03`, `--reward-objective stealth`. Runs are named `w10s-*` so they
+can't collide with the cancelled `1807573` runs' (`w10-*`) checkpoint directories.
 
 | | curriculum (`--curriculum-max-difficulty 0.0`) | no curriculum |
 |---|---|---|
-| **obj** — objective only | `w10-obj-cur` | `w10-obj-off` |
-| **dlt** — + delta | `w10-dlt-cur` | `w10-dlt-off` |
-| **shp** — + delta + exact α/β/ζ | `w10-shp-cur` | `w10-shp-off` |
+| **obj** — objective only | `w10s-obj-cur` | `w10s-obj-off` |
+| **dlt** — + delta | `w10s-dlt-cur` | `w10s-dlt-off` |
+| **shp** — + delta + exact α/β/ζ | `w10s-shp-cur` | `w10s-shp-off` |
 
 **How to read it, decided before the data exists:**
 
@@ -214,3 +243,10 @@ separate ssh calls).
   arms on the same metric. So once 04 is re-evaluated with the score column, it's the control for
   whether the new terminal reward is harder to optimise. That would be a finding about the objective,
   not a reason to change it quietly.
+- 2026-09-14 — **the approach-without-winning risk was the objective, so the objective changed.** The
+  user asked why a loss earned partial credit. The first implementation had bundled progress credit
+  on losses in with the stealth term; "win stealthily" requires only the latter. They are separate
+  decisions and should have been put to the user separately. Cancelled `1807573` (10 tasks, ~1h in).
+  Added `--reward-objective stealth` (−1 / 1 + 0.5 · U, exact shaping) as the default, kept `score`
+  selectable, and renamed the wave's runs `w10s-*`. Agents are still reported on the participant
+  score. 955 tests passing.

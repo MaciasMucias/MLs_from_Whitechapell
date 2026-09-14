@@ -22,13 +22,13 @@ evidence and caveats. Read that before writing any chapter.
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | **runs complete** (`1807480`, 9/9); write-up and re-eval pending. Its `sparse` arm is not a valid shaping ablation — see 10 | — |
-| [10](10-reward-design.md) | Reward design | **IN FLIGHT** — array `1807573`, 18 tasks; reward = participant score | 06 |
+| [10](10-reward-design.md) | Reward design | **IN FLIGHT** — see below; trains on win-stealthily, reports the participant score | 06 |
 | [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **code done** (now scores humans on the participant score), awaiting 10 | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 
-Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 10 -> 06**. (10 was added 2026-09-14: 06's checkpoints now come from its wave, trained on the participant score.) Workstreams 05 and 07, and the code parts of 06,
+Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 10 -> 06**. (10 was added 2026-09-14: 06's checkpoints now come from its wave, trained to win stealthily and scored on the participant score.) Workstreams 05 and 07, and the code parts of 06,
 are laptop work that runs in parallel with cluster time.
 
 **09 was added 2026-09-09** and inserted ahead of 04. The Director had exactly one configuration ever
@@ -86,26 +86,28 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
 
-### IN FLIGHT — array `1807573`, submitted 2026-09-14 19:26, 18 tasks, ~14h (two windows of 9)
+### IN FLIGHT — array `<ARRAY>`, submitted 2026-09-14 <TIME>, 18 tasks, ~13h (two windows of 9)
 
-**Workstream 10, the reward design wave** ([10](10-reward-design.md)). The first wave trained on
-the participant score (`--reward-objective score`). 3 nested reward conditions (`obj`, `dlt`, `shp`)
-× curriculum on/off × seeds 41/42/43. Verified at submit: 9 RUNNING and 9 queued, no error
-signatures. At update 10+ the `obj` arms log alpha/beta/zeta/delta = 0 and the `dlt` arms a positive
-delta, as dispatched. ~670 SPS, so ~6.2h per window: expect it down around 08:30 on 2026-09-15.
+**Workstream 10, the reward design wave** ([10](10-reward-design.md)). It trains on
+`--reward-objective stealth` (−1 / 1 + 0.5 × hideout uncertainty) and reports every agent on the
+participant score. 3 nested reward conditions (`obj`, `dlt`, `shp`) × curriculum on/off × seeds
+41/42/43, runs named `w10s-*`. <VERIFIED>
+
+> Supersedes array `1807573` (same design with `--reward-objective score`, runs `w10-*`), cancelled
+> ~1h in because a loss earned progress credit. Its logs and checkpoints are not results.
 
 Read it with:
 
 ```bash
 ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807573_*.out"'
+  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_<ARRAY>_*.out"'
 ```
 
 Then export and pull (two separate ssh calls):
 
 ```bash
 ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_1807573_*.out" \
+  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_<ARRAY>_*.out" \
   --prefix reward --out-dir results'
 ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/reward_eval.csv \
   results/reward_training.csv' | tar xz --strip-components=1 -C docs/completion/results
@@ -113,17 +115,15 @@ ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/reward_eval.csv \
 
 **How to read it, decided in advance** (full version in [10](10-reward-design.md)):
 
-- Rank on the **last-5 eval participant score**, the new aggregate block in `sweep_report`. Not best
+- Rank on the **last-5 eval participant score**, the aggregate block in `sweep_report`. Not best
   win rate: in-training eval replays one fixed board set, so "best" is selected.
 - `obj → dlt` is delta's effect: final score, plus `visit_entropy` from `reward_training.csv`.
   (`coverage` saturates near 1.0 within 200k steps, so it doesn't discriminate.)
 - `dlt → shp` is α/β/ζ: **sample efficiency only** (steps to 80%/90% of final score). A final-score
   gap here means the shaping isn't really potential-based, which is a bug.
 - `cur` vs `off` in each row is the Director comparison under the true objective.
-- **Watch for approach-without-winning.** A loss now earns its best progress (~0.9 next to the
-  hideout), and the 200k smoke run scored ~0.78 at a 7% win rate. If arms plateau there, their
-  score will fall below 04's legacy arms on the same metric. Re-score 04 with the new eval column
-  as the control.
+- Training return is now negative on losses; `charts/score` and `eval/score` are the participant
+  score and are comparable with humans and with 04 once 04 is re-scored.
 
 ### 04 (array `1807480`) — complete, write-up pending
 
@@ -208,10 +208,13 @@ the results rather than fail loudly.
 7. **`--n-envs 12 --n-workers 12`** across every sweep and final run, so batch size stays 3,072 and
    the runs stay comparable. Also enforced by `tests/test_run_manifests.py`.
 
-8. **The reward objective is the participant score, `SCORE_STUDY_V1`** (`engine/metrics.py`):
-   progress + 0.5 × hideout uncertainty on a win — what participants were scored on and told about.
-   Frozen like the cops, and pinned against `frontend_participant/game.js` by `tests/test_reward.py`.
-   `--reward-gamma` is part of that objective and is never tuned. α/β/ζ must stay **exactly
+8. **Train on `--reward-objective stealth`; report on the participant score.** Training: −1 on a
+   loss, 1 + 0.5 × hideout uncertainty on a win. Reporting: `SCORE_STUDY_V1` (`engine/metrics.py`),
+   progress + 0.5 × hideout uncertainty on a win, which is what participants were scored on and told
+   about. It's frozen like the cops and pinned against `frontend_participant/game.js` by
+   `tests/test_reward.py`. The 0.5 stealth weight is shared by both and is never tuned. Progress credit
+   on a loss is **not** trained on (user decision 2026-09-14: it made near-misses worth nearly as
+   much as escaping). α/β/ζ must stay **exactly
    potential-based** (they may change learning speed, never the optimum); delta is the one sanctioned
    non-potential term, as a decaying exploration bonus. Every run before 2026-09-14 trained on
    `--reward-objective legacy`. See [10](10-reward-design.md).

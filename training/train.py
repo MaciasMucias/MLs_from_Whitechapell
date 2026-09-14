@@ -839,10 +839,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument(
         "--reward-objective",
         choices=REWARD_OBJECTIVES,
-        default="score",
-        help="score: the participant score as terminal reward with exact "
-        "potential-based shaping (from 2026-09-14). legacy: the +/-1 reward "
-        "every earlier run trained on — use only to reproduce those runs",
+        default="stealth",
+        help="stealth (default): -1 on a loss, 1 + 0.5 * hideout uncertainty on "
+        "a win, exact potential-based shaping. score: the full participant "
+        "score, so a loss earns its best progress. legacy: the +/-1 reward every "
+        "run before 2026-09-14 trained on - use only to reproduce those runs",
     )
     p.add_argument(
         "--eval-games",

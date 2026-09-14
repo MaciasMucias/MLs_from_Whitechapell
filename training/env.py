@@ -26,18 +26,26 @@ from engine.metrics import (
 from engine.state import GameState
 from training.obs import build_obs, precompute_distances
 
-# Reward objectives. "score" is the default and the only one to use for new runs.
+# Reward objectives. "stealth" is the default and the one to use for new runs.
+# All three share the stealth weight gamma (0.5, from the participant score).
 #
-#   score   SCORE_STUDY_V1 — the participant score (engine/metrics.py) as the
-#           terminal reward, alpha/beta/zeta as exact potential-based shaping,
-#           delta as a decaying exploration bonus. From 2026-09-14.
+#   stealth Win stealthily (user decision, 2026-09-14): terminal -1 on a loss,
+#           1 + gamma * hideout_uncertainty on a win. alpha/beta/zeta as exact
+#           potential-based shaping, delta as a decaying exploration bonus.
+#   score   The full participant score (engine/metrics.py) as the terminal
+#           reward — the same as stealth on a win, but a loss earns its best
+#           progress in [0, 1) instead of -1. Not the default: dying one step
+#           from the hideout is then worth almost as much as winning, which
+#           weakens the signal to actually escape (a 200k-step smoke run scored
+#           0.78 at a 7% win rate). Kept for the comparison it would enable.
+#           Agents are REPORTED on the participant score under every objective.
 #   legacy  The reward every run before 2026-09-14 trained on: terminal +/-1 plus
 #           gamma * hideout_uncertainty on a win, and shaping that was potential
 #           *differences* without the discount and with nothing at the terminal
 #           step. Kept so earlier waves stay reproducible — identical to the
 #           pre-change env up to float summation order (~1e-17, pinned by
 #           tests/test_reward.py). Pass --reward-objective legacy to rerun one.
-REWARD_OBJECTIVES = ("score", "legacy")
+REWARD_OBJECTIVES = ("stealth", "score", "legacy")
 
 # Shaping terms in the order they are reported. "objective" is the terminal
 # reward itself; the rest are the four auxiliary terms.
@@ -53,12 +61,13 @@ class JackEnv:
                    unmasked; all others must be set to -inf before softmax.
     Observation:   1,416-dim float32 vector (see training/obs.py).
 
-    Reward (objective="score", the default) — see docs/completion/10-reward-design.md:
+    Reward (objective="stealth", the default) — see docs/completion/10-reward-design.md:
 
-      objective  Terminal. The participant score: best progress on a loss, in
-                 [0, 1); 1 + gamma * hideout_uncertainty on a win, in [1, 1.5].
-                 gamma defaults to SCORE_STUDY_V1_STEALTH (0.5), inherited from
-                 the study's scoring rule — it defines the goal, it is not tuned.
+      objective  Terminal. -1 on a loss; 1 + gamma * hideout_uncertainty on a
+                 win, in [1, 1.5]. gamma defaults to SCORE_STUDY_V1_STEALTH
+                 (0.5), inherited from the study's scoring rule — it defines
+                 the goal, it is not tuned. objective="score" instead pays a
+                 loss its best progress, exactly as participants were scored.
       alpha      Potential-based shaping, Phi = -d(hideout) / d_max.
       beta       Potential-based shaping, Phi = -P(cops place Jack here).
       zeta       Potential-based shaping, Phi = nearest-cop distance / diameter.
@@ -87,7 +96,7 @@ class JackEnv:
         gamma: float = SCORE_STUDY_V1_STEALTH,
         zeta: float = 0.1,
         discount: float = 0.99,
-        objective: str = "score",
+        objective: str = "stealth",
         blocking: bool = False,
         rng: random.Random | None = None,
         director: Director | None = None,
@@ -296,16 +305,17 @@ class JackEnv:
             position_pmf = HeuristicCops.compute_pmf(state, self._map)
             uncertainty = hideout_uncertainty(state.hideout_zone, position_pmf)
 
-        if self._objective == "legacy":
-            objective = (1.0 + self._gamma * uncertainty) if won else -1.0
-        else:
+        if self._objective == "score":
             # Progress part of the participant score, plus the stealth part at
             # this env's gamma. At the default gamma (SCORE_STUDY_V1_STEALTH)
-            # this is exactly participant_score(); any other gamma is a
-            # deliberate, logged deviation from the study's objective.
+            # this is exactly participant_score().
             objective = participant_score(self._best_progress, won, 0.0)
             if won:
                 objective += self._gamma * uncertainty
+        else:
+            # stealth and legacy share the terminal reward; they differ only
+            # in the shaping (see _shaping and _potentials).
+            objective = (1.0 + self._gamma * uncertainty) if won else -1.0
 
         terms = self._shaping(phi_prev, None)
         terms["objective"] = objective

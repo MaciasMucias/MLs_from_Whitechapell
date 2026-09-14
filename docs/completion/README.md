@@ -86,12 +86,14 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
 
-### IN FLIGHT — array `<ARRAY>`, submitted 2026-09-14 <TIME>, 18 tasks, ~13h (two windows of 9)
+### IN FLIGHT — array `1807588`, submitted 2026-09-14 20:29, 18 tasks, ~13h (two windows of 9)
 
 **Workstream 10, the reward design wave** ([10](10-reward-design.md)). It trains on
 `--reward-objective stealth` (−1 / 1 + 0.5 × hideout uncertainty) and reports every agent on the
 participant score. 3 nested reward conditions (`obj`, `dlt`, `shp`) × curriculum on/off × seeds
-41/42/43, runs named `w10s-*`. <VERIFIED>
+41/42/43, runs named `w10s-*`. Verified at submit: 9 RUNNING, 9 queued, no error
+signatures; early losses log `objective=-1.0000` while `score=` still reports the participant score
+(0.416), so the two are separated as designed. ~700 SPS: expect it down around 09:30 on 2026-09-15.
 
 > Supersedes array `1807573` (same design with `--reward-objective score`, runs `w10-*`), cancelled
 > ~1h in because a loss earned progress credit. Its logs and checkpoints are not results.
@@ -100,14 +102,14 @@ Read it with:
 
 ```bash
 ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_<ARRAY>_*.out"'
+  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807588_*.out"'
 ```
 
 Then export and pull (two separate ssh calls):
 
 ```bash
 ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_<ARRAY>_*.out" \
+  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_1807588_*.out" \
   --prefix reward --out-dir results'
 ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/reward_eval.csv \
   results/reward_training.csv' | tar xz --strip-components=1 -C docs/completion/results

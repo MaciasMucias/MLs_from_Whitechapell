@@ -1,7 +1,7 @@
 # 10 — Reward design
 
-**Status:** **ready to resubmit** with `--reward-objective stealth` (the array id is recorded in
-[README](README.md)). Training rewards **winning stealthily**: −1 on a loss, 1 + 0.5 × hideout
+**Status:** **IN FLIGHT — array `1807588`** (18 tasks, submitted 2026-09-14 20:29) with
+`--reward-objective stealth`. Training rewards **winning stealthily**: −1 on a loss, 1 + 0.5 × hideout
 uncertainty on a win. α/β/ζ are exact potential-based shaping, delta is kept as a decaying
 exploration bonus, and every agent is **reported** on the full participant score. The first
 submission, `1807573` with `--reward-objective score`, was cancelled ~1h in (see Finding 1b).

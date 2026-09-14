@@ -22,7 +22,7 @@ evidence and caveats. Read that before writing any chapter.
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | **runs complete** (`1807480`, 9/9); write-up and re-eval pending. Its `sparse` arm is not a valid shaping ablation — see 10 | — |
-| [10](10-reward-design.md) | Reward design | **code done, ready to submit** — reward = participant score; 18-task `reward.txt` | 06 |
+| [10](10-reward-design.md) | Reward design | **IN FLIGHT** — array `1807573`, 18 tasks; reward = participant score | 06 |
 | [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **code done** (now scores humans on the participant score), awaiting 10 | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
@@ -58,13 +58,14 @@ exceed the Director effect being claimed, so single-seed arms would not support 
 |---|---|---|---|
 | `1806901` | 03 sweep w1 | 18 | **lr=3e-4** decisively, both arms. ~30-point spreads. |
 | `1806936` | entropy boundary probe | 2 | **ent-coef 0.03** confirmed an *interior* optimum |
-| `1806976` | 03 sweep w2 | 12 | reward coefficients: **all inside noise**; keep defaults |
+| `1806976` | 03 sweep w2 | 12 | reward coefficients: **all inside noise** (1 seed, 3M — could not detect anything; superseded by 10) |
 | `1807070` | 09 director v1 | 17 | **null — runs ended before the curriculum starts** |
 | `1807190` | 09 bases | 3 | the curriculum's first uptick is at 4.4–4.8M steps |
 | `1807209` | 09 branch | 15 | "the Director does not help" — **later found confounded** |
 | `1807292` | 09 from scratch + ramp shape | 18 | **correction:** ramp shape is irrelevant; the *warmup* is what helps |
 | `1807359` | 09 ceilings | 18 | **the result: `--curriculum-max-difficulty 0.0`**, 92.8% |
 | `1807390` | 09 schedule study | 18 | **both remaining knobs closed** — see below |
+| `1807480` | 04 final runs | 9 | ON > OFF on every seed (93.2 vs 90.7 best eval); `sparse` arm confounded (zeroed the objective's stealth term) |
 
 **Chosen config: `--lr 3e-4 --ent-coef 0.03 --curriculum-max-difficulty 0.0`** (default band).
 
@@ -85,44 +86,52 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
 
-### IN FLIGHT — array `1807480`, submitted 2026-09-13 16:58, 9 tasks, ~5–7h
+### IN FLIGHT — array `1807573`, submitted 2026-09-14 19:26, 18 tasks, ~14h (two windows of 9)
 
-**04, the final runs.** `director-on` / `director-off` / `sparse`, seeds 31/32/33, all nine
-concurrent. Verified at submit: all 9 RUNNING, and the three arms dispatched with distinct flags
-(ON carries `--initial-difficulty -1.0 --curriculum-max-difficulty 0.0`, OFF carries
-`--no-curriculum`, sparse carries both plus the five `--reward-*` zeros).
+**Workstream 10, the reward design wave** ([10](10-reward-design.md)). The first wave trained on
+the participant score (`--reward-objective score`). 3 nested reward conditions (`obj`, `dlt`, `shp`)
+× curriculum on/off × seeds 41/42/43. Verified at submit: 9 RUNNING and 9 queued, no error
+signatures. At update 10+ the `obj` arms log alpha/beta/zeta/delta = 0 and the `dlt` arms a positive
+delta, as dispatched. ~670 SPS, so ~6.2h per window: expect it down around 08:30 on 2026-09-15.
 
 Read it with:
 
 ```bash
 ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807480_*.out"'
+  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807573_*.out"'
 ```
 
-Then export and pull (two separate ssh calls — the export's stdout corrupts a combined tar stream):
+Then export and pull (two separate ssh calls):
 
 ```bash
 ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_1807480_*.out" \
-  --prefix final --out-dir results'
-ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/final_eval.csv \
-  results/final_training.csv' | tar xz --strip-components=1 -C docs/completion/results
+  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_1807573_*.out" \
+  --prefix reward --out-dir results'
+ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/reward_eval.csv \
+  results/reward_training.csv' | tar xz --strip-components=1 -C docs/completion/results
 ```
 
-**How to read it, decided in advance so the result cannot be talked into a story:**
+**How to read it, decided in advance** (full version in [10](10-reward-design.md)):
 
-- Rank on Director-free `eval/win_rate` only. `charts/win_rate` on an ON run is the P-controller's
-  setpoint (~0.5 by construction), not a score. Invariant 2b.
-- **Sanity gate first:** `curriculum/difficulty` must leave −1.0 in all three `director-on` seeds and
-  stay pinned at −1.0 in all three `director-off` seeds. If ON stays pinned the arm is void — that is
-  exactly how `1807070` failed.
-- The expectation from the tuning study is **ON ≈ 92%, OFF ≈ 85%, +6.8 points paired**. A smaller
-  gap here is the expected outcome, not a failure: 92.0% was a maximum over ~6 selected arms and is
-  biased upward. The *sign* is what 04 confirms; report 04's magnitude, not the tuning study's.
-- `sparse` is expected to be a null or better than shaped (at 3M it scored 33.0% vs 30.0%). "Reward
-  shaping cannot be shown to help" is a legitimate finding — do not retune to avoid it.
+- Rank on the **last-5 eval participant score**, the new aggregate block in `sweep_report`. Not best
+  win rate: in-training eval replays one fixed board set, so "best" is selected.
+- `obj → dlt` is delta's effect: final score, plus `visit_entropy` from `reward_training.csv`.
+  (`coverage` saturates near 1.0 within 200k steps, so it doesn't discriminate.)
+- `dlt → shp` is α/β/ζ: **sample efficiency only** (steps to 80%/90% of final score). A final-score
+  gap here means the shaping isn't really potential-based, which is a bug.
+- `cur` vs `off` in each row is the Director comparison under the true objective.
+- **Watch for approach-without-winning.** A loss now earns its best progress (~0.9 next to the
+  hideout), and the 200k smoke run scored ~0.78 at a 7% win rate. If arms plateau there, their
+  score will fall below 04's legacy arms on the same metric. Re-score 04 with the new eval column
+  as the control.
 
-Then 04's checkpoints unblock [06](06-comparison.md), whose code is already written and validated.
+### 04 (array `1807480`) — complete, write-up pending
+
+9/9 finished, sanity gate passed. In-training best eval: `sparse` 95.0%, `director-on` 93.2%,
+`director-off` 90.7%; ON > OFF on every seed. **Its `sparse` arm is not a valid shaping ablation**:
+it zeroed `gamma`, which is part of the objective. Still to do: export, a fresh-seed re-evaluation of
+the final checkpoints with the score column, and the write-up in [04](04-final-runs.md). 06's
+checkpoints now come from `1807573` instead.
 
 **Why 04 re-runs a configuration that has already been run.** `fsc000-i100` (1807390) is 04's ON arm
 flag-for-flag and `fs-off` (1807292) is its OFF arm, giving **92.0% vs 85.2%** paired per seed. But

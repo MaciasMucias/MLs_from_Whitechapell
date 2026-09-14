@@ -1,6 +1,6 @@
 # 10 — Reward design
 
-**Status:** **code done 2026-09-14, experiment ready to submit.** The reward now optimises the
+**Status:** **IN FLIGHT — array `1807573` (18 tasks, submitted 2026-09-14).** Code done 2026-09-14. The reward now optimises the
 participant score, α/β/ζ are exact potential-based shaping, and delta is kept as a decaying
 exploration bonus. 18-task manifest `slurm/manifests/reward.txt` written and validated.
 

@@ -229,7 +229,7 @@ suppression. Its signature is copdist ~1.12 and arrest ~43%.
 
 ---
 
-## 5. Generalisation: policies overfit to the cop configuration they trained on
+## 5. Generalisation: every arm loses the same on held-out cops
 
 Measured on the project's only historic Director run and its matched control,
 300 games, paired:
@@ -245,6 +245,22 @@ The curriculum bought 11 points on home cops and cost 16 when the cops changed.
 scored only against its training opponent cannot be distinguished from one that
 memorised that opponent's decision rule.
 
+**Corrected 2026-09-19 — the "the curriculum overfits" reading does not survive a fair test.** The
+table above compares two *historic single runs* that differed in more than the Director. Re-measured
+on 04's nine final checkpoints, 2,000 games each, the held-out gap is **identical across arms**:
+
+| arm | study cops | held-out `COPS_PRERETUNE_V1` | gap |
+|---|---|---|---|
+| `director-on` | 1.328 | 1.209 | −0.119 |
+| `director-off` | 1.300 | 1.183 | −0.117 |
+| `sparse` | 1.299 | 1.180 | −0.119 |
+
+Three decimals apart, ordering unchanged. **The gap is a property of the cop retune, not of the
+curriculum** — every policy loses about 0.12 of score when the opponent changes. Keep the practice
+(always report held-out cops) and drop the claim that the Director overfits; the original observation
+was the train/test mismatch of a single 2026-05 run, which is what workstream 09 was created to
+chase.
+
 This is also a limitation to state plainly: `COPS_STUDY_V2` was itself tuned with
 a trained Jack as adversary (provenance unrecorded), so historic policies may be
 biased against it.
@@ -253,37 +269,48 @@ biased against it.
 
 ## 6. Human-vs-RL comparison
 
-**N as of 2026-09-12: 19 usable participants, 57 usable games** — and still
-growing (42 rows arrived in the three days to 09-12). **Re-pull before the final
-analysis.** Human win rate ~30%. Course completion 48% (11 of 23 sessions at the
-09-09 snapshot). Sample is novice-heavy: `played_many` is **n=1**, so any claim
-about experienced humans rests on one person.
+**Measured 2026-09-19** on `games_20260919.sqlite` — **20 participants, 60 games**. Interim:
+recruitment is still running, so re-run and re-date before submission.
 
-### Intervals are not optional here
+Each policy replays the exact board its human counterpart faced, 20 times per scenario; humans are
+scored by replaying their own recorded moves through the engine, so both sides go through one
+scoring function. **Zero desyncs across all 60 games and three checkpoints.**
 
-Games are clustered — three per participant — so 57 games are not 57 independent
-observations. `analysis/stats.py` resamples **participants**, not games.
-
-Measured on the stale checkpoints:
-
-| checkpoint | point estimate | 95% CI (paired, clustered) |
+| | participant score | win rate |
 |---|---|---|
-| `mdw4ndpi` | +7.4% | [−5.1%, 19.8%] |
-| `atomic-feather-3` | +14.2% | [−0.4%, 28.2%] |
+| **Humans** | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] |
+| `w10s-obj-cur`, 3 seeds | 1.256 / 1.310 / 1.261 | 84.6% / 88.8% / 83.8% |
 
-**Both look like the agent beating humans; neither survives an interval.**
-Reporting "+14 points" would have been unsupportable. The design effect came out
-at **1.01**, meaning clustering happened to matter little *here* — an honest
-finding, and a reason to measure rather than assume.
+**Paired and clustered by participant, every interval excludes zero:** score **+0.584 / +0.638 /
++0.589**, win rate **+52.9 / +57.1 / +52.1 points**. Design effect 1.02, so clustering barely widens
+the interval here — but it is the correct interval.
 
-### Move agreement says the agents do not play like better humans
+### The agent does not play like a better human
 
-~20–25% agreement with the humans' own decisions, roughly constant across
-checkpoints whose win rates differ by 20 points. **The agents are not executing
-better versions of human strategies — they are playing differently.** That is the
-question `E3` exists to answer and it deserves its own section.
+Move agreement is **27–29%**: at nearly three quarters of the decisions a participant actually made,
+the policy would have chosen differently. A large win-rate gap with low agreement was already
+visible in the 2026-09-09 smoke run (20–22% agreement, 20-point gap) and survives against the real
+agents at a 52-point gap. **The agents win by playing a different game, not a tidier version of the
+human one** — worth a paragraph, because it bears on what the comparison licenses you to say about
+human play.
 
----
+### Board difficulty does not explain the human losses
+
+The policy wins **85.1%** of the boards its human lost and **83.4%** of the boards its human won. If
+humans were mostly losing to unlucky scenarios, those two numbers would differ sharply.
+
+### Experience shows no gradient
+
+| self-reported experience | participants | games | score | win rate |
+|---|---|---|---|---|
+| never played | 13 | 39 | 0.662 [0.544, 0.775] | 30.8% |
+| played a few | 5 | 15 | 0.689 [0.476, 0.939] | 33.3% |
+| played many | 2 | 6 | 0.692 [0.548, 0.836] | 33.3% |
+
+Flat, and with 2 participants in the top group this is descriptive only. **The project's "human
+players of varying skill levels" framing cannot be supported beyond "self-reported experience was
+collected and showed no clear gradient at this N."** If recruitment can be steered, experienced
+players are the group that would change what this comparison can claim.
 
 ## 7. Methodological traps — worth a paragraph each in the writeup
 

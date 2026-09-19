@@ -24,7 +24,7 @@ evidence and caveats. Read that before writing any chapter.
 | [04](04-final-runs.md) | Final runs — Director on/off | **done** — Director +0.028 score on every seed; `sparse` trades stealth for win rate; no overfitting to training cops | — |
 | [10](10-reward-design.md) | Reward design | **done** — curriculum >> shaping (they substitute); delta null; use objective-only + curriculum | 06 |
 | [05](05-study-data.md) | Close out study data | **open** — recruitment continues; 20 participants / 60 games at the 09-19 pull | 06 |
-| [06](06-comparison.md) | Human-vs-RL comparison | **code done** (now scores humans on the participant score), awaiting 10 | — |
+| [06](06-comparison.md) | Human-vs-RL comparison | **result in (interim)** — agent +0.58 to +0.64 score over humans, intervals clear of zero; re-run when recruitment ends | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 

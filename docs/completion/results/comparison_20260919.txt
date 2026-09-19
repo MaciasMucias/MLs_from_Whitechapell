@@ -1,0 +1,17 @@
+
+Human games: 60 from 20 participants
+Human win rate: 19/60 = 31.7% [23.3%, 40.0%]
+  95% CI clustered by participant; design effect 1.02, so a per-game
+  interval would have been about 1.01x too narrow.
+Human participant score: 67.2% [57.8%, 77.0%]  (x10,000 = points shown to participants)
+Policy replays per scenario: 20
+
+Humans by self-reported experience (participant-clustered CI):
+  experience      n  games                     score    win%
+  never_played   13     39      66.2% [54.4%, 77.5%]  30.8%
+  played_few      5     15      68.9% [47.6%, 93.9%]  33.3%
+  played_many     2      6      69.2% [54.8%, 83.6%]  33.3%
+  Ns are small - read these as descriptive, not as a test.
+
+  w10s-obj-cur-s41 (step 14,997,504) ...
+  w10s-obj-cur-s42 (step 14,997,504) ...

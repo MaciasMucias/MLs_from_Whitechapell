@@ -1,10 +1,10 @@
 # 06 — Human-vs-RL comparison
 
-**Status:** **code done and validated end-to-end** (2026-09-09). E1, E2, E3 implemented; E4
-outstanding. Awaiting 04's checkpoints for the final numbers.
-**Blocks:** nothing — this is the final deliverable
-**Blocked by:** 04 (trained policies) for the *reported* results. 05 is done — the snapshot is
-pulled and N is established.
+**Status:** **RESULT IN (2026-09-19), interim by design.** The agent beats the participants on the
+boards they actually played, by an interval clear of zero on both the participant score and win
+rate, with zero desyncs. **Recruitment is still running**, so every number here is dated to the
+`games_20260919.sqlite` snapshot (20 participants / 60 games) and should be re-run before
+submission — one `fly ssh sftp get`, then one `analysis.compare` invocation.
 
 ---
 
@@ -39,6 +39,55 @@ And at runtime, `move_agreement` walks each human's real move sequence forward t
 `HeuristicCops` is deterministic given a state, so the walk should reproduce the original game
 exactly; any divergence is counted as a **desync** and reported. **Across all 33 human games and
 three checkpoints: zero desyncs.** That is the strongest evidence the reconstruction is faithful.
+
+## RESULT (2026-09-19) — `w10s-obj-cur`, 20 participants / 60 games
+
+Each policy replays **the exact board its human counterpart faced**, 20 times per scenario (the
+policy samples rather than acting greedily). Humans are scored by replaying their own recorded moves
+through the engine, so both sides are measured by the same function. Raw output in
+[`results/comparison_20260919.txt`](results/comparison_20260919.txt).
+
+| | participant score | win rate |
+|---|---|---|
+| **Humans** (20 participants, 60 games) | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] |
+| `w10s-obj-cur-s41` | 1.256 | 84.6% |
+| `w10s-obj-cur-s42` | 1.310 | 88.8% |
+| `w10s-obj-cur-s43` | 1.261 | 83.8% |
+
+**Paired, clustered by participant — every interval excludes zero:**
+
+| seed | score difference | win-rate difference |
+|---|---|---|
+| s41 | **+0.584** [+0.471, +0.689] | +52.9 pts [+42.0, +63.1] |
+| s42 | **+0.638** [+0.520, +0.751] | +57.1 pts [+46.3, +67.0] |
+| s43 | **+0.589** [+0.458, +0.712] | +52.1 pts [+40.2, +63.4] |
+
+**Zero desyncs across all 60 games and three checkpoints**, so every replayed board is the board the
+human actually faced.
+
+### Three things the headline number does not say
+
+1. **The agent does not play like a better human.** Move agreement is **27–29%**: at nearly three
+   quarters of the decisions a participant made, the policy would have gone somewhere else. A
+   20-point win-rate gap with ~20% agreement was already visible in the 2026-09-09 smoke run against
+   stale checkpoints; it survives against the real agents with a 52-point gap.
+2. **Board difficulty does not explain human losses.** The policy wins **85.1%** of the boards its
+   human lost and **83.4%** of the boards its human won (s41; the other seeds match). If humans lost
+   mainly to unlucky boards, the first number would be much lower than the second. It is not.
+3. **Experience barely separates the humans** — 66.2% / 68.9% / 69.2% score for never-played /
+   played-a-few / played-many, and 30.8% / 33.3% / 33.3% win rate. With 13 / 5 / 2 participants this
+   is descriptive only, but nothing in it suggests experienced players approach the agent.
+
+### Caveats to carry into the write-up
+
+- **Interim N.** Recruitment continues; re-run before submission and re-state the date.
+- **The `played_many` group is two people.** The project's "varying skill levels" claim cannot be
+  supported beyond "we collected self-reported experience and saw no clear gradient".
+- **The design effect is 1.02**, so clustering by participant barely widens the intervals here — but
+  it is still the correct interval, and the machinery is cheap.
+- The policy scores 1.26–1.31 on the course maps against 1.326 on `whitechapel.json`: the course
+  scenarios are a different, slightly harder board set. Compare agents to humans within this table,
+  not across to the training-map numbers.
 
 ## Smoke result — NOT a finding
 
@@ -185,3 +234,12 @@ and use it for every reported number, including these.
   better human strategies, they are playing different ones. Re-ask this per Director arm once 04
   lands — "does the Director change *how* it plays or only how often it wins" is the E3 question and
   it now has a number attached.
+
+## Session log
+
+- 2026-09-19 — **ran the comparison; 06 has its result.** `w10s-obj-cur`, three seeds, against the
+  `games_20260919.sqlite` snapshot (20 participants / 60 games). Agent beats humans by +0.584 to
+  +0.638 participant score and +52 to +57 win points, every interval clear of zero, zero desyncs.
+  Move agreement 27–29%, so the agents win by playing a different game rather than a better version
+  of the human one. The policy wins the boards humans lost and the boards humans won at the same
+  rate, so board difficulty does not explain the human losses. Interim: recruitment continues.

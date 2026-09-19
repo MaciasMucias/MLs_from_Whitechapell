@@ -10,6 +10,45 @@ evaluations per run, 3 seeds per arm. Raw data in [`results/`](results/).
 
 ---
 
+## 0. The headline, measured on the objective (2026-09-19, array `1807588`)
+
+Everything in sections 1–5 was measured under the **legacy** reward (terminal ±1) and reported as win
+rate. Workstream 10 re-ran the comparison under the reward the thesis actually argues for — win
+stealthily — and reports the **participant score**, the quantity human participants were scored on
+(`engine/metrics.py`, `SCORE_STUDY_V1`; humans average **0.679**). Prefer these numbers.
+
+| reward | curriculum | no curriculum |
+|---|---|---|
+| **objective only** | **1.309** ±0.013 · 89.8% win | 1.141 ±0.051 · 70.7% |
+| + delta | 1.302 ±0.024 · 88.8% | 1.161 ±0.045 · 70.7% |
+| + delta + shaping | 1.265 ±0.062 · 85.2% | 1.245 ±0.039 · 82.0% |
+
+3 seeds per arm, 15M steps, mean of the last five evaluations (not best-ever — in-training eval
+replays one fixed board set, so a maximum over ~69 evaluations is selected on those boards).
+
+**1. The curriculum is the largest effect in the project: +0.168 score, +19 win points,
+non-overlapping ranges, and 42% fewer steps to reach a score of 1.10 (7.9M vs 13.7M).** It reaches
+1.20 and 1.30 where the baseline never does inside the budget.
+
+**2. Shaping and the curriculum are substitutes.** Shaping is worth +0.104 without the curriculum and
+nothing with it (1.265 vs 1.309, and slower to every threshold), where it also triples the seed
+spread and produced one collapsed seed (78.0% vs 91.5% win). **This is why 04's Director effect
+looked small (+2.5 points): both of its arms had shaping on, so the OFF arm already had most of what
+the curriculum provides.** The single most useful reframing to come out of this project.
+
+**3. It is a sample-efficiency result, not a claim about optima.** No arm converged at 15M: the trend
+over the last 20% of training is positive in every arm (+0.022 to +0.041 score per 1M steps). Exact
+potential-based shaping cannot change which policy is optimal, so at a fixed pre-convergence budget
+its effect appears as a score difference. **State the budget with every number.**
+
+**4. Behaviour backs it up.** Curriculum arms hold a wider berth from cops (copdist 1.46 vs 1.34) and
+lose less to *both* arrest (8.3% vs 19.8%) and the clock (1.8% vs 10.2%), while leaving the hideout
+*more* ambiguous (0.79 vs 0.74). Better on both halves of the objective, not a trade.
+
+**Recommended configuration:** objective only + curriculum. Simplest, best, tightest across seeds.
+
+---
+
 ## 1. The headline: the curriculum works, if it is forbidden from injecting
 
 | configuration | final eval win% | best | last-5 |
@@ -292,6 +331,13 @@ say whether it matters.
   ceiling is the optimum, the effect vanishes rather than flipping sign. This is
   a band x ceiling interaction, and it is the more interesting way to report it.
   **Use the default band; do not tune it.**
+- **The exploration bonus (delta) is a null on this map.** 1.302 vs 1.309 with the curriculum and
+  1.161 vs 1.141 without — both smaller than the seed spread, in opposite directions. The mechanism
+  is absent rather than weak: **coverage reaches 0.95 by 34k steps and 1.000 from ~1M in every arm**,
+  with or without the bonus (entropy differs by ≤0.008, and by 0.001 at 15M). With 12 parallel
+  environments on a 195-node map, exploration is not a bottleneck, so a front-loaded exploration
+  bonus has nothing to add. Report it as scale-dependent, not as "count-based exploration doesn't
+  work": it would be expected to matter on a larger board or a much shorter budget.
 - **Board-size ablation** was never implemented (`course_1/2/3` are same-size
   scenario variants). Report as a limitation.
 

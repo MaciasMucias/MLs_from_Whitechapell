@@ -22,7 +22,7 @@ evidence and caveats. Read that before writing any chapter.
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | **runs complete** (`1807480`, 9/9); write-up and re-eval pending. Its `sparse` arm is not a valid shaping ablation — see 10 | — |
-| [10](10-reward-design.md) | Reward design | **IN FLIGHT** — see below; trains on win-stealthily, reports the participant score | 06 |
+| [10](10-reward-design.md) | Reward design | **done** — curriculum >> shaping (they substitute); delta null; use objective-only + curriculum | 06 |
 | [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **code done** (now scores humans on the participant score), awaiting 10 | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
@@ -66,6 +66,7 @@ exceed the Director effect being claimed, so single-seed arms would not support 
 | `1807359` | 09 ceilings | 18 | **the result: `--curriculum-max-difficulty 0.0`**, 92.8% |
 | `1807390` | 09 schedule study | 18 | **both remaining knobs closed** — see below |
 | `1807480` | 04 final runs | 9 | ON > OFF on every seed (93.2 vs 90.7 best eval); `sparse` arm confounded (zeroed the objective's stealth term) |
+| `1807588` | 10 reward design | 18 | **the curriculum dominates; shaping substitutes for it; delta null** — see below |
 
 **Chosen config: `--lr 3e-4 --ent-coef 0.03 --curriculum-max-difficulty 0.0`** (default band).
 
@@ -86,46 +87,28 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
 
-### IN FLIGHT — array `1807588`, submitted 2026-09-14 20:29, 18 tasks, ~13h (two windows of 9)
+### What `1807588` settled (2026-09-19) — workstream 10, the reward wave
 
-**Workstream 10, the reward design wave** ([10](10-reward-design.md)). It trains on
-`--reward-objective stealth` (−1 / 1 + 0.5 × hideout uncertainty) and reports every agent on the
-participant score. 3 nested reward conditions (`obj`, `dlt`, `shp`) × curriculum on/off × seeds
-41/42/43, runs named `w10s-*`. Verified at submit: 9 RUNNING, 9 queued, no error
-signatures; early losses log `objective=-1.0000` while `score=` still reports the participant score
-(0.416), so the two are separated as designed. ~700 SPS: expect it down around 09:30 on 2026-09-15.
+18/18. Trained on the stealth objective (−1 / 1 + 0.5 × hideout uncertainty), reported on the
+participant score. Humans average 0.679. Full write-up in [10](10-reward-design.md).
 
-> Supersedes array `1807573` (same design with `--reward-objective score`, runs `w10-*`), cancelled
-> ~1h in because a loss earned progress credit. Its logs and checkpoints are not results.
+| reward | curriculum | no curriculum |
+|---|---|---|
+| **objective only** | **1.309** ±0.013 · 89.8% win | 1.141 ±0.051 · 70.7% |
+| + delta | 1.302 ±0.024 · 88.8% | 1.161 ±0.045 · 70.7% |
+| + delta + shaping | 1.265 ±0.062 · 85.2% | 1.245 ±0.039 · 82.0% |
 
-Read it with:
+- **The curriculum is the largest effect in the project:** +0.168 score, +19 win points,
+  non-overlapping ranges, and 42% fewer steps to a score of 1.10 (7.9M vs 13.7M).
+- **Shaping substitutes for it.** Worth +0.104 without the curriculum, nothing with it — and it
+  triples the seed spread. **This is why 04's Director effect looked small: both its arms had
+  shaping on.**
+- **Delta is a null, because the mechanism is absent at this scale:** coverage hits 1.000 within ~1%
+  of training in every arm, bonus or no bonus.
+- **Nothing converged at 15M** (tail slopes all positive), so these are sample-efficiency results at
+  a fixed budget. Say the budget with the number.
 
-```bash
-ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1807588_*.out"'
-```
-
-Then export and pull (two separate ssh calls):
-
-```bash
-ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH && \
-  UV_NO_SYNC=1 uv run python -m analysis.export_results "logs/wc-train_1807588_*.out" \
-  --prefix reward --out-dir results'
-ssh cluster 'cd ~/MLs_from_Whitechapel && tar cz results/reward_eval.csv \
-  results/reward_training.csv' | tar xz --strip-components=1 -C docs/completion/results
-```
-
-**How to read it, decided in advance** (full version in [10](10-reward-design.md)):
-
-- Rank on the **last-5 eval participant score**, the aggregate block in `sweep_report`. Not best
-  win rate: in-training eval replays one fixed board set, so "best" is selected.
-- `obj → dlt` is delta's effect: final score, plus `visit_entropy` from `reward_training.csv`.
-  (`coverage` saturates near 1.0 within 200k steps, so it doesn't discriminate.)
-- `dlt → shp` is α/β/ζ: **sample efficiency only** (steps to 80%/90% of final score). A final-score
-  gap here means the shaping isn't really potential-based, which is a bug.
-- `cur` vs `off` in each row is the Director comparison under the true objective.
-- Training return is now negative on losses; `charts/score` and `eval/score` are the participant
-  score and are comparable with humans and with 04 once 04 is re-scored.
+**Recommended configuration, and 06's checkpoints: `w10s-obj-cur` (objective only + curriculum).**
 
 ### 04 (array `1807480`) — complete, write-up pending
 

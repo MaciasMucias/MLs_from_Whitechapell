@@ -1,15 +1,107 @@
 # 10 — Reward design
 
-**Status:** **IN FLIGHT — array `1807588`** (18 tasks, submitted 2026-09-14 20:29) with
-`--reward-objective stealth`. Training rewards **winning stealthily**: −1 on a loss, 1 + 0.5 × hideout
-uncertainty on a win. α/β/ζ are exact potential-based shaping, delta is kept as a decaying
-exploration bonus, and every agent is **reported** on the full participant score. The first
-submission, `1807573` with `--reward-objective score`, was cancelled ~1h in (see Finding 1b).
+**Status:** **DONE (2026-09-19, array `1807588`, 18/18).** The curriculum is the dominant effect;
+shaping substitutes for it and is redundant once it is on; delta is a null on this map. **Recommended
+configuration: objective only + curriculum** (`--reward-objective stealth
+--reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0
+--initial-difficulty -1.0 --curriculum-max-difficulty 0.0`) — the simplest arm, the best score, and
+the tightest across seeds.
 
 **Blocks:** 06 (its checkpoints come from this wave, not 04's)
 **Blocked by:** 03 (lr/ent), 09 (`--curriculum-max-difficulty 0`)
 
 ---
+
+## RESULT (2026-09-19, array `1807588`, 18/18)
+
+Trained on the stealth objective, reported on the participant score. Humans average **0.679**.
+
+| reward | curriculum | no curriculum |
+|---|---|---|
+| **objective only** | **1.309** ±0.013 [1.298–1.324] · 89.8% win | 1.141 ±0.051 [1.106–1.207] · 70.7% |
+| + delta | 1.302 ±0.024 [1.278–1.326] · 88.8% | 1.161 ±0.045 [1.118–1.207] · 70.7% |
+| + delta + shaping | 1.265 ±0.062 [1.192–1.316] · 85.2% | 1.245 ±0.039 [1.201–1.279] · 82.0% |
+
+Score is the mean of the last five evaluations per seed (not best-ever: in-training eval replays one
+fixed board set). Win% is `sweep_report`'s best eval win rate, kept for continuity with earlier waves.
+
+### 1. The curriculum is the largest effect in the project
+
+**+0.168 score (1.309 vs 1.141), ranges nowhere near overlapping, +19 points of win rate.** It is
+also a large speed effect — steps to reach a fixed score:
+
+| arm | → 1.00 | → 1.10 | → 1.20 | → 1.30 |
+|---|---|---|---|---|
+| objective + curriculum | 6.8M | **7.9M** | **10.3M** | 13.4M |
+| + delta + shaping, curriculum | 6.8M | 8.6M | 12.1M | never |
+| + delta + shaping, no curriculum | 10.1M | 11.7M | 13.4M | never |
+| objective, no curriculum | 10.6M | 13.7M | never | never |
+
+The curriculum reaches 1.10 in **42% fewer steps** than the same reward without it, and reaches 1.20
+and 1.30 where the unshaped baseline never does inside 15M.
+
+**This is much larger than 04's +2.5 points** — because 04's arms both had shaping on. Shaping was
+doing the curriculum's job in the OFF arm and hiding most of the effect.
+
+### 2. Shaping substitutes for the curriculum, and is redundant once it is on
+
+- **Without the curriculum it helps:** +0.104 (1.245 vs 1.141), 11.7M vs 13.7M to reach 1.10, and it
+  reaches 1.20 where objective-only never does.
+- **With the curriculum it does not:** 1.265 vs 1.309, and slower to every threshold.
+- **It also destabilises training under the curriculum:** the seed half-range is ±0.062 against
+  ±0.013 for objective-only, with one seed collapsing to 78.0% win rate against 91.5% for its sibling.
+
+**This does not contradict the potential-based guarantee**, and the data says why: **no arm had
+converged at 15M.** The trend of score over the last 20% of training is positive everywhere (+0.022
+to +0.041 per 1M steps), and steepest in the slowest arms. Exact potential-based shaping cannot
+change which policy is optimal, only how fast it is approached — so at a fixed, pre-convergence
+budget it shows up as a score difference. Every number here is "at 15M steps", not "at convergence".
+
+### 3. Delta is a null here, and the mechanism says why
+
+Score: 1.302 vs 1.309 with the curriculum, 1.161 vs 1.141 without. Both differences are smaller than
+the seed spread, in opposite directions.
+
+The mechanism it was supposed to work through is absent at this scale:
+
+| | coverage | visit entropy |
+|---|---|---|
+| every arm at 34k steps | 0.95 | 0.92 |
+| every arm from ~1M steps on | **1.000** | 0.91–0.94 |
+| delta on − delta off, at matched steps | **+0.0000** | +0.008 early, +0.001 by 15M |
+
+With 12 parallel environments on a 195-node map, **every arm visits the whole map within the first
+~1% of training**, with or without an exploration bonus. There is nothing left for delta to add.
+
+**This is not a refutation of the development result** ([[project-delta-exploration]]): that was
+observed at a different scale and on older code, and a bonus that front-loads exploration can only
+help where exploration is a bottleneck. On this map at this budget it is not. Keeping delta costs
+nothing measurable; the recommended arm drops it because the simplest configuration that performs
+best is the one to carry forward.
+
+### 4. Behaviour, final evaluation
+
+| arm | copdist | arrest% | timeout% | hideout_u |
+|---|---|---|---|---|
+| objective + curriculum | 1.46 | 8.3 | 1.8 | 0.79 |
+| + delta + shaping, curriculum | 1.44 | 12.5 | 3.3 | 0.78 |
+| + delta + shaping, no curriculum | 1.45 | 13.8 | 5.5 | 0.75 |
+| objective, no curriculum | 1.34 | 19.8 | 10.2 | 0.74 |
+
+The curriculum arms keep a wider berth (1.46 vs 1.34) **and** lose less to both arrest and the clock,
+so they are playing better rather than merely more cautiously. They also leave the hideout more
+ambiguous (0.79 vs 0.74) — they score better on both halves of the objective, not by trading one off.
+
+### What this changes
+
+- **06 uses `w10s-obj-cur`.** Carry all three seeds.
+- **The thesis's reward-shaping claim is now "shaping and the curriculum are substitutes".** That is a
+  more interesting result than either alone, and it explains 04's small Director effect.
+- **Limitation to state plainly:** 15M steps is not convergence for any arm. Comparisons are at a
+  fixed budget.
+- **Do not tune α/β/ζ with Optuna.** With the curriculum on — the configuration the thesis
+  recommends — shaping does not help, so tuning it would optimise a term that is about to be set to
+  zero.
 
 ## Why this workstream exists
 
@@ -250,3 +342,11 @@ separate ssh calls).
   Added `--reward-objective stealth` (−1 / 1 + 0.5 · U, exact shaping) as the default, kept `score`
   selectable, and renamed the wave's runs `w10s-*`. Agents are still reported on the participant
   score. 955 tests passing.
+- 2026-09-19 — **array `1807588` exported and analysed; 10 is DONE.** The curriculum is the largest
+  effect measured anywhere in the project (+0.168 score, 42% fewer steps to 1.10); shaping does the
+  same job and is redundant — slightly harmful and clearly noisier — once the curriculum is on; delta
+  is a null, and coverage saturates at 1.000 within ~1% of training in every arm, so the mechanism it
+  works through does not exist at this scale. No arm converged at 15M (tail slopes all positive),
+  which is what makes the shaping differences sample efficiency rather than a violation of the
+  potential-based guarantee. `analysis/convergence.py` gained per-arm seeds, the participant-score
+  tables, fixed-score thresholds and the tail-slope plateau test.

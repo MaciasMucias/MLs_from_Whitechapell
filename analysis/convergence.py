@@ -40,16 +40,28 @@ RESULTS = Path("docs/completion/results")
 
 # Where each seed's branch runs forked from its base (tools/branch_point.py).
 BRANCH_POINT = {"27": 4_454_400, "28": 4_454_400, "29": 4_915_200}
+# Seeds of the branch-era waves. Later waves use their own (04: 31-33,
+# 10: 41-43), so seeds are taken from the CSV per arm; this is only the
+# fallback for arms whose rows are missing entirely.
 SEEDS = ("27", "28", "29")
 
 # arm -> (wave file prefix, branched?, human-readable label)
 ARMS = {
+    # 09 — the Director waves, under the legacy reward.
     "cap000-b4060": ("director_cap", True, "curriculum, no injection"),
     "dbr-off": ("director_branch", True, "hand-picked two-phase"),
     "fs-off": ("director_v3", False, "no curriculum"),
     "fs-on": ("director_v3", False, "unbounded Director"),
     "cap015-b4060": ("director_cap", True, "curriculum, ceiling +0.15"),
     "dbr-fix05": ("director_branch", True, "fixed -0.5"),
+    # 10 — the reward wave, trained on the stealth objective. These carry the
+    # `score` column; the arms above predate it and show "-".
+    "w10s-obj-cur": ("reward", False, "objective, curriculum"),
+    "w10s-dlt-cur": ("reward", False, "+delta, curriculum"),
+    "w10s-shp-cur": ("reward", False, "+delta+shaping, curriculum"),
+    "w10s-obj-off": ("reward", False, "objective, no curriculum"),
+    "w10s-dlt-off": ("reward", False, "+delta, no curriculum"),
+    "w10s-shp-off": ("reward", False, "+delta+shaping, no curriculum"),
 }
 
 
@@ -79,6 +91,12 @@ def stitched_curve(
     return prefix + rows
 
 
+def seeds_for(arm: str, waves: dict) -> tuple[str, ...]:
+    """Seeds present for an arm. Waves use different seed sets (27-29, 31-33, 41-43)."""
+    found = sorted({seed for (a, seed) in waves if a == arm})
+    return tuple(found) if found else SEEDS
+
+
 def steps_to(rows: list[dict], threshold: float) -> int | None:
     """First global step at which eval win rate reached `threshold` percent."""
     for row in rows:
@@ -87,18 +105,62 @@ def steps_to(rows: list[dict], threshold: float) -> int | None:
     return None
 
 
+def values(rows: list[dict], key: str) -> list[float]:
+    """The numeric column, skipping evaluations that lack it (older waves)."""
+    return [float(r[key]) for r in rows if r.get(key) not in (None, "")]
+
+
+def steps_to_value(rows: list[dict], key: str, target: float) -> int | None:
+    for row in rows:
+        v = row.get(key)
+        if v not in (None, "") and float(v) >= target:
+            return int(row["step"])
+    return None
+
+
+def tail_slope(rows: list[dict], key: str, frac: float = 0.2) -> float:
+    """Least-squares slope of `key` per 1M steps over the last `frac` of training.
+
+    The plateau test. Exact potential-based shaping cannot change which policy is
+    optimal, so a final-score gap between shaped and unshaped arms is only
+    consistent with theory while the arms are still improving. A slope at or
+    below ~0 in the unshaped arm would mean it has converged lower, which would
+    be a bug rather than a finding.
+    """
+    pts = [
+        (int(r["step"]), float(r[key])) for r in rows if r.get(key) not in (None, "")
+    ]
+    if len(pts) < 4:
+        return float("nan")
+    pts = pts[-max(2, int(len(pts) * frac)) :]
+    n = len(pts)
+    mx = sum(x for x, _ in pts) / n
+    my = sum(y for _, y in pts) / n
+    denom = sum((x - mx) ** 2 for x, _ in pts)
+    if denom == 0:
+        return float("nan")
+    return (sum((x - mx) * (y - my) for x, y in pts) / denom) * 1e6
+
+
 def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else float("nan")
 
 
-def report(results_dir: Path, thresholds: list[float], last_k: int = 5) -> None:
+def report(
+    results_dir: Path,
+    thresholds: list[float],
+    last_k: int = 5,
+    score_thresholds: tuple[float, ...] = (1.0, 1.1, 1.2, 1.3),
+) -> None:
     waves: dict = {}
     for prefix in {p for p, _, _ in ARMS.values()}:
         waves.update(load_wave(prefix, results_dir))
     base = load_wave("director_base", results_dir)
 
     curves = {
-        arm: [stitched_curve(arm, s, waves, base, br) for s in SEEDS]
+        arm: [
+            stitched_curve(arm, s, waves, base, br) for s in seeds_for(arm, waves)
+        ]
         for arm, (_, br, _) in ARMS.items()
     }
     curves = {a: c for a, c in curves.items() if all(c)}
@@ -131,13 +193,76 @@ def report(results_dir: Path, thresholds: list[float], last_k: int = 5) -> None:
             reached = [h for h in hits if h is not None]
             cells.append(
                 f"{_mean([float(h) for h in reached]) / 1e6:>11.1f}M"
-                if len(reached) == len(SEEDS)
+                if len(reached) == len(seeds)
                 else f"{'never':>12}"
             )
         print(f"{arm:<16}" + "".join(cells))
     print()
     print("  Branch arms are stitched onto their base run, so step counts are")
     print("  comparable at equal total compute rather than flattering the branch.")
+
+    scored = {
+        arm: seeds
+        for arm, seeds in curves.items()
+        if all(values(c, "score") for c in seeds)
+    }
+    if scored:
+        print("\nPARTICIPANT SCORE — the objective every agent and human is reported on")
+        print(f"{'arm':<16}{'':28}{'best':>7}{'final':>8}{f'last-{last_k}':>9}")
+        print("-" * 68)
+        for arm, seeds in scored.items():
+            sc = [values(c, "score") for c in seeds]
+            print(
+                f"{arm:<16}{ARMS[arm][2]:<28}"
+                f"{_mean([max(x) for x in sc]):>7.3f}"
+                f"{_mean([x[-1] for x in sc]):>8.3f}"
+                f"{_mean([_mean(x[-last_k:]) for x in sc]):>9.3f}"
+            )
+        print()
+
+        print("SAMPLE EFFICIENCY — steps to reach a FIXED participant score")
+        print("(comparable across arms; the fraction table below is not)")
+        print(f"{'arm':<16}" + "".join(f"{t:>12.2f}" for t in score_thresholds))
+        print("-" * (16 + 12 * len(score_thresholds)))
+        for arm, seeds in scored.items():
+            cells = []
+            for thr in score_thresholds:
+                hits = [steps_to_value(c, "score", thr) for c in seeds]
+                reached = [h for h in hits if h is not None]
+                cells.append(
+                    f"{_mean([float(h) for h in reached]) / 1e6:>11.1f}M"
+                    if len(reached) == len(seeds)
+                    else f"{'never':>12}"
+                )
+            print(f"{arm:<16}" + "".join(cells))
+        print()
+
+        print("SAMPLE EFFICIENCY — steps to reach a fraction of the arm's OWN last-k score")
+        print(f"{'arm':<16}{'80%':>12}{'90%':>12}{'95%':>12}{'slope/1M':>11}")
+        print("-" * 63)
+        for arm, seeds in scored.items():
+            targets = [_mean(values(c, "score")[-last_k:]) for c in seeds]
+            cells = []
+            for frac in (0.8, 0.9, 0.95):
+                hits = [
+                    steps_to_value(c, "score", t * frac)
+                    for c, t in zip(seeds, targets)
+                ]
+                reached = [h for h in hits if h is not None]
+                cells.append(
+                    f"{_mean([float(h) for h in reached]) / 1e6:>11.1f}M"
+                    if len(reached) == len(seeds)
+                    else f"{'never':>12}"
+                )
+            slope = _mean([tail_slope(c, "score") for c in seeds])
+            print(f"{arm:<16}" + "".join(cells) + f"{slope:>+11.4f}")
+        print()
+        print("  Each arm is measured against its own end state, so this is speed,")
+        print("  not quality. slope/1M is the least-squares trend of score over the")
+        print("  last 20% of training: clearly positive means the arm was still")
+        print("  improving when the budget ran out, so a final-score gap is a")
+        print("  sample-efficiency difference rather than a different optimum.")
+        print()
 
     print(f"\nHOW THEY LOSE — final evaluation, mean over seeds")
     print(f"{'arm':<16}{'copdist':>9}{'arrest%':>9}{'timeout%':>10}{'hideout_u':>11}")
@@ -163,9 +288,16 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--results-dir", default=str(RESULTS))
     p.add_argument("--thresholds", type=float, nargs="+", default=[50, 70, 80, 85])
     p.add_argument("--last-k", type=int, default=5)
+    p.add_argument(
+        "--score-thresholds",
+        type=float,
+        nargs="+",
+        default=[1.0, 1.1, 1.2, 1.3],
+        help="Absolute participant-score levels for the cross-arm speed table",
+    )
     return p.parse_args()
 
 
 if __name__ == "__main__":
     a = _parse_args()
-    report(Path(a.results_dir), a.thresholds, a.last_k)
+    report(Path(a.results_dir), a.thresholds, a.last_k, tuple(a.score_thresholds))

@@ -26,6 +26,8 @@ from losing the evidence behind the thesis's main claim. `slurm_logs.tar.gz`
 | `director_v3` | 1807292 | 18 | ramp shape is irrelevant; the *suppressed warmup* is what helps |
 | **`director_cap`** | **1807359** | **18** | **the headline: the curriculum works if forbidden to inject** |
 | `director_sched` | 1807390 | 18 | the −1.0 floor is degenerate but harmless as a warmup; the band is a null |
+| `final` | 1807480 | 9 | 04's Director on/off + sparse, legacy reward (export pending) |
+| **`reward`** | **1807588** | **18** | **the objective-side headline: curriculum >> shaping, which substitutes for it; delta null** |
 
 ## Schema
 

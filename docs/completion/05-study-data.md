@@ -1,8 +1,9 @@
 # 05 — Close out study data
 
-**Status:** **done for the thesis's purposes** (2026-09-19). Final snapshot
-`games_20260919.sqlite`: **20 usable participants / 60 usable games**, collection ended 2026-09-12.
-A2/A3/A4 done; A1 and A5 outstanding and both optional (see below).
+**Status:** **open — recruitment is still running.** Latest snapshot `games_20260919.sqlite`:
+**20 usable participants / 60 usable games** as of that pull. More participants are expected, so
+**every N in these docs is dated, never final**. Re-pull immediately before producing any reported
+comparison. A2/A3/A4 done; A1 and A5 outstanding and both optional (see below).
 **Blocks:** 06
 **Blocked by:** nothing. Laptop work — do it while the GPU is busy.
 
@@ -206,15 +207,18 @@ an honest number.
   `fly ssh console -C "cat ..."`. Under Git Bash the latter mangles `/app/...` into a Windows path
   (MSYS path translation) and, being a text pipe, risks corrupting a binary file anyway. Run it from
   PowerShell or prefix `MSYS_NO_PATHCONV=1`.
-- 2026-09-19 — **final snapshot pulled: `data/study/games_20260919.sqlite`** (95 rows, 4.7 MB,
-  collected 2026-08-05 → **2026-09-12**). **N is now 20 usable participants / 60 usable games**, up
-  from 19/57 on 09-12. The newest row is a week old, so collection appears to have stopped; treat
-  this as the final N unless the study is reopened. Exclusions: 22 incomplete_course,
-  11 ambiguous_scenario_order, 0 admin artifacts.
+- 2026-09-19 — **snapshot pulled: `data/study/games_20260919.sqlite`** (95 rows, 4.7 MB, collected
+  2026-08-05 → 2026-09-12). **N is 20 usable participants / 60 usable games at this pull**, up from
+  19/57 on 09-12. Exclusions: 22 incomplete_course, 11 ambiguous_scenario_order, 0 admin artifacts.
+  **Recruitment is still running (user, 2026-09-19), so this is not the final N** — the week-long gap
+  to the newest row is a lull, not the end. Re-pull before any reported number; the pipeline is
+  cheap to re-run (one `fly ssh sftp get`, then `analysis.compare`).
   - **All 60 usable games replay exactly through the engine** under `COPS_STUDY_V2` — same winner and
     same number of rounds — so every human has a recomputed participant score (the database stores
     moves and outcomes, not scores). Humans average **0.672** (6,721 points): wins 1.363 (n=19),
     losses 0.352 (n=41).
-  - **Skill mix is heavily unbalanced:** never_played 13, played_few 5, played_many **2**. The
-    per-experience breakdown in `analysis/compare.py` is descriptive only — two participants cannot
-    support a claim about experienced players. Say so wherever it is reported.
+  - **Skill mix is heavily unbalanced at this pull:** never_played 13, played_few 5,
+    played_many **2**. The per-experience breakdown in `analysis/compare.py` is descriptive only —
+    two participants cannot support a claim about experienced players. Say so wherever it is
+    reported, and re-check the mix after the next pull: targeted recruitment of experienced players
+    is the one thing that would change what this comparison can claim.

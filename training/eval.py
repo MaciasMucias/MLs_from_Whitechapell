@@ -18,13 +18,14 @@ from __future__ import annotations
 
 import argparse
 import random
+from collections.abc import Callable
 
 import numpy as np
 import torch
 
-from agents.base import AgentOutput, JackAgent
+from agents.base import AgentOutput, CopAgent, JackAgent
 from agents.heuristic_cops import COPS_PRERETUNE_V1, HeuristicCops
-from agents.random_agents import RandomJack
+from agents.random_agents import RandomCops, RandomJack
 from engine.game import GameRecord, run_game
 from engine.graph import JackEdge, Map, load_map
 from engine.metrics import (
@@ -116,6 +117,7 @@ def eval_agent(
     n_games: int,
     rng: random.Random | None = None,
     cop_params: dict | None = None,
+    cop_factory: Callable[[random.Random], CopAgent] | None = None,
 ) -> dict[str, float]:
     """
     Run n_games against full-strength HeuristicCops with no Director.
@@ -125,9 +127,14 @@ def eval_agent(
     COPS_STUDY_V2, the frozen study cops — that is what every reported number
     uses. Pass COPS_PRERETUNE_V1 to measure generalisation to cops the policy
     never trained against; see that preset's docstring.
+
+    cop_factory replaces the cop AGENT rather than its parameters, for
+    DESIGN_REQUIREMENTS 7.2's "trained Jack vs random cops" baseline
+    (`random_cops`). It takes the eval RNG so the cops are seeded with
+    everything else. cop_params is ignored when it is given.
     """
     rng = rng or random.Random()
-    cops = HeuristicCops(**(cop_params or {}))
+    cops = cop_factory(rng) if cop_factory else HeuristicCops(**(cop_params or {}))
     all_dists, diameter = precompute_distances(game_map)
 
     wins = 0
@@ -135,6 +142,7 @@ def eval_agent(
     turns_all: list[int] = []
     turns_on_win: list[int] = []
     turns_on_loss: list[int] = []
+    turns_on_arrest: list[int] = []
     hideout_uncerts: list[float] = []
     cop_dists: list[float] = []
     scores: list[float] = []
@@ -172,6 +180,7 @@ def eval_agent(
                 for cs in rr.cop_steps
             ):
                 arrests += 1
+                turns_on_arrest.append(t)
 
     losses = n_games - wins
     return {
@@ -182,6 +191,10 @@ def eval_agent(
         "mean_turns": sum(turns_all) / n_games,
         "mean_turns_on_win": sum(turns_on_win) / max(len(turns_on_win), 1),
         "mean_turns_on_loss": sum(turns_on_loss) / max(len(turns_on_loss), 1),
+        # DESIGN_REQUIREMENTS 7.1's "average rounds to capture": arrests only.
+        # mean_turns_on_loss mixes arrests with running out the clock, which are
+        # different failures and have different lengths.
+        "mean_turns_on_arrest": sum(turns_on_arrest) / max(len(turns_on_arrest), 1),
         "mean_hideout_uncert": sum(hideout_uncerts) / max(len(hideout_uncerts), 1),
         "mean_min_cop_dist": sum(cop_dists) / max(len(cop_dists), 1),
         # Fractions of ALL games, so arrest_rate + timeout_rate + win_rate == 1.
@@ -203,10 +216,16 @@ def eval_policy(
     device: torch.device,
     rng: random.Random | None = None,
     cop_params: dict | None = None,
+    cop_factory: Callable[[random.Random], CopAgent] | None = None,
 ) -> dict[str, float]:
     """Evaluate a trained Agent. Thin wrapper around eval_agent."""
     jack = PolicyAgent(agent, game_map, device)
-    return eval_agent(jack, game_map, n_games, rng, cop_params)
+    return eval_agent(jack, game_map, n_games, rng, cop_params, cop_factory)
+
+
+def random_cops(rng: random.Random) -> CopAgent:
+    """The 7.2 baseline: cops that move at random and always search."""
+    return RandomCops(rng=rng)
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +267,7 @@ def _print_table(
     print()
     col = (
         f"{'checkpoint':<{_COL_W}}  {'step':>7}  {'score':>6}  {'win%':>6}  {'turns':>6}  "
-        f"{'turns(W)':>8}  {'turns(L)':>8}  {'hideout_u':>9}  "
+        f"{'turns(W)':>8}  {'turns(L)':>8}  {'turns(A)':>8}  {'hideout_u':>9}  "
         f"{'copdist':>7}  {'arrest%':>7}  {'timeout%':>8}"
     )
     print(col)
@@ -262,6 +281,7 @@ def _print_table(
             f"{m['mean_turns']:>6.1f}  "
             f"{m['mean_turns_on_win']:>8.1f}  "
             f"{m['mean_turns_on_loss']:>8.1f}  "
+            f"{m['mean_turns_on_arrest']:>8.1f}  "
             f"{m['mean_hideout_uncert']:>9.2f}  "
             f"{m['mean_min_cop_dist']:>7.2f}  "
             f"{m['arrest_rate']:>6.1%}  "
@@ -286,6 +306,14 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--map", default="maps/whitechapel.json")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--no-baseline", action="store_true", default=False)
+    p.add_argument(
+        "--random-cops",
+        action="store_true",
+        default=False,
+        help="Also score every checkpoint against RandomCops "
+        "(DESIGN_REQUIREMENTS 7.2). Shows how much of the win rate is the "
+        "heuristic cops being competent rather than the board being easy",
+    )
     p.add_argument(
         "--held-out-cops",
         action="store_true",
@@ -314,16 +342,23 @@ def main() -> None:
         print("No checkpoints specified. Pass at least one .pt path.")
         return
 
-    cop_sets = [("COPS_STUDY_V2 (frozen - the study cops)", None)]
+    cop_sets: list[tuple[str, dict | None, Callable | None]] = [
+        ("COPS_STUDY_V2 (frozen - the study cops)", None, None)
+    ]
     if args.held_out_cops:
         cop_sets.append(
             (
                 "COPS_PRERETUNE_V1 (held out - no current policy trained on these)",
                 dict(COPS_PRERETUNE_V1),
+                None,
             )
         )
+    if args.random_cops:
+        cop_sets.append(
+            ("RandomCops (DESIGN_REQUIREMENTS 7.2 baseline)", None, random_cops)
+        )
 
-    for label, cop_params in cop_sets:
+    for label, cop_params, cop_factory in cop_sets:
         rows: list[tuple[str, int | None, dict[str, float]]] = []
         for path, agent, step in entries:
             print(
@@ -335,7 +370,15 @@ def main() -> None:
                 (
                     path,
                     step,
-                    eval_policy(agent, game_map, args.n_games, device, rng, cop_params),
+                    eval_policy(
+                        agent,
+                        game_map,
+                        args.n_games,
+                        device,
+                        rng,
+                        cop_params,
+                        cop_factory,
+                    ),
                 )
             )
 
@@ -346,7 +389,12 @@ def main() -> None:
                     "[random]",
                     None,
                     eval_agent(
-                        RandomJack(rng=rng), game_map, args.n_games, rng, cop_params
+                        RandomJack(rng=rng),
+                        game_map,
+                        args.n_games,
+                        rng,
+                        cop_params,
+                        cop_factory,
                     ),
                 )
             )

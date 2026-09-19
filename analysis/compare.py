@@ -166,6 +166,37 @@ def load_human_games(
     return games
 
 
+
+HABIT_ORDER = ("never_played", "played_few", "played_many", "unknown")
+
+
+def human_breakdown_by_habit(
+    humans: list[HumanGame], human_scores: dict[int, float]
+) -> dict[str, dict]:
+    """Human score and win rate split by self-reported experience.
+
+    The project promises a comparison against "human players of varying skill
+    levels"; gaming_habit is the only skill proxy collected. Clustered by
+    participant like every other interval here, so three games from one person
+    do not read as three independent draws.
+    """
+    out: dict[str, dict] = {}
+    for habit in HABIT_ORDER:
+        members = [h for h in humans if h.gaming_habit == habit]
+        if not members:
+            continue
+        clusters: dict[int, list[float]] = {}
+        for h in members:
+            if h.row_id in human_scores:
+                clusters.setdefault(h.participant, []).append(human_scores[h.row_id])
+        out[habit] = {
+            "participants": len({h.participant for h in members}),
+            "games": len(members),
+            "score": cluster_bootstrap(clusters),
+            "win_rate": sum(h.human_won for h in members) / len(members),
+        }
+    return out
+
 # ---------------------------------------------------------------------------
 # E2 — outcome on the human's own scenario
 # ---------------------------------------------------------------------------
@@ -396,6 +427,22 @@ def compare(
             f"the stored outcome and are left out of every score comparison."
         )
     print(f"Policy replays per scenario: {n_replays}\n")
+
+    by_habit = human_breakdown_by_habit(humans, human_scores)
+    if len(by_habit) > 1:
+        # The project's stated comparison is against "human players of varying
+        # skill levels", so the pooled human figure is not the whole claim.
+        # gaming_habit is self-reported at sign-up and constant within a session.
+        print("Humans by self-reported experience (participant-clustered CI):")
+        print(f"  {'experience':<14}{'n':>3}{'games':>7}{'score':>26}{'win%':>8}")
+        for habit, stats in by_habit.items():
+            print(
+                f"  {habit:<14}{stats['participants']:>3}{stats['games']:>7}"
+                f"{str(stats['score']):>26}{stats['win_rate']:>7.1%}"
+            )
+        print("  Ns are small - read these as descriptive, not as a test.")
+        print()
+
 
     results: dict[str, dict] = {}
     for path in checkpoint_paths:

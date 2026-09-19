@@ -1,6 +1,6 @@
 # 07 — Docs cleanup
 
-**Status:** not started
+**Status:** **done (2026-09-19).**
 **Blocks:** nothing
 **Blocked by:** nothing. Do it before drafting the thesis.
 
@@ -61,3 +61,13 @@ something as unimplemented that exists.
 ## Session log
 
 - _(empty)_
+
+- 2026-09-19 — **done.** The `CLAUDE.md` claims listed above (`training/` empty, only `NoOpDirector`,
+  no RL agent) had already been corrected in an earlier session; what was stale by today was its
+  **Current State** block, which still said the experimental runs had not been done. Rewritten: all
+  five waves complete, the four results that matter, the recommended configuration, and what is
+  genuinely still open (recruitment, the dropped server integration, the never-implemented
+  board-size ablation). Also fixed `server/database.py`'s `gaming_habit` docstring
+  (`never_played|played_few|played_many|unknown`, not `never|sometimes|regularly`) and put a
+  HISTORICAL banner on `DEPLOYMENT_PLAN.md` naming its two drifted details rather than editing the
+  record.

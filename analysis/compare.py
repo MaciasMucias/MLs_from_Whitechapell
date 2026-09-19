@@ -166,7 +166,6 @@ def load_human_games(
     return games
 
 
-
 HABIT_ORDER = ("never_played", "played_few", "played_many", "unknown")
 
 
@@ -196,6 +195,7 @@ def human_breakdown_by_habit(
             "win_rate": sum(h.human_won for h in members) / len(members),
         }
     return out
+
 
 # ---------------------------------------------------------------------------
 # E2 — outcome on the human's own scenario
@@ -443,12 +443,16 @@ def compare(
         print("  Ns are small - read these as descriptive, not as a test.")
         print()
 
-
     results: dict[str, dict] = {}
     for path in checkpoint_paths:
         agent, step = load_checkpoint(path, device)
         label = Path(path).parent.name or Path(path).stem
         print(f"  {label} (step {step:,}) ...", flush=True)
+        # PolicyAgent samples from torch's global RNG, so without this a
+        # checkpoint's numbers depend on how many checkpoints preceded it in
+        # the same invocation (~0.005 score, ~0.6 win points observed).
+        # Re-seeding per checkpoint makes each one reproducible on its own.
+        torch.manual_seed(seed)
 
         per_game, per_game_score, agree = [], [], AgreementResult(0, 0, 0)
         for h in humans:

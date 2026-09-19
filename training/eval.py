@@ -366,6 +366,9 @@ def main() -> None:
                 flush=True,
             )
             rng = random.Random(args.seed)
+            # PolicyAgent samples from torch's global RNG; re-seed per
+            # checkpoint so a row does not depend on the rows before it.
+            torch.manual_seed(args.seed)
             rows.append(
                 (
                     path,

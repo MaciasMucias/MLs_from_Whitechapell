@@ -14,7 +14,7 @@ class ParticipantGame:
     game_id: str
     map_name: str
     scenario_order: int  # position in permutation cycle (0 to N-1)
-    gaming_habit: str  # 'never' | 'sometimes' | 'regularly' | 'unknown'
+    gaming_habit: str  # 'never_played' | 'played_few' | 'played_many' | 'unknown'
     outcome: str  # winner string from engine
     turns_survived: int
     turn_limit: int

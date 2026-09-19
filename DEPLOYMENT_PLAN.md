@@ -1,5 +1,15 @@
 # Deployment Plan: Participant Frontend + Data Recording
 
+> **HISTORICAL (marked 2026-09-19).** This is the plan as written before the participant frontend
+> was built and deployed, kept as a record of planned vs built. It is **not** a description of the
+> current system, and two details drifted:
+> - the participant field is **`gaming_habit`** (`never_played` / `played_few` / `played_many` /
+>   `unknown`), not `skill_level`;
+> - the debug frontend became a **separate ASGI app** (`server/debug_main.py`, port 8001, not
+>   deployed) rather than a `/debug/` route.
+>
+> For the current state see `CLAUDE.md` and `docs/completion/`.
+
 ## Goal
 
 Get a participant-facing web UI live so dissertation participants can play as Jack against heuristic cops. Every completed game is recorded to SQLite, tagged with the participant's self-reported skill level, for later comparison against the RL agent.

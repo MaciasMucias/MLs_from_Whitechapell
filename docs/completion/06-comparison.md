@@ -50,20 +50,25 @@ through the engine, so both sides are measured by the same function. Raw output 
 | | participant score | win rate |
 |---|---|---|
 | **Humans** (20 participants, 60 games) | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] |
-| `w10s-obj-cur-s41` | 1.256 | 84.6% |
-| `w10s-obj-cur-s42` | 1.310 | 88.8% |
-| `w10s-obj-cur-s43` | 1.261 | 83.8% |
+| `w10s-obj-cur` (recommended) | 1.259 / 1.319 / 1.260 | 85.2% / 89.1% / 83.4% |
+| `w10s-dlt-cur` | 1.258 / 1.265 / 1.256 | 83.5% / 87.4% / 85.8% |
+| `w10s-shp-cur` | 1.300 / 1.196 / 1.249 | 88.4% / 79.2% / 82.9% |
 
-**Paired, clustered by participant — every interval excludes zero:**
+**Paired, clustered by participant — all nine intervals exclude zero.** For the recommended arm:
 
 | seed | score difference | win-rate difference |
 |---|---|---|
-| s41 | **+0.584** [+0.471, +0.689] | +52.9 pts [+42.0, +63.1] |
-| s42 | **+0.638** [+0.520, +0.751] | +57.1 pts [+46.3, +67.0] |
-| s43 | **+0.589** [+0.458, +0.712] | +52.1 pts [+40.2, +63.4] |
+| s41 | **+0.587** [+0.481, +0.687] | +53.5 pts [+43.2, +63.0] |
+| s42 | **+0.647** | +57.4 pts |
+| s43 | **+0.588** | +51.7 pts |
 
-**Zero desyncs across all 60 games and three checkpoints**, so every replayed board is the board the
-human actually faced.
+**Zero desyncs across all 60 games and all nine checkpoints**, so every replayed board is the board
+the human actually faced.
+
+**The three reward conditions are indistinguishable on human boards** (arm means 1.279 / 1.260 /
+1.248), even though they differ by 0.07 on the training map. Against opponents this far below the
+agents, the reward choice stops mattering — which is a reason to report the cleaner training-map
+comparison for the reward question and use this table for the human one.
 
 ### Three things the headline number does not say
 
@@ -85,6 +90,10 @@ human actually faced.
   supported beyond "we collected self-reported experience and saw no clear gradient".
 - **The design effect is 1.02**, so clustering by participant barely widens the intervals here — but
   it is still the correct interval, and the machinery is cheap.
+- **Reproducibility:** `PolicyAgent` samples from torch's global RNG, so until 2026-09-19 a
+  checkpoint's numbers depended on how many checkpoints preceded it in the same command (~0.005
+  score). `compare.py` and `eval.py` now re-seed per checkpoint; the same checkpoint scored alone
+  and inside a batch of nine now agrees to every digit.
 - The policy scores 1.26–1.31 on the course maps against 1.326 on `whitechapel.json`: the course
   scenarios are a different, slightly harder board set. Compare agents to humans within this table,
   not across to the training-map numbers.

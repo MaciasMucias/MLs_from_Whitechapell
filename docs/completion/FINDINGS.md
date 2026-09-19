@@ -279,11 +279,13 @@ scoring function. **Zero desyncs across all 60 games and three checkpoints.**
 | | participant score | win rate |
 |---|---|---|
 | **Humans** | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] |
-| `w10s-obj-cur`, 3 seeds | 1.256 / 1.310 / 1.261 | 84.6% / 88.8% / 83.8% |
+| `w10s-obj-cur`, 3 seeds | 1.259 / 1.319 / 1.260 | 85.2% / 89.1% / 83.4% |
 
-**Paired and clustered by participant, every interval excludes zero:** score **+0.584 / +0.638 /
-+0.589**, win rate **+52.9 / +57.1 / +52.1 points**. Design effect 1.02, so clustering barely widens
-the interval here — but it is the correct interval.
+**Paired and clustered by participant, every interval excludes zero:** score **+0.587 / +0.647 /
++0.588**, win rate **+53.5 / +57.4 / +51.7 points**. Design effect 1.02, so clustering barely widens
+the interval here — but it is the correct interval. All nine checkpoints across the three reward
+conditions clear zero; on human boards the reward conditions are indistinguishable (1.279 / 1.260 /
+1.248), so use the training-map numbers for the reward question and these for the human one.
 
 ### The agent does not play like a better human
 

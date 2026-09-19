@@ -15,3 +15,52 @@ Humans by self-reported experience (participant-clustered CI):
 
   w10s-obj-cur-s41 (step 14,997,504) ...
   w10s-obj-cur-s42 (step 14,997,504) ...
+  w10s-obj-cur-s43 (step 14,997,504) ...
+  w10s-dlt-cur-s41 (step 14,997,504) ...
+  w10s-dlt-cur-s42 (step 14,997,504) ...
+  w10s-dlt-cur-s43 (step 14,997,504) ...
+  w10s-shp-cur-s41 (step 14,997,504) ...
+  w10s-shp-cur-s42 (step 14,997,504) ...
+  w10s-shp-cur-s43 (step 14,997,504) ...
+
+checkpoint                   step   score  vs human  policy win%  vs human    human lost (n=41)    human won (n=19)   agree%  desync
+------------------------------------------------------------------------------------------------------------------------------------
+w10s-obj-cur-s41           15.00M   1.259    +0.587       85.2%   +53.5%               85.4%              84.7%   27.0%       0
+w10s-obj-cur-s42           15.00M   1.319    +0.647       89.1%   +57.4%               89.0%              89.2%   25.3%       0
+w10s-obj-cur-s43           15.00M   1.260    +0.588       83.4%   +51.7%               82.2%              86.1%   28.1%       0
+w10s-dlt-cur-s41           15.00M   1.258    +0.586       83.5%   +51.8%               84.4%              81.6%   27.0%       0
+w10s-dlt-cur-s42           15.00M   1.265    +0.593       87.4%   +55.8%               87.2%              87.9%   27.2%       0
+w10s-dlt-cur-s43           15.00M   1.256    +0.584       85.8%   +54.1%               85.5%              86.3%   23.6%       0
+w10s-shp-cur-s41           15.00M   1.300    +0.628       88.4%   +56.8%               87.1%              91.3%   26.6%       0
+w10s-shp-cur-s42           15.00M   1.196    +0.524       79.2%   +47.5%               80.5%              76.3%   28.5%       0
+w10s-shp-cur-s43           15.00M   1.249    +0.577       82.9%   +51.3%               80.6%              87.9%   30.4%       0
+
+'human lost/won' = the policy's win rate on the boards humans lost / won.
+'agree%' = share of the humans' own decisions the policy would have made.
+
+Paired policy - human PARTICIPANT SCORE, 95% CI clustered by participant:
+  w10s-obj-cur-s41         58.7% [48.1%, 68.7%]   excludes zero
+  w10s-obj-cur-s42         64.7% [53.2%, 75.7%]   excludes zero
+  w10s-obj-cur-s43         58.8% [46.7%, 70.5%]   excludes zero
+  w10s-dlt-cur-s41         58.6% [46.1%, 70.7%]   excludes zero
+  w10s-dlt-cur-s42         59.3% [48.7%, 69.5%]   excludes zero
+  w10s-dlt-cur-s43         58.4% [47.1%, 69.3%]   excludes zero
+  w10s-shp-cur-s41         62.8% [51.6%, 73.6%]   excludes zero
+  w10s-shp-cur-s42         52.4% [36.8%, 67.0%]   excludes zero
+  w10s-shp-cur-s43         57.7% [46.3%, 68.3%]   excludes zero
+
+Paired policy - human WIN RATE, 95% CI clustered by participant:
+  w10s-obj-cur-s41         53.5% [43.2%, 63.0%]   excludes zero
+  w10s-obj-cur-s42         57.4% [46.9%, 67.2%]   excludes zero
+  w10s-obj-cur-s43         51.7% [41.2%, 62.2%]   excludes zero
+  w10s-dlt-cur-s41         51.8% [40.6%, 63.1%]   excludes zero
+  w10s-dlt-cur-s42         55.8% [45.6%, 65.6%]   excludes zero
+  w10s-dlt-cur-s43         54.1% [45.1%, 62.8%]   excludes zero
+  w10s-shp-cur-s41         56.8% [46.8%, 66.5%]   excludes zero
+  w10s-shp-cur-s42         47.5% [33.5%, 60.7%]   excludes zero
+  w10s-shp-cur-s43         51.2% [40.0%, 60.8%]   excludes zero
+
+  An interval clear of zero supports 'the agent differs from the humans
+  on the boards they actually played'. One spanning zero does not, no
+  matter how large the point estimate looks.
+

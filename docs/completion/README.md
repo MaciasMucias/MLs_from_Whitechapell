@@ -26,7 +26,7 @@ evidence and caveats. Read that before writing any chapter.
 | [05](05-study-data.md) | Close out study data | **open** — recruitment continues; 20 participants / 60 games at the 09-19 pull | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **result in (interim)** — agent +0.58 to +0.64 score over humans, intervals clear of zero; re-run when recruitment ends | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | **done** | — |
-| [11](11-hyperparameters.md) | Hyperparameter validity | **IN FLIGHT** — entropy re-check under the final config; lr is safe, the rest are CleanRL defaults | — |
+| [11](11-hyperparameters.md) | Hyperparameter validity | **IN FLIGHT** (`1808727`) — entropy re-check under the final config; lr is safe, the rest are CleanRL defaults | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 
 Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 10 -> 06**. (10 was added 2026-09-14: 06's checkpoints now come from its wave, trained to win stealthily and scored on the participant score.) Workstreams 05 and 07, and the code parts of 06,

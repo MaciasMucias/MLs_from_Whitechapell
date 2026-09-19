@@ -1,6 +1,6 @@
 # 11 — Hyperparameter validity
 
-**Status:** **IN FLIGHT** — entropy re-check submitted 2026-09-19 (array id below).
+**Status:** **IN FLIGHT — array `1808727`**, 9 tasks, submitted 2026-09-19, ~7h.
 **Blocks:** nothing. If 0.03 holds, nothing downstream changes.
 **Blocked by:** nothing.
 
@@ -55,4 +55,4 @@ and is out of scope unless this wave suggests the optimiser settings matter more
 
 - 2026-09-19 — workstream created after an audit against `DESIGN_REQUIREMENTS` §7 found that the
   entropy choice rested on an arm where the curriculum never engaged. Submitted the 9-task
-  re-check under the final configuration.
+  re-check under the final configuration as array `1808727`.

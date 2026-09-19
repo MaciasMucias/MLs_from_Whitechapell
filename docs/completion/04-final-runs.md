@@ -1,8 +1,8 @@
 # 04 — Final runs: Director on/off
 
-**Status:** **IN FLIGHT — array `1807480`, submitted 2026-09-13 16:58, 9 tasks, ~5–7h.** `slurm/manifests/final.txt` is filled and validated
-(`uv run pytest tests/test_run_manifests.py`, 671 passed). 09 is closed and supplied the ON arm's
-configuration: `--initial-difficulty -1.0 --curriculum-max-difficulty 0.0`, default band.
+**Status:** **DONE (2026-09-19).** Array `1807480`, 9/9, exported and re-evaluated at 2,000 games
+per checkpoint on fresh boards. The Director wins on every seed; the `sparse` arm buys win rate by
+abandoning stealth; the generalisation gap is identical across arms. Results below.
 
 > **The 2026-09-10 blocking caveat is cleared (2026-09-13).** It said the ON arm's Director config
 > had never been tested in the regime where it operates. Five further waves did exactly that; see
@@ -16,6 +16,60 @@ configuration: `--initial-difficulty -1.0 --curriculum-max-difficulty 0.0`, defa
 > - *"The sparse ablation may not show what this file expects"* — confirmed. At 3M the sparse config
 >   scored *above* the shaped control (33.0% vs 30.0%). Run it anyway at 15M and report it as a null
 >   if that is what it is; "reward shaping cannot be shown to help" is a legitimate finding.
+
+## RESULT (2026-09-19) — re-evaluated, 2,000 games, fresh seed, final checkpoints
+
+Selection-free: the **final** checkpoint of each run (not `agent_best.pt`, which is chosen on one
+fixed board set), 2,000 games on boards no training evaluation saw, all nine scored in one
+invocation so every arm plays identical boards. Raw output in
+[`results/final_reeval.txt`](results/final_reeval.txt).
+
+| arm | participant score | win% | hideout_u | arrest% | timeout% |
+|---|---|---|---|---|---|
+| **`director-on`** | **1.328** [1.317–1.334] | 90.5 | 0.79 | 7.1 | 2.3 |
+| `director-off` | 1.300 [1.285–1.324] | 87.0 | 0.78 | 9.4 | 3.7 |
+| `sparse` | 1.299 [1.285–1.309] | **93.9** | 0.68 | 5.4 | 0.8 |
+| random Jack (floor) | 0.399 | 0.1 | 0.64 | 93.7 | 6.2 |
+
+**The Director wins on all three seeds: +0.028 score (+0.010 / +0.032 / +0.043), +3.5 win points.**
+The in-training ordering survives re-measurement; the absolute numbers drop slightly, as expected
+when a selected "best" is replaced by a final checkpoint on unseen boards.
+
+### The `sparse` arm shows why win rate is the wrong headline
+
+It has the **highest win rate in the wave (93.9%) and a lower score than both Director arms**,
+because it zeroed `gamma` and stopped hiding the hideout: uncertainty 0.68 against 0.78–0.79.
+Paired against `director-on` it is **+3.4 win points but −0.029 score on every seed**. Two metrics,
+opposite orderings, identical games. Report the score.
+
+This also replaces the rough estimate in [10](10-reward-design.md) (1.27 / 1.26 / 1.23) with
+measured values: 1.328 / 1.299 / 1.300.
+
+### Generalisation: no arm overfits to its training cops more than another
+
+Scored again against `COPS_PRERETUNE_V1`, which no current policy trained on:
+
+| arm | study cops | held-out cops | gap |
+|---|---|---|---|
+| `director-on` | 1.328 | 1.209 | −0.119 |
+| `director-off` | 1.300 | 1.183 | −0.117 |
+| `sparse` | 1.299 | 1.180 | −0.119 |
+
+**The gaps are identical to three decimals.** The 2026-09-09 worry that the Director overfits to the
+cops it trained against — the original reason workstream 09 existed — does not survive a fair test.
+Every arm loses the same amount and the ordering is unchanged, so the gap is a property of the cop
+retune, not of the curriculum.
+
+### What 04 could not see, and 10 could
+
+04's Director effect is **+0.028**; the same comparison without reward shaping is **+0.167**
+([10](10-reward-design.md)). Both of 04's arms had shaping on, and shaping does the curriculum's
+job, so 04 measured the Director *on top of a substitute for it*. That is not an error — it is the
+Director effect in the presence of shaping, and worth reporting as such.
+
+Cross-checking the waves on the identical metric: `director-on` (legacy reward, shaped) scores
+**1.328**, `w10s-obj-cur` (stealth objective, no shaping) scores **1.326**. Indistinguishable — the
+objective change did not make training harder, and shaping adds nothing once the curriculum is on.
 
 ### Why 04 re-runs arms that already exist
 
@@ -193,3 +247,9 @@ uv run python -m training.eval checkpoints/<run>/agent_best.pt --n-games 500
   06's checkpoints now come from workstream 10's wave, trained to win stealthily and reported on
   the participant score.
   Export, fresh-seed re-evaluation and write-up are still pending.
+- 2026-09-19 — **exported, re-evaluated and closed.** 2,000 games per checkpoint on fresh boards,
+  final checkpoints only, all nine in one invocation. Director +0.028 score on every seed (+3.5 win
+  points). `sparse` has the highest win rate and a lower score than both Director arms — the
+  cleanest case in the project for reporting the objective rather than win rate. Generalisation gaps
+  identical across arms (−0.117 to −0.119), which retires the Director-overfitting worry. The ON arm
+  ties workstream 10's shaping-free curriculum arm (1.328 vs 1.326).

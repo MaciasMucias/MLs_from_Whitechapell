@@ -47,6 +47,68 @@ lose less to *both* arrest (8.3% vs 19.8%) and the clock (1.8% vs 10.2%), while 
 
 **Recommended configuration:** objective only + curriculum. Simplest, best, tightest across seeds.
 
+### Confirmed on fresh boards (2,000 games, final checkpoints, 2026-09-19)
+
+Everything above uses in-training evaluations, which replay one fixed board set. Re-scoring each
+run's **final** checkpoint — no selection — on 2,000 unseen boards, all arms in one invocation:
+
+| arm | score | win% | hideout_u |
+|---|---|---|---|
+| `director-on` (04, shaped, legacy reward) | **1.328** | 90.5 | 0.79 |
+| `w10s-obj-cur` (10, no shaping, stealth objective) | **1.326** | 90.7 | 0.78 |
+| `director-off` (04, shaped) | 1.300 | 87.0 | 0.78 |
+| `sparse` (04, no shaping, no stealth term) | 1.299 | **93.9** | 0.68 |
+| `w10s-shp-off` (10, shaping, no curriculum) | 1.243 | 80.4 | 0.75 |
+| `w10s-obj-off` (10, neither) | 1.159 | 70.9 | 0.73 |
+| random Jack (floor) | 0.399 | 0.1 | 0.64 |
+
+**The Director's measured value depends entirely on whether shaping is present** — the substitution
+effect, quantified on one metric across two waves:
+
+| comparison | score | win rate |
+|---|---|---|
+| with shaping (04, `director-on` − `director-off`) | +0.028 | +3.5 pts |
+| with shaping (10, `shp-cur` − `shp-off`) | +0.036 | +5.4 pts |
+| **without shaping (10, `obj-cur` − `obj-off`)** | **+0.167** | **+19.8 pts** |
+
+The two best arms (1.328 and 1.326) come from different rewards and are indistinguishable, so the
+objective change cost nothing and shaping adds nothing on top of the curriculum.
+
+### Win rate and the objective can disagree — 04's `sparse` arm
+
+Highest win rate in its wave (93.9%) and **a lower score than both Director arms**, because it
+dropped the stealth term and stopped hiding the hideout (uncertainty 0.68 vs 0.78–0.79). Paired
+against `director-on`: **+3.4 win points, −0.029 score, on every seed.** Identical games, opposite
+orderings. This is the concrete argument for reporting the participant score.
+
+### No arm overfits to its training cops (retires a long-running worry)
+
+Against `COPS_PRERETUNE_V1`, which no current policy trained on: `director-on` 1.328 → 1.209,
+`director-off` 1.300 → 1.183, `sparse` 1.299 → 1.180 — **gaps of −0.119 / −0.117 / −0.119.**
+Identical to three decimals, ordering unchanged. The 2026-09-09 belief that the Director overfits
+to its own cops (the reason workstream 09 was created) does not survive a fair test; the gap belongs
+to the cop retune, not the curriculum.
+
+### The random-cops baseline says what the curriculum actually fixes (§7.2)
+
+Against `RandomCops` — cops that move at random and always search, so they essentially never arrest:
+
+| arm | vs study cops | vs random cops | timeouts vs random cops |
+|---|---|---|---|
+| `w10s-obj-cur` | 90.7% | 93.8% | 6.2% |
+| `w10s-obj-off` | 70.9% | **73.7%** | **26.3%** |
+| random Jack | 0.1% | 0.8% | 99.2% |
+
+**Without the curriculum, a quarter of games are lost to the clock even against cops that cannot
+catch anyone.** Its deficit is not evasion — it is failing to reach the hideout in time. So the
+curriculum's main contribution is efficient routing under the turn limit, and only secondarily
+evasion. Removing the cops entirely lifts the trained arms by only ~3 points, so by 15M steps
+evasion is close to solved.
+
+And a random Jack wins 0.8% of games with *harmless* cops: **the task is hard because of the turn
+limit and the map, not only because the cops are good.**
+
+
 ---
 
 ## 1. The headline: the curriculum works, if it is forbidden from injecting

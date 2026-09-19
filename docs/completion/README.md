@@ -21,9 +21,9 @@ evidence and caveats. Read that before writing any chapter.
 | [02](02-training-reproducibility.md) | Training reproducibility + cluster readiness | **done** | 03, 04 |
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
-| [04](04-final-runs.md) | Final runs — Director on/off | **runs complete** (`1807480`, 9/9); write-up and re-eval pending. Its `sparse` arm is not a valid shaping ablation — see 10 | — |
+| [04](04-final-runs.md) | Final runs — Director on/off | **done** — Director +0.028 score on every seed; `sparse` trades stealth for win rate; no overfitting to training cops | — |
 | [10](10-reward-design.md) | Reward design | **done** — curriculum >> shaping (they substitute); delta null; use objective-only + curriculum | 06 |
-| [05](05-study-data.md) | Close out study data | **mostly done** (A1, A5 left) | 06 |
+| [05](05-study-data.md) | Close out study data | **open** — recruitment continues; 20 participants / 60 games at the 09-19 pull | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **code done** (now scores humans on the participant score), awaiting 10 | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | not started | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
@@ -109,20 +109,6 @@ participant score. Humans average 0.679. Full write-up in [10](10-reward-design.
   a fixed budget. Say the budget with the number.
 
 **Recommended configuration, and 06's checkpoints: `w10s-obj-cur` (objective only + curriculum).**
-
-### 04 (array `1807480`) — complete, write-up pending
-
-9/9 finished, sanity gate passed. In-training best eval: `sparse` 95.0%, `director-on` 93.2%,
-`director-off` 90.7%; ON > OFF on every seed. **Its `sparse` arm is not a valid shaping ablation**:
-it zeroed `gamma`, which is part of the objective. Still to do: export, a fresh-seed re-evaluation of
-the final checkpoints with the score column, and the write-up in [04](04-final-runs.md). 06's
-checkpoints now come from `1807573` instead.
-
-**Why 04 re-runs a configuration that has already been run.** `fsc000-i100` (1807390) is 04's ON arm
-flag-for-flag and `fs-off` (1807292) is its OFF arm, giving **92.0% vs 85.2%** paired per seed. But
-`--curriculum-max-difficulty 0.0` was *selected* as the best of ~6 ceiling arms, and the maximum over
-6 arms at a 9.5-point noise floor is biased upward. 04 therefore re-measures it on **fresh seeds
-31/32/33**. The tuning study picks the configuration; 04 reports the number.
 
 **Two measured numbers that govern how any of this is read.** The run-to-run noise floor is
 **~9.5 points** of `eval/win_rate` (wave 1's `sw1-lr3e4-ent003-on` 39.5% vs wave 2's identical

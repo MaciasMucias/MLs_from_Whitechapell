@@ -1,0 +1,42 @@
+# Workstream 11 — entropy re-check under the final configuration. 9 tasks.
+#
+#   sbatch --array=0-8%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/entropy.txt
+#
+# WHY. --ent-coef 0.03 was chosen in 03 (array 1806901) from the ON arm's
+# gradient 39.5 / 36.0 / 18.0 across 0.03 / 0.01 / 0.003, while the OFF arm was
+# flat (a 1.5-point band across all three). But wave 1's ON arm had
+# curriculum/difficulty pinned at -1.000 for the whole run: the curriculum never
+# engaged. So that gradient says "entropy matters when training against
+# fully-suppressed cops", which is not a configuration used since, and the
+# reason for preferring 0.03 over 0.01 does not hold.
+#
+# Everything else about 03 is also unlike the runs the thesis reports: 3M steps
+# (vs 15M), one seed per cell against a ~9.5-point noise floor, the legacy
+# reward, and ranked on win rate rather than the participant score.
+#
+# lr is NOT re-tested: 3e-4 beat 1e-4 and 1e-3 in both arms with ~30-point
+# spreads, every top-five run used it, and a margin that size does not reverse
+# because the reward changed.
+#
+# DESIGN: ent-coef {0.003, 0.01, 0.03} x seeds 51/52/53, everything else exactly
+# the recommended arm (w10s-obj-cur): stealth objective, curriculum with
+# ceiling 0.0, no shaping, no delta, 15M steps, lr 3e-4.
+#
+# HOW TO READ IT. Rank on the last-5 mean of eval/score, as in workstream 10 --
+# never best-ever (in-training eval replays one fixed board set). The
+# incumbent's own three seeds are w10s-obj-cur (1.309 last-5, 1.326 re-scored on
+# 2,000 fresh boards), so a new winner must clear that by more than the per-arm
+# half-range (~0.013-0.05) before anything is re-run on its account. If 0.03
+# holds, 03's choice was right for the wrong reason and nothing downstream
+# changes. Fresh seeds 51-53 keep this independent of every earlier wave.
+
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.003 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 51 --wandb-run w11-ent0003-s51
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.003 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 52 --wandb-run w11-ent0003-s52
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.003 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 53 --wandb-run w11-ent0003-s53
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 51 --wandb-run w11-ent001-s51
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 52 --wandb-run w11-ent001-s52
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.01 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 53 --wandb-run w11-ent001-s53
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 51 --wandb-run w11-ent003-s51
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 52 --wandb-run w11-ent003-s52
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 53 --wandb-run w11-ent003-s53

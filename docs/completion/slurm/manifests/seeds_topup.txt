@@ -1,0 +1,58 @@
+# Workstream 10 — seed top-up, 3 -> 6 seeds per arm. 15 tasks.
+#
+#   sbatch --array=0-14%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/seeds_topup.txt
+#
+# WHY. Pooled over all nine 3-seed arms, the per-seed SD of the last-5
+# participant score is 0.0401. At n=3 that makes the smallest reliably
+# detectable difference (~80% power) about 0.092, and for an INTERACTION - which
+# is what the substitution claim is - about 0.130.
+#
+# The substitution interaction measures +0.148:
+#     shaping without curriculum  +0.104   (1.245 vs 1.141)
+#     shaping with curriculum     -0.044   (1.265 vs 1.309)
+#     interaction                 +0.148   vs a 0.130 threshold
+#
+# It clears by 14%. That is the thesis's most interesting claim resting on its
+# thinnest margin, so this wave takes the arms to 6 seeds: the interaction
+# threshold falls to 0.092 and the simple-difference threshold to 0.065.
+#
+# w10s-obj-cur IS NOT HERE because it already has 6 seeds. w11-ent003 (array
+# 1808727, seeds 51-53) is that configuration flag-for-flag - same objective,
+# same curriculum, ent-coef 0.03, no shaping, no delta - so the two sets pool:
+# 1.309 (seeds 41-43) and 1.280 (51-53), pooled 1.294. That 0.029 gap between
+# seed triples of ONE fixed config is itself the calibration for how much
+# precision 3 seeds buys, and is larger than four of the six effects in the
+# project.
+#
+# Seeds 61/62/63: fresh, independent of 41-43 (wave 10), 51-53 (wave 11),
+# 31-33 (04) and 27-29 (the tuning waves). Everything else is identical to the
+# corresponding wave 10 line - same flags, same 15M steps, same lr/ent.
+#
+# NOT topped up, deliberately:
+#   04's Director arms  - superseded reward; the Director claim rests on wave 10.
+#   ent-coef 0.01 vs 0.03 - +0.023, below the threshold even at n=10. The answer
+#                           "indistinguishable" is final, not under-powered.
+#
+# Rank on the last-5 mean of eval/score, pooling the new seeds with the old.
+
+# --- obj-off: objective only, no curriculum (pairs with obj-cur) -------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 61 --wandb-run w10s-obj-off-s61
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 62 --wandb-run w10s-obj-off-s62
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 63 --wandb-run w10s-obj-off-s63
+# --- shp-cur: + delta + shaping, curriculum ----------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 61 --wandb-run w10s-shp-cur-s61
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 62 --wandb-run w10s-shp-cur-s62
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 63 --wandb-run w10s-shp-cur-s63
+# --- shp-off: + delta + shaping, no curriculum -------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 61 --wandb-run w10s-shp-off-s61
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 62 --wandb-run w10s-shp-off-s62
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 63 --wandb-run w10s-shp-off-s63
+# --- dlt-cur: + delta, curriculum --------------------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 61 --wandb-run w10s-dlt-cur-s61
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 62 --wandb-run w10s-dlt-cur-s62
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 63 --wandb-run w10s-dlt-cur-s63
+# --- dlt-off: + delta, no curriculum -----------------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 61 --wandb-run w10s-dlt-off-s61
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 62 --wandb-run w10s-dlt-off-s62
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0.01 --no-curriculum --seed 63 --wandb-run w10s-dlt-off-s63

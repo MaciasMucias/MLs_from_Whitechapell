@@ -314,6 +314,52 @@ players of varying skill levels" framing cannot be supported beyond "self-report
 collected and showed no clear gradient at this N."** If recruitment can be steered, experienced
 players are the group that would change what this comparison can claim.
 
+## 6b. How much precision three seeds buys — read this before quoting any small effect
+
+Pooled over all nine arms that have 3 seeds, the **per-seed standard deviation of the last-5
+participant score is 0.0401**. That fixes what the experiments can and cannot resolve:
+
+| seeds per arm | SE of an arm's mean | smallest detectable difference | …for an interaction |
+|---|---|---|---|
+| **3** | 0.023 | **0.092** | 0.130 |
+| 6 | 0.016 | 0.065 | 0.092 |
+| 10 | 0.013 | 0.050 | 0.071 |
+
+(~80% power, 5% two-sided.)
+
+**Measured effects against that bar:**
+
+| effect | size | at n = 3 |
+|---|---|---|
+| Curriculum, without shaping | **+0.168** | detectable |
+| Shaping, without curriculum | **+0.104** | detectable |
+| Shaping × curriculum *interaction* | **+0.148** | clears 0.130 by 14% |
+| Director on/off (04, both arms shaped) | +0.028 | under-powered |
+| Shaping *with* curriculum | −0.044 | under-powered |
+| `ent-coef` 0.01 vs 0.03 | +0.023 | under-powered |
+| delta on/off | −0.007 | under-powered |
+
+**The calibration that makes this concrete:** the *same configuration* scored **1.309** on seeds
+41–43 and **1.280** on seeds 51–53 (`w10s-obj-cur` and `w11-ent003` are flag-for-flag identical).
+**A 0.029 swing from seed choice alone — larger than four of the six effects above.**
+
+Three consequences for the write-up:
+
+1. **The two headline claims are safe.** The curriculum effect is nearly twice the threshold.
+2. **Every under-powered row is already reported as a null or as "indistinguishable"**, which is
+   what the power supports. None of them is claimed as a positive finding.
+3. **State the threshold explicitly.** "We could not detect a difference smaller than ~0.09 at three
+   seeds" is a stronger sentence than an unqualified null, and it is the honest one. It sits
+   alongside the ~9.5-point win-rate noise floor measured in 03.
+
+Array `1808812` takes the five reward arms to 6 seeds, which moves the interaction threshold to
+0.092 against a measured +0.148. 04's arms and the entropy comparison are deliberately **not**
+topped up: the first is under a superseded reward and the Director claim rests on wave 10, and the
+second is below the threshold even at ten seeds, so "indistinguishable" there is a final answer
+rather than an under-powered one.
+
+---
+
 ## 7. Methodological traps — worth a paragraph each in the writeup
 
 Each of these silently corrupted a result before it was caught.
@@ -429,6 +475,11 @@ say whether it matters.
   environments on a 195-node map, exploration is not a bottleneck, so a front-loaded exploration
   bonus has nothing to add. Report it as scale-dependent, not as "count-based exploration doesn't
   work": it would be expected to matter on a larger board or a much shorter budget.
+- **`ent-coef` 0.01 and 0.03 are indistinguishable** under the final configuration (1.303 vs 1.280,
+  3 fresh seeds each), while 0.003 is clearly worse (1.251). There is an interior optimum in
+  [0.01, 0.03] and this project cannot locate it more precisely — the same config varies by 0.029
+  across seed triples. 03's original rationale for 0.03 was void (its ON arm's curriculum never
+  engaged); the value survives anyway. See [11](11-hyperparameters.md).
 - **Board-size ablation** was never implemented (`course_1/2/3` are same-size
   scenario variants). Report as a limitation.
 

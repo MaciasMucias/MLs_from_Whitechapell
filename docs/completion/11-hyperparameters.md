@@ -1,8 +1,8 @@
 # 11 — Hyperparameter validity
 
-**Status:** **IN FLIGHT — array `1808727`**, 9 tasks, submitted 2026-09-19, ~7h.
-**Blocks:** nothing. If 0.03 holds, nothing downstream changes.
-**Blocked by:** nothing.
+**Status:** **DONE (2026-09-20, array `1808727`, 9/9).** `--ent-coef 0.03` stands. 03 chose a
+defensible value for a void reason; the value survives scrutiny, and **no experiment needs
+re-running on its account**.
 
 ---
 
@@ -28,6 +28,39 @@ Three further reasons nothing from 03 transfers cleanly: it ran at **3M steps** 
 train to 15M), **one seed per cell** against a ~9.5-point noise floor, and under the **legacy
 reward**, ranked on win rate rather than the participant score. Strictly, **no hyperparameter had
 been validated under the configuration the thesis recommends.**
+
+## RESULT (2026-09-20, array `1808727`, 9/9)
+
+Last-5 mean participant score, 3 fresh seeds (51–53), everything else exactly the recommended arm:
+
+| `ent-coef` | score | range | win% |
+|---|---|---|---|
+| 0.01 | **1.303** ±0.014 | [1.292–1.319] | 87.8% |
+| **0.03** (incumbent) | 1.280 ±0.032 | [1.253–1.317] | 86.7% |
+| 0.003 | 1.251 ±0.034 | [1.226–1.293] | 81.0% |
+
+**Against the bar set before the data existed** — a challenger had to beat the incumbent's 1.309 by
+more than the per-arm half-range — **0.01 does not clear it.** It scores 1.303, marginally *below*
+the incumbent, with heavily overlapping ranges.
+
+**The wave cannot separate 0.01 from 0.03, and here is the cleanest way to see it.** The *same*
+configuration scored **1.309** on seeds 41–43 (`w10s-obj-cur`) and **1.280** on seeds 51–53
+(`w11-ent003`) — those two arms are flag-for-flag identical. A **0.029** gap from seed choice alone,
+against a 0.023 gap between the two entropy values. Pooling all six 0.03 seeds gives **1.294**.
+
+**0.003 is genuinely worse** (−0.05 against 0.01, ranges nearly disjoint). So entropy does matter
+under the curriculum, but only downward: there is an interior optimum somewhere in [0.01, 0.03] and
+the wave cannot say where inside it. Either value is defensible; 0.03 is kept because it is the
+incumbent and every reported result already uses it.
+
+**Keep `--ent-coef 0.03`.** Nothing downstream changes — 04, 09, 10 and 06 all stand.
+
+### A note on reading runs mid-flight
+
+At 5.3M steps (a third of the budget) this wave read 1.020 for 0.003, 1.022 for 0.01 and 0.867 for
+0.03 — i.e. exactly inverted from the final ordering, with the eventual worst arm apparently
+leading. Rank on the last-5 mean at the full budget, as the pre-registered rule said; a mid-run
+glance is not evidence.
 
 ## The experiment — `slurm/manifests/entropy.txt`
 
@@ -56,3 +89,11 @@ and is out of scope unless this wave suggests the optimiser settings matter more
 - 2026-09-19 — workstream created after an audit against `DESIGN_REQUIREMENTS` §7 found that the
   entropy choice rested on an arm where the curriculum never engaged. Submitted the 9-task
   re-check under the final configuration as array `1808727`.
+- 2026-09-20 — **done, 9/9.** `ent-coef` 0.01 scores 1.303 and 0.03 scores 1.280 on fresh seeds, but
+  the same config scored 1.309 and 1.280 on two different seed triples, so the wave cannot separate
+  them; 0.003 is clearly worse (1.251). The incumbent stands and nothing is re-run. The entropy
+  rationale from 03 was void, the value was not. Mid-run numbers at 5.3M had the ordering exactly
+  inverted, which is the case for the pre-registered ranking rule.
+- 2026-09-20 — **the wave paid for itself twice.** `w11-ent003` is `w10s-obj-cur` flag-for-flag, so
+  the recommended arm now has 6 seeds for free, and the 0.029 gap between its two seed triples is
+  the calibration that motivated the seed top-up (array `1808812`).

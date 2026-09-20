@@ -7,6 +7,11 @@ configuration: objective only + curriculum** (`--reward-objective stealth
 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0`) — the simplest arm, the best score, and
 the tightest across seeds.
 
+> **Seed top-up in flight (array `1808812`, 2026-09-20).** The substitution claim is an interaction
+> and clears its n=3 detection threshold by only 14% (+0.148 vs 0.130). 15 runs take five of the six
+> arms to 6 seeds; `obj-cur` already has 6 (`w11-ent003` is it, flag-for-flag). Numbers below are
+> the 3-seed versions and should be re-pooled when it lands. See FINDINGS §6b.
+
 **Blocks:** 06 (its checkpoints come from this wave, not 04's)
 **Blocked by:** 03 (lr/ent), 09 (`--curriculum-max-difficulty 0`)
 

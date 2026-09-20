@@ -26,7 +26,7 @@ evidence and caveats. Read that before writing any chapter.
 | [05](05-study-data.md) | Close out study data | **open** — recruitment continues; 20 participants / 60 games at the 09-19 pull | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **result in (interim)** — agent +0.58 to +0.64 score over humans, intervals clear of zero; re-run when recruitment ends | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | **done** | — |
-| [11](11-hyperparameters.md) | Hyperparameter validity | **IN FLIGHT** (`1808727`) — entropy re-check under the final config; lr is safe, the rest are CleanRL defaults | — |
+| [11](11-hyperparameters.md) | Hyperparameter validity | **done** — `ent-coef 0.03` stands (0.01 indistinguishable, 0.003 worse); lr safe; rest are CleanRL defaults | — |
 | [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
 
 Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 10 -> 06**. (10 was added 2026-09-14: 06's checkpoints now come from its wave, trained to win stealthily and scored on the participant score.) Workstreams 05 and 07, and the code parts of 06,
@@ -68,6 +68,7 @@ exceed the Director effect being claimed, so single-seed arms would not support 
 | `1807390` | 09 schedule study | 18 | **both remaining knobs closed** — see below |
 | `1807480` | 04 final runs | 9 | ON > OFF on every seed (93.2 vs 90.7 best eval); `sparse` arm confounded (zeroed the objective's stealth term) |
 | `1807588` | 10 reward design | 18 | **the curriculum dominates; shaping substitutes for it; delta null** — see below |
+| `1808727` | 11 entropy re-check | 9 | `ent-coef 0.03` stands; 0.01 indistinguishable, 0.003 worse |
 
 **Chosen config: `--lr 3e-4 --ent-coef 0.03 --curriculum-max-difficulty 0.0`** (default band).
 
@@ -87,6 +88,23 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
   at ceiling 0.0 the ceiling is the optimum, so it does not. Use the default band, do not tune it.
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
+
+### IN FLIGHT — array `1808812`, submitted 2026-09-20, 15 tasks, ~14h (two windows)
+
+**Seed top-up: wave 10's arms from 3 to 6 seeds.** Not a new experiment — the same five
+configurations on fresh seeds 61–63, flag-for-flag identical to their wave 10 lines.
+
+**Why.** The per-seed SD of the last-5 score is 0.0401 pooled over all nine 3-seed arms, so at n=3
+the smallest reliably detectable difference is ~0.092, and ~0.130 for an *interaction*. The
+substitution claim is an interaction and measures +0.148 — it clears by 14%, which is the thesis's
+most interesting result resting on its thinnest margin. At 6 seeds the interaction threshold falls
+to 0.092.
+
+`w10s-obj-cur` is absent because it already has 6 seeds: `w11-ent003` (array `1808727`) is that
+configuration flag-for-flag, scoring 1.309 on seeds 41–43 and 1.280 on 51–53 (pooled **1.294**).
+That 0.029 swing from seed choice alone is the calibration — see FINDINGS §6b.
+
+Read it by pooling old and new seeds per arm; the export prefix is `reward_topup`.
 
 ### What `1807588` settled (2026-09-19) — workstream 10, the reward wave
 

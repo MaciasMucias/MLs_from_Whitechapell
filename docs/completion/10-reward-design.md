@@ -1,66 +1,71 @@
 # 10 — Reward design
 
-**Status:** **DONE (2026-09-19, array `1807588`, 18/18).** The curriculum is the dominant effect;
-shaping substitutes for it and is redundant once it is on; delta is a null on this map. **Recommended
-configuration: objective only + curriculum** (`--reward-objective stealth
---reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0
---initial-difficulty -1.0 --curriculum-max-difficulty 0.0`) — the simplest arm, the best score, and
-the tightest across seeds.
+**Status:** **DONE (2026-09-21, arrays `1807588` + `1808812`, 6 seeds per arm).** The curriculum is
+the effect; reward shaping does nothing either way; delta is a null. **Recommended configuration:
+objective only + curriculum** (`--reward-objective stealth --reward-alpha 0 --reward-beta 0
+--reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0`).
 
-> **Seed top-up in flight (array `1808812`, 2026-09-20).** The substitution claim is an interaction
-> and clears its n=3 detection threshold by only 14% (+0.148 vs 0.130). 15 runs take five of the six
-> arms to 6 seeds; `obj-cur` already has 6 (`w11-ent003` is it, flag-for-flag). Numbers below are
-> the 3-seed versions and should be re-pooled when it lands. See FINDINGS §6b.
+> **The 3-seed "substitution" finding is RETRACTED.** Three extra seeds per arm collapsed it from
+> +0.148 to +0.026 against a 0.118 threshold. Section 2 below is rewritten; the original reading is
+> kept there as a worked example of a 3-seed artefact.
 
 **Blocks:** 06 (its checkpoints come from this wave, not 04's)
 **Blocked by:** 03 (lr/ent), 09 (`--curriculum-max-difficulty 0`)
 
 ---
 
-## RESULT (2026-09-19, array `1807588`, 18/18)
+## RESULT (2026-09-21, arrays `1807588` + `1808812`, 6 seeds per arm)
 
-Trained on the stealth objective, reported on the participant score. Humans average **0.679**.
+Trained on the stealth objective, reported on the participant score. Humans average 0.672. Mean of
+the last five evaluations per seed; `obj-cur` pools `w10s-obj-cur` (41–43) with `w11-ent003`
+(51–53), which is the same configuration flag-for-flag.
 
-| reward | curriculum | no curriculum |
+| reward | curriculum | no curriculum | curriculum is worth |
+|---|---|---|---|
+| **objective only** | **1.295** | 1.175 | **+0.120** |
+| + delta | 1.306 | 1.163 | **+0.143** |
+| + delta + shaping | 1.278 | 1.185 | **+0.093** |
+
+Detection threshold at 6 seeds: **0.083** for a difference, 0.118 for an interaction (pooled
+per-seed SD 0.0516). See FINDINGS §6b.
+
+### 1. The curriculum is the effect, in every reward condition
+
++0.120 / +0.143 / +0.093 — **all three clear the threshold.** Steps to reach a fixed score:
+
+| | → 1.00 | → 1.10 | → 1.20 |
+|---|---|---|---|
+| with curriculum (all three rewards) | 6.5–6.6M | **8.0–8.3M** | 9.9–11.4M |
+| without curriculum | 10.5–10.9M | 12.7–13.0M (delta arm never) | **never** |
+
+**~36% fewer steps to 1.10, and 1.20 is reached only with the curriculum.** It also cuts seed
+variance 2–3× (per-seed SD 0.019–0.044 with, 0.057–0.072 without).
+
+### 2. Reward shaping does nothing — and the 3-seed "substitution" was an artefact
+
+| | 3 seeds | 6 seeds |
 |---|---|---|
-| **objective only** | **1.309** ±0.013 [1.298–1.324] · 89.8% win | 1.141 ±0.051 [1.106–1.207] · 70.7% |
-| + delta | 1.302 ±0.024 [1.278–1.326] · 88.8% | 1.161 ±0.045 [1.118–1.207] · 70.7% |
-| + delta + shaping | 1.265 ±0.062 [1.192–1.316] · 85.2% | 1.245 ±0.039 [1.201–1.279] · 82.0% |
+| shaping, no curriculum | +0.104 | **+0.010** |
+| shaping, with curriculum | −0.044 | **−0.017** |
+| interaction | +0.148 (threshold 0.130) | **+0.026** (threshold 0.118) |
 
-Score is the mean of the last five evaluations per seed (not best-ever: in-training eval replays one
-fixed board set). Win% is `sweep_report`'s best eval win rate, kept for continuity with earlier waves.
+At 3 seeds this read as "shaping substitutes for the curriculum", and it was written up as the most
+interesting result in the project. It did not survive. Adding three seeds moved `shp-off` by
+**−0.060** and `obj-off` by **+0.034**; the entire effect lived in that gap. One lucky triple, one
+unlucky one, in opposite directions.
 
-### 1. The curriculum is the largest effect in the project
+**What to report instead:** shaping has no measurable effect on this task either way, and the
+curriculum's benefit is independent of it. That is a plainer claim, and it is the one the data
+supports.
 
-**+0.168 score (1.309 vs 1.141), ranges nowhere near overlapping, +19 points of win rate.** It is
-also a large speed effect — steps to reach a fixed score:
+**Why it was caught:** the interaction cleared its 3-seed threshold by only 14%, which is what
+prompted the top-up (array `1808812`). Had the arms not been topped up, a false claim would have
+gone into the thesis as its headline. The lesson belongs in the methodology chapter alongside
+FINDINGS §6b.
 
-| arm | → 1.00 | → 1.10 | → 1.20 | → 1.30 |
-|---|---|---|---|---|
-| objective + curriculum | 6.8M | **7.9M** | **10.3M** | 13.4M |
-| + delta + shaping, curriculum | 6.8M | 8.6M | 12.1M | never |
-| + delta + shaping, no curriculum | 10.1M | 11.7M | 13.4M | never |
-| objective, no curriculum | 10.6M | 13.7M | never | never |
-
-The curriculum reaches 1.10 in **42% fewer steps** than the same reward without it, and reaches 1.20
-and 1.30 where the unshaped baseline never does inside 15M.
-
-**This is much larger than 04's +2.5 points** — because 04's arms both had shaping on. Shaping was
-doing the curriculum's job in the OFF arm and hiding most of the effect.
-
-### 2. Shaping substitutes for the curriculum, and is redundant once it is on
-
-- **Without the curriculum it helps:** +0.104 (1.245 vs 1.141), 11.7M vs 13.7M to reach 1.10, and it
-  reaches 1.20 where objective-only never does.
-- **With the curriculum it does not:** 1.265 vs 1.309, and slower to every threshold.
-- **It also destabilises training under the curriculum:** the seed half-range is ±0.062 against
-  ±0.013 for objective-only, with one seed collapsing to 78.0% win rate against 91.5% for its sibling.
-
-**This does not contradict the potential-based guarantee**, and the data says why: **no arm had
-converged at 15M.** The trend of score over the last 20% of training is positive everywhere (+0.022
-to +0.041 per 1M steps), and steepest in the slowest arms. Exact potential-based shaping cannot
-change which policy is optimal, only how fast it is approached — so at a fixed, pre-convergence
-budget it shows up as a score difference. Every number here is "at 15M steps", not "at convergence".
+> **Still true, and unaffected:** no arm converged at 15M — the trend over the last 20% of training
+> is positive everywhere — so every comparison is at a fixed budget, and exact potential-based
+> shaping cannot change which policy is optimal in any case.
 
 ### 3. Delta is a null here, and the mechanism says why
 
@@ -100,8 +105,8 @@ ambiguous (0.79 vs 0.74) — they score better on both halves of the objective, 
 ### What this changes
 
 - **06 uses `w10s-obj-cur`.** Carry all three seeds.
-- **The thesis's reward-shaping claim is now "shaping and the curriculum are substitutes".** That is a
-  more interesting result than either alone, and it explains 04's small Director effect.
+- **The reward-shaping claim is "shaping has no measurable effect on this task"** — the
+  substitution reading was retracted at 6 seeds.
 - **Limitation to state plainly:** 15M steps is not convergence for any arm. Comparisons are at a
   fixed budget.
 - **Do not tune α/β/ζ with Optuna.** With the curriculum on — the configuration the thesis
@@ -355,3 +360,9 @@ separate ssh calls).
   which is what makes the shaping differences sample efficiency rather than a violation of the
   potential-based guarantee. `analysis/convergence.py` gained per-arm seeds, the participant-score
   tables, fixed-score thresholds and the tail-slope plateau test.
+- 2026-09-21 — **seed top-up (array `1808812`, 15 runs) landed; the substitution claim is
+  retracted.** At 6 seeds per arm the interaction is +0.026 against a 0.118 threshold, down from
+  +0.148/0.130 at three. `shp-off` fell 0.060 and `obj-off` rose 0.034 with the extra seeds, and the
+  effect was entirely that gap. What survives is simpler and stronger: the curriculum is worth
+  +0.093 to +0.143 in every reward condition, all three clearing the threshold, plus ~36% fewer
+  steps to a score of 1.10 and a 2–3× reduction in seed variance. Shaping and delta are nulls.

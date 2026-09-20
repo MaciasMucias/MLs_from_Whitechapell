@@ -62,10 +62,18 @@ retune, not of the curriculum.
 
 ### What 04 could not see, and 10 could
 
-04's Director effect is **+0.028**; the same comparison without reward shaping is **+0.167**
-([10](10-reward-design.md)). Both of 04's arms had shaping on, and shaping does the curriculum's
-job, so 04 measured the Director *on top of a substitute for it*. That is not an error — it is the
-Director effect in the presence of shaping, and worth reporting as such.
+04's Director effect is **+0.028**, against the same comparison in workstream 10 at
+**+0.093 to +0.143**.
+
+**The explanation written here on 2026-09-19 — "both of 04's arms had shaping on, and shaping does
+the curriculum's job" — is withdrawn.** That rested on the substitution finding, which was retracted
+at 6 seeds ([10](10-reward-design.md) §2): shaping has no measurable effect either way.
+
+The remaining explanation is simpler. **04 has 3 seeds, so its own detection threshold is 0.118**
+(FINDINGS §6b) and +0.028 is far inside it — 04 cannot resolve the Director effect at all. Its three
+seeds all favour ON, which is suggestive and no more. The Director claim rests on workstream 10's
+6-seed measurement; 04's contribution is the `sparse` arm, the held-out-cops comparison and the
+legacy-reward baseline, not the size of its Director gap.
 
 Cross-checking the waves on the identical metric: `director-on` (legacy reward, shaped) scores
 **1.328**, `w10s-obj-cur` (stealth objective, no shaping) scores **1.326**. Indistinguishable — the

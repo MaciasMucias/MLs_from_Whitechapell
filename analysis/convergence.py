@@ -56,13 +56,21 @@ ARMS = {
     "dbr-fix05": ("director_branch", True, "fixed -0.5"),
     # 10 — the reward wave, trained on the stealth objective. These carry the
     # `score` column; the arms above predate it and show "-".
-    "w10s-obj-cur": ("reward", False, "objective, curriculum"),
-    "w10s-dlt-cur": ("reward", False, "+delta, curriculum"),
-    "w10s-shp-cur": ("reward", False, "+delta+shaping, curriculum"),
-    "w10s-obj-off": ("reward", False, "objective, no curriculum"),
-    "w10s-dlt-off": ("reward", False, "+delta, no curriculum"),
-    "w10s-shp-off": ("reward", False, "+delta+shaping, no curriculum"),
+    #
+    # Each takes TWO prefixes: the original 3 seeds (41-43) and the top-up
+    # (61-63, array 1808812), pooled to 6 per arm. obj-cur's second triple is
+    # w11-ent003 (51-53, array 1808727), which is that configuration
+    # flag-for-flag; ARM_ALIASES folds it in.
+    "w10s-obj-cur": (("reward", "reward_topup", "entropy"), False, "objective, curriculum"),
+    "w10s-dlt-cur": (("reward", "reward_topup"), False, "+delta, curriculum"),
+    "w10s-shp-cur": (("reward", "reward_topup"), False, "+delta+shaping, curriculum"),
+    "w10s-obj-off": (("reward", "reward_topup"), False, "objective, no curriculum"),
+    "w10s-dlt-off": (("reward", "reward_topup"), False, "+delta, no curriculum"),
+    "w10s-shp-off": (("reward", "reward_topup"), False, "+delta+shaping, no curriculum"),
 }
+
+# Runs that are another arm's configuration under a different name.
+ARM_ALIASES = {"w11-ent003": "w10s-obj-cur"}
 
 
 def load_wave(prefix: str, results_dir: Path) -> dict[tuple[str, str], list[dict]]:
@@ -72,7 +80,8 @@ def load_wave(prefix: str, results_dir: Path) -> dict[tuple[str, str], list[dict
     if not path.exists():
         return out
     for row in csv.DictReader(path.open()):
-        out[(row["arm"], row["seed"])].append(row)
+        arm = ARM_ALIASES.get(row["arm"], row["arm"])
+        out[(arm, row["seed"])].append(row)
     for rows in out.values():
         rows.sort(key=lambda r: int(r["step"]))
     return out
@@ -153,14 +162,19 @@ def report(
     score_thresholds: tuple[float, ...] = (1.0, 1.1, 1.2, 1.3),
 ) -> None:
     waves: dict = {}
-    for prefix in {p for p, _, _ in ARMS.values()}:
-        waves.update(load_wave(prefix, results_dir))
+    prefixes = set()
+    for p, _, _ in ARMS.values():
+        prefixes.update((p,) if isinstance(p, str) else p)
+    for prefix in sorted(prefixes):
+        # Pool, do not overwrite: an arm's seeds can live in several waves.
+        for key, rows in load_wave(prefix, results_dir).items():
+            waves.setdefault(key, []).extend(rows)
+    for rows in waves.values():
+        rows.sort(key=lambda r: int(r["step"]))
     base = load_wave("director_base", results_dir)
 
     curves = {
-        arm: [
-            stitched_curve(arm, s, waves, base, br) for s in seeds_for(arm, waves)
-        ]
+        arm: [stitched_curve(arm, s, waves, base, br) for s in seeds_for(arm, waves)]
         for arm, (_, br, _) in ARMS.items()
     }
     curves = {a: c for a, c in curves.items() if all(c)}
@@ -207,7 +221,9 @@ def report(
         if all(values(c, "score") for c in seeds)
     }
     if scored:
-        print("\nPARTICIPANT SCORE — the objective every agent and human is reported on")
+        print(
+            "\nPARTICIPANT SCORE — the objective every agent and human is reported on"
+        )
         print(f"{'arm':<16}{'':28}{'best':>7}{'final':>8}{f'last-{last_k}':>9}")
         print("-" * 68)
         for arm, seeds in scored.items():
@@ -237,7 +253,9 @@ def report(
             print(f"{arm:<16}" + "".join(cells))
         print()
 
-        print("SAMPLE EFFICIENCY — steps to reach a fraction of the arm's OWN last-k score")
+        print(
+            "SAMPLE EFFICIENCY — steps to reach a fraction of the arm's OWN last-k score"
+        )
         print(f"{'arm':<16}{'80%':>12}{'90%':>12}{'95%':>12}{'slope/1M':>11}")
         print("-" * 63)
         for arm, seeds in scored.items():
@@ -245,8 +263,7 @@ def report(
             cells = []
             for frac in (0.8, 0.9, 0.95):
                 hits = [
-                    steps_to_value(c, "score", t * frac)
-                    for c, t in zip(seeds, targets)
+                    steps_to_value(c, "score", t * frac) for c, t in zip(seeds, targets)
                 ]
                 reached = [h for h in hits if h is not None]
                 cells.append(

@@ -22,7 +22,7 @@ evidence and caveats. Read that before writing any chapter.
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | **done** — Director +0.028 score on every seed; `sparse` trades stealth for win rate; no overfitting to training cops | — |
-| [10](10-reward-design.md) | Reward design | **done** — curriculum >> shaping (they substitute); delta null; use objective-only + curriculum | 06 |
+| [10](10-reward-design.md) | Reward design | **done (6 seeds)** — the curriculum is the effect (+0.09 to +0.14); shaping and delta are nulls | 06 |
 | [05](05-study-data.md) | Close out study data | **open** — recruitment continues; 20 participants / 60 games at the 09-19 pull | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **result in (interim)** — agent +0.58 to +0.64 score over humans, intervals clear of zero; re-run when recruitment ends | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | **done** | — |
@@ -69,6 +69,7 @@ exceed the Director effect being claimed, so single-seed arms would not support 
 | `1807480` | 04 final runs | 9 | ON > OFF on every seed (93.2 vs 90.7 best eval); `sparse` arm confounded (zeroed the objective's stealth term) |
 | `1807588` | 10 reward design | 18 | **the curriculum dominates; shaping substitutes for it; delta null** — see below |
 | `1808727` | 11 entropy re-check | 9 | `ent-coef 0.03` stands; 0.01 indistinguishable, 0.003 worse |
+| `1808812` | 10 seed top-up (3→6 seeds) | 15 | **retracted the substitution claim**; the curriculum effect survives and strengthens |
 
 **Chosen config: `--lr 3e-4 --ent-coef 0.03 --curriculum-max-difficulty 0.0`** (default band).
 
@@ -89,45 +90,25 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
 
-### IN FLIGHT — array `1808812`, submitted 2026-09-20, 15 tasks, ~14h (two windows)
+### What waves `1807588` + `1808812` settled — workstream 10, at 6 seeds per arm
 
-**Seed top-up: wave 10's arms from 3 to 6 seeds.** Not a new experiment — the same five
-configurations on fresh seeds 61–63, flag-for-flag identical to their wave 10 lines.
+Trained on the stealth objective, reported on the participant score (humans 0.672). Full write-up in
+[10](10-reward-design.md); power arithmetic in [FINDINGS §6b](FINDINGS.md).
 
-**Why.** The per-seed SD of the last-5 score is 0.0401 pooled over all nine 3-seed arms, so at n=3
-the smallest reliably detectable difference is ~0.092, and ~0.130 for an *interaction*. The
-substitution claim is an interaction and measures +0.148 — it clears by 14%, which is the thesis's
-most interesting result resting on its thinnest margin. At 6 seeds the interaction threshold falls
-to 0.092.
+| reward | curriculum | no curriculum | curriculum is worth |
+|---|---|---|---|
+| **objective only** | **1.295** | 1.175 | **+0.120** |
+| + delta | 1.306 | 1.163 | **+0.143** |
+| + delta + shaping | 1.278 | 1.185 | **+0.093** |
 
-`w10s-obj-cur` is absent because it already has 6 seeds: `w11-ent003` (array `1808727`) is that
-configuration flag-for-flag, scoring 1.309 on seeds 41–43 and 1.280 on 51–53 (pooled **1.294**).
-That 0.029 swing from seed choice alone is the calibration — see FINDINGS §6b.
+- **The curriculum is the result**, in every reward condition — all three clear the 6-seed threshold
+  of 0.083 — plus **~36% fewer steps** to a score of 1.10 and a **2–3× cut in seed variance**.
+- **Shaping does nothing** either way (+0.010, −0.017). **Delta does nothing** (±0.012).
+- **The 3-seed "shaping substitutes for the curriculum" claim is RETRACTED.** The interaction fell
+  from +0.148 (threshold 0.130) to +0.026 (threshold 0.118) when the arms went to 6 seeds. It was
+  one lucky triple and one unlucky one. Caught only because the top-up was run.
 
-Read it by pooling old and new seeds per arm; the export prefix is `reward_topup`.
-
-### What `1807588` settled (2026-09-19) — workstream 10, the reward wave
-
-18/18. Trained on the stealth objective (−1 / 1 + 0.5 × hideout uncertainty), reported on the
-participant score. Humans average 0.679. Full write-up in [10](10-reward-design.md).
-
-| reward | curriculum | no curriculum |
-|---|---|---|
-| **objective only** | **1.309** ±0.013 · 89.8% win | 1.141 ±0.051 · 70.7% |
-| + delta | 1.302 ±0.024 · 88.8% | 1.161 ±0.045 · 70.7% |
-| + delta + shaping | 1.265 ±0.062 · 85.2% | 1.245 ±0.039 · 82.0% |
-
-- **The curriculum is the largest effect in the project:** +0.168 score, +19 win points,
-  non-overlapping ranges, and 42% fewer steps to a score of 1.10 (7.9M vs 13.7M).
-- **Shaping substitutes for it.** Worth +0.104 without the curriculum, nothing with it — and it
-  triples the seed spread. **This is why 04's Director effect looked small: both its arms had
-  shaping on.**
-- **Delta is a null, because the mechanism is absent at this scale:** coverage hits 1.000 within ~1%
-  of training in every arm, bonus or no bonus.
-- **Nothing converged at 15M** (tail slopes all positive), so these are sample-efficiency results at
-  a fixed budget. Say the budget with the number.
-
-**Recommended configuration, and 06's checkpoints: `w10s-obj-cur` (objective only + curriculum).**
+**Recommended configuration and 06's checkpoints: `w10s-obj-cur`.**
 
 **Two measured numbers that govern how any of this is read.** The run-to-run noise floor is
 **~9.5 points** of `eval/win_rate` (wave 1's `sw1-lr3e4-ent003-on` 39.5% vs wave 2's identical

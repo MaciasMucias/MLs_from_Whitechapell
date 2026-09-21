@@ -61,3 +61,9 @@ The 15M reference points are `obj-cur` **1.295** and `obj-off` **1.175** (gap +0
 - 2026-09-21 — workstream created on learning that cluster access may end in ~10 days. The
   convergence question is the one open caveat on the headline that only the cluster can answer.
   Submitted 12 tasks; pulled every cluster-only checkpoint and the W&B offline runs in parallel.
+- 2026-09-21 — **cluster pull done and verified file-by-file.** All **1,266 checkpoint files**
+  present locally with matching sizes (7.35 GB pulled, 21 GB local total). W&B offline runs pulled to
+  `wandb_cluster/` (gitignored): 784 regular files, 196 run `.wandb` data files, 0 missing. The only
+  differences are expected: 199 symlinks to debug logs in the cluster home directory, which cannot be
+  recreated on Windows and carry no results; and **9 `.wandb` files still growing** — the convergence
+  runs that started at 22:37. **Re-pull their checkpoints and W&B runs when array `1809213` lands.**

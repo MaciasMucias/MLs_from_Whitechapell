@@ -617,10 +617,13 @@ suspicious of a small significant result than of a null.
 |---|---|
 | Chart-ready CSVs | [`results/`](results/) — one row per evaluation and per update, all 13 waves |
 | Raw provenance | `results/slurm_logs.tar.gz` |
-| Policies | `checkpoints/` (local, gitignored, ~14 GB) |
+| Policies | `checkpoints/` (local, gitignored, 21 GB) — **every** cluster checkpoint, verified 2026-09-21 |
+| Full training curves | `wandb_cluster/` (local, gitignored, 1.1 GB) — the cluster's W&B offline runs, never synced |
 | Participant data | `data/study/games_<date>.sqlite` (gitignored — retention is an ethics decision) |
 | Analysis | `analysis/convergence.py`, `sweep_report.py`, `compare.py`, `stats.py`, `sessions.py` |
 | Re-scorings | `results/final_reeval.txt`, `reward_reeval.txt` (2,000 games), `comparison_20260921.txt` |
 
-**Backup gap, unresolved:** the checkpoints and the participant snapshots exist
-only on one laptop. The CSVs and logs are in git; those two are not.
+**Backup gap, still unresolved:** the cluster copy no longer matters — every checkpoint and W&B run
+has been pulled and verified — but that moved the single copy onto **one laptop** rather than making
+a second one. The checkpoints (21 GB), W&B runs (1.1 GB) and participant snapshots exist nowhere
+else. The CSVs and logs are in git; those three are not.

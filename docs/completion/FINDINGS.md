@@ -1,12 +1,25 @@
 # Findings worth putting in the thesis
 
-Everything established experimentally between 2026-09-09 and 2026-09-13, with the
-evidence and the caveats. Written to survive: if a later session has none of the
-conversation, this file plus `results/` should be enough to write the chapters.
+Everything established experimentally between 2026-09-09 and 2026-09-21, with the evidence and the
+caveats. Written to survive: if a later session has none of the conversation, this file plus
+[`results/`](results/) should be enough to write the chapters.
 
-All win rates are **`eval/win_rate`: 200 games per evaluation, against
-full-strength `COPS_STUDY_V2`, with `director=None`** (invariant 2), ~69
-evaluations per run, 3 seeds per arm. Raw data in [`results/`](results/).
+**Two conventions changed partway through the project, so check which applies before quoting a
+number:**
+
+| | §0, §6, §6b (current) | §1–§5, §7–§8 (earlier waves) |
+|---|---|---|
+| metric | **participant score** (`SCORE_STUDY_V1`) | `eval/win_rate`, % |
+| training reward | stealth objective (−1 / 1 + 0.5·U) | legacy (±1) |
+| seeds per arm | **6** | 3, or 1 in the 03 sweeps |
+
+Every evaluation everywhere is **Director-free against full-strength `COPS_STUDY_V2`** (invariant
+2), 200 games per in-training evaluation and ~69 evaluations per run, unless a table says otherwise
+(the 2,000-game re-scorings are marked).
+
+**§0 is the headline. §1–§5 are the earlier waves**, kept because their *design* conclusions (the
+injection ceiling, the suppressed warmup, the band null) still hold and are not re-measured
+elsewhere — but their levels are win rates under the old reward and are not the thesis's numbers.
 
 ---
 
@@ -63,7 +76,9 @@ marginally higher (1.306 vs 1.295, inside noise); the simpler arm is kept, and e
 ### Confirmed on fresh boards (2,000 games, final checkpoints, 2026-09-19)
 
 Everything above uses in-training evaluations, which replay one fixed board set. Re-scoring each
-run's **final** checkpoint — no selection — on 2,000 unseen boards, all arms in one invocation:
+run's **final** checkpoint — no selection — on 2,000 unseen boards, all arms in one invocation.
+**These were the 3-seed arms** (04 has 3 seeds; wave 10 had 3 at the time), so read them as
+confirming the *ordering and the absolute level* on unseen boards, not as the 6-seed effect sizes:
 
 | arm | score | win% | hideout_u |
 |---|---|---|---|
@@ -75,17 +90,15 @@ run's **final** checkpoint — no selection — on 2,000 unseen boards, all arms
 | `w10s-obj-off` (10, neither) | 1.159 | 70.9 | 0.73 |
 | random Jack (floor) | 0.399 | 0.1 | 0.64 |
 
-**The Director's measured value depends entirely on whether shaping is present** — the substitution
-effect, quantified on one metric across two waves:
+**The two best arms — 1.328 and 1.326 — come from different rewards and are indistinguishable.**
+`director-on` trained on the legacy reward with shaping; `w10s-obj-cur` on the stealth objective with
+none. So the objective change cost nothing in absolute performance, and shaping adds nothing on top
+of the curriculum. Both sit ~0.13 above `director-off` and ~0.17 above `w10s-obj-off`.
 
-| comparison | score | win rate |
-|---|---|---|
-| with shaping (04, `director-on` − `director-off`) | +0.028 | +3.5 pts |
-| with shaping (10, `shp-cur` − `shp-off`) | +0.036 | +5.4 pts |
-| **without shaping (10, `obj-cur` − `obj-off`)** | **+0.167** | **+19.8 pts** |
-
-The two best arms (1.328 and 1.326) come from different rewards and are indistinguishable, so the
-objective change cost nothing and shaping adds nothing on top of the curriculum.
+> A version of this section (2026-09-19) drew a "the Director's value depends on whether shaping is
+> present" table from these rows, with +0.028 / +0.036 / +0.167. **That reading is retracted** — see
+> §0.3. Those three differences came from 3-seed arms and two of them are inside the 3-seed
+> detection threshold of 0.118; the one that looked large did not survive the top-up.
 
 ### Win rate and the objective can disagree — 04's `sparse` arm
 
@@ -124,7 +137,17 @@ limit and the map, not only because the cops are good.**
 
 ---
 
-## 1. The headline: the curriculum works, if it is forbidden from injecting
+## Sections 1–5 — the earlier waves (legacy reward, win rate, 3 seeds)
+
+**Read these for the design conclusions, not for the headline numbers.** They established the
+things §0 does not re-measure: that injection must be forbidden, that the suppressed warmup is
+worth having, that the ramp shape and target band do not matter, and how policies lose. Their levels
+are `eval/win_rate` under the legacy ±1 reward, with 3 seeds (1 in the 03 sweeps), so a difference
+below ~9.5 points there is noise. §0 supersedes them on the size of the curriculum effect.
+
+---
+
+## 1. The curriculum works, if it is forbidden from injecting (legacy reward, win rate)
 
 | configuration | final eval win% | best | last-5 |
 |---|---|---|---|
@@ -149,9 +172,9 @@ headline survives without the branch design.
 > as the best of ~6 ceiling arms, so 92.0% is a maximum over arms at a ~9.5-point
 > noise floor and is biased upward — the usual winner's curse. The OFF arm was
 > never selected on, so the *sign* of the effect is safe; the magnitude is not.
-> Workstream 04 re-measures the chosen configuration on fresh seeds 31/32/33 and
-> **04's figure is the one to quote in the thesis**, with this as the tuning
-> estimate that chose the configuration.
+> **Superseded: quote §0's 6-seed figure (+0.093 to +0.143 participant score), not this one and not
+> 04's.** 04 re-measured the configuration on fresh seeds but has only 3 of them, so its +0.028 is
+> inside its own 0.118 detection threshold (§6b).
 
 ### The dose-response peaks exactly at zero
 
@@ -183,6 +206,11 @@ matter. Only the *ceiling* changes the destination.
 ---
 
 ## 2. Sample efficiency — the benefit the final win rate hides
+
+**The current version of this table is in §0** (6 seeds, participant score: ~36% fewer steps to a
+score of 1.10, and 1.20 reached only with the curriculum). The table below is the legacy-reward,
+win-rate version from the 09 waves, kept because it covers arms §0 does not — the unbounded
+Director and the hand-picked two-phase schedule.
 
 Global steps to first reach a given eval win rate (branch arms stitched onto
 their base run, so counts are comparable at equal total compute):
@@ -474,10 +502,14 @@ say whether it matters.
   configuration (all five coefficients zero) scored *above* the shaped control
   (33.0% vs 30.0%) — inside noise, but there is no evidence the shaping earns its
   complexity. Keep the defaults; do not claim they help.
-- **PPO hyperparameters:** `lr=3e-4` wins decisively in both Director arms
-  (~30-point spreads); `ent-coef=0.03` is an interior optimum confirmed by
-  probing 0.06 (26.5%) and 0.10 (16.5%). Entropy interacts with lr and is **not**
-  monotone on its own — at `lr=1e-3` more entropy hurts badly.
+- **PPO hyperparameters:** `lr=3e-4` wins decisively in both Director arms (~30-point spreads) and
+  is the one hyperparameter this project can claim to have tuned. `ent-coef=0.03` was chosen on a
+  rationale that **did not survive** (its ON arm's curriculum never engaged) and was re-checked in
+  [11](11-hyperparameters.md): it stands, but only because 0.01 is indistinguishable from it.
+  Entropy interacts with lr and is **not** monotone — at `lr=1e-3` more entropy hurts badly.
+  **Everything else is a CleanRL default that was never varied** (`n-steps`, `n-epochs`,
+  `minibatch-size`, `gamma`, `gae-lambda`, `clip-coef`, `vf-coef`, `max-grad-norm`, the network
+  shape). Report that plainly.
 - **The curriculum's target band does not matter at ceiling 0.0.** Four bands
   from [0.10,0.20] to [0.60,0.80]: 90.5 / 91.8 / 92.5 / 92.8, **2.3 points of
   spread** against per-arm half-ranges of 1.0–2.2, and non-monotone. The band
@@ -487,8 +519,9 @@ say whether it matters.
   ceiling is the optimum, the effect vanishes rather than flipping sign. This is
   a band x ceiling interaction, and it is the more interesting way to report it.
   **Use the default band; do not tune it.**
-- **The exploration bonus (delta) is a null on this map.** 1.302 vs 1.309 with the curriculum and
-  1.161 vs 1.141 without — both smaller than the seed spread, in opposite directions. The mechanism
+- **The exploration bonus (delta) is a null on this map.** At 6 seeds: 1.306 vs 1.295 with the
+  curriculum (+0.012) and 1.163 vs 1.175 without (−0.012) — both far inside the 0.083 threshold, in
+  opposite directions. The mechanism
   is absent rather than weak: **coverage reaches 0.95 by 34k steps and 1.000 from ~1M in every arm**,
   with or without the bonus (entropy differs by ≤0.008, and by 0.001 at 15M). With 12 parallel
   environments on a 195-node map, exploration is not a bottleneck, so a front-loaded exploration
@@ -508,11 +541,12 @@ say whether it matters.
 
 | | |
 |---|---|
-| Chart-ready CSVs | [`results/`](results/) — one row per evaluation and per update, all nine waves |
+| Chart-ready CSVs | [`results/`](results/) — one row per evaluation and per update, all 13 waves |
 | Raw provenance | `results/slurm_logs.tar.gz` |
 | Policies | `checkpoints/` (local, gitignored, ~14 GB) |
 | Participant data | `data/study/games_<date>.sqlite` (gitignored — retention is an ethics decision) |
 | Analysis | `analysis/convergence.py`, `sweep_report.py`, `compare.py`, `stats.py`, `sessions.py` |
+| Re-scorings | `results/final_reeval.txt`, `reward_reeval.txt` (2,000 games), `comparison_20260921.txt` |
 
 **Backup gap, unresolved:** the checkpoints and the participant snapshots exist
 only on one laptop. The CSVs and logs are in git; those two are not.

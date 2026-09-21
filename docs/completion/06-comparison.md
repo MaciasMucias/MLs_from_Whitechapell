@@ -1,10 +1,10 @@
 # 06 — Human-vs-RL comparison
 
-**Status:** **RESULT IN (2026-09-19), interim by design.** The agent beats the participants on the
-boards they actually played, by an interval clear of zero on both the participant score and win
-rate, with zero desyncs. **Recruitment is still running**, so every number here is dated to the
-`games_20260919.sqlite` snapshot (20 participants / 60 games) and should be re-run before
-submission — one `fly ssh sftp get`, then one `analysis.compare` invocation.
+**Status:** **RESULT IN (2026-09-21, 6 seeds per arm), interim by design.** The agent beats the
+participants on the boards they actually played — **36 of 36 paired intervals exclude zero**, zero
+desyncs. **Recruitment is still running**, so the numbers are dated to `games_20260921.sqlite`
+(20 participants / 60 games, byte-identical to the 09-19 pull — no new participants in between) and
+should be re-run before submission: one `fly ssh sftp get`, then one `analysis.compare`.
 
 ---
 
@@ -40,35 +40,31 @@ And at runtime, `move_agreement` walks each human's real move sequence forward t
 exactly; any divergence is counted as a **desync** and reported. **Across all 33 human games and
 three checkpoints: zero desyncs.** That is the strongest evidence the reconstruction is faithful.
 
-## RESULT (2026-09-19) — `w10s-obj-cur`, 20 participants / 60 games
+## RESULT (2026-09-21) — 6 seeds per arm, 20 participants / 60 games
 
-Each policy replays **the exact board its human counterpart faced**, 20 times per scenario (the
-policy samples rather than acting greedily). Humans are scored by replaying their own recorded moves
-through the engine, so both sides are measured by the same function. Raw output in
-[`results/comparison_20260919.txt`](results/comparison_20260919.txt).
+Each policy replays **the exact board its human counterpart faced**, 20 times per scenario. Humans
+are scored by replaying their own recorded moves through the engine, so both sides go through one
+scoring function. Raw output in
+[`results/comparison_20260921.txt`](results/comparison_20260921.txt).
 
-| | participant score | win rate |
-|---|---|---|
-| **Humans** (20 participants, 60 games) | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] |
-| `w10s-obj-cur` (recommended) | 1.259 / 1.319 / 1.260 | 85.2% / 89.1% / 83.4% |
-| `w10s-dlt-cur` | 1.258 / 1.265 / 1.256 | 83.5% / 87.4% / 85.8% |
-| `w10s-shp-cur` | 1.300 / 1.196 / 1.249 | 88.4% / 79.2% / 82.9% |
+| | participant score | win rate | move agreement |
+|---|---|---|---|
+| **Humans** (20 participants, 60 games) | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] | — |
+| **`obj-cur`** (recommended), 6 seeds | **1.260** ±0.033 | 84.2% | 27.9% |
+| `dlt-cur`, 6 seeds | 1.257 ±0.013 | 85.2% | 26.8% |
+| `shp-cur`, 6 seeds | 1.248 ±0.038 | 83.5% | 27.5% |
 
-**Paired, clustered by participant — all nine intervals exclude zero.** For the recommended arm:
+**Every one of the 18 checkpoints beats the humans**, by **+0.52 to +0.65** participant score and
+**+47 to +57** win points. **36 of 36 paired intervals (18 score, 18 win rate), clustered by
+participant, exclude zero. Zero desyncs across all 60 games and all 18 checkpoints.**
 
-| seed | score difference | win-rate difference |
-|---|---|---|
-| s41 | **+0.587** [+0.481, +0.687] | +53.5 pts [+43.2, +63.0] |
-| s42 | **+0.647** | +57.4 pts |
-| s43 | **+0.588** | +51.7 pts |
+`w11-ent003-s51/52/53` appear in the raw table under their own name but **are** `obj-cur` — the same
+configuration on seeds 51–53 — and are pooled into that arm here.
 
-**Zero desyncs across all 60 games and all nine checkpoints**, so every replayed board is the board
-the human actually faced.
-
-**The three reward conditions are indistinguishable on human boards** (arm means 1.279 / 1.260 /
-1.248), even though they differ by 0.07 on the training map. Against opponents this far below the
-agents, the reward choice stops mattering — which is a reason to report the cleaner training-map
-comparison for the reward question and use this table for the human one.
+**The three reward conditions are indistinguishable on human boards** (1.260 / 1.257 / 1.248, spread
+0.012 against a per-arm SD of up to 0.038). Against opponents this far below the agents the reward
+choice stops mattering, which is consistent with wave 10's finding that shaping and delta are nulls
+on the training map too.
 
 ### Three things the headline number does not say
 
@@ -252,3 +248,9 @@ and use it for every reported number, including these.
   Move agreement 27–29%, so the agents win by playing a different game rather than a better version
   of the human one. The policy wins the boards humans lost and the boards humans won at the same
   rate, so board difficulty does not explain the human losses. Interim: recruitment continues.
+- 2026-09-21 — **re-run at 6 seeds per arm** (18 checkpoints) against `games_20260921.sqlite`, which
+  is byte-identical to the 09-19 pull, so N is unchanged at 20/60. Every checkpoint beats the
+  participants; 36 of 36 paired intervals exclude zero; zero desyncs. Arm means 1.260 / 1.257 /
+  1.248 against humans' 0.672. The gap here (~+0.58) is an order of magnitude larger than the
+  between-arm differences that the seed top-up overturned, so it was never at risk from seed noise —
+  what the extra seeds buy is an arm-level number rather than one checkpoint standing in for its arm.

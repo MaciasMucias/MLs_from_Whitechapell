@@ -282,23 +282,29 @@ biased against it.
 
 ## 6. Human-vs-RL comparison
 
-**Measured 2026-09-19** on `games_20260919.sqlite` — **20 participants, 60 games**. Interim:
-recruitment is still running, so re-run and re-date before submission.
+**Measured 2026-09-21** on `games_20260921.sqlite` — **20 participants, 60 games**, 6 seeds per
+arm. Interim: recruitment is still running, so re-run and re-date before submission. (The 09-21 pull
+is byte-identical to 09-19; no new participants in between.)
 
 Each policy replays the exact board its human counterpart faced, 20 times per scenario; humans are
 scored by replaying their own recorded moves through the engine, so both sides go through one
 scoring function. **Zero desyncs across all 60 games and three checkpoints.**
 
-| | participant score | win rate |
-|---|---|---|
-| **Humans** | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] |
-| `w10s-obj-cur`, 3 seeds | 1.259 / 1.319 / 1.260 | 85.2% / 89.1% / 83.4% |
+| | participant score | win rate | move agreement |
+|---|---|---|---|
+| **Humans** | **0.672** [0.578, 0.770] | **31.7%** [23.3%, 40.0%] | — |
+| **`obj-cur`** (recommended), 6 seeds | **1.260** ±0.033 | 84.2% | 27.9% |
+| `dlt-cur`, 6 seeds | 1.257 ±0.013 | 85.2% | 26.8% |
+| `shp-cur`, 6 seeds | 1.248 ±0.038 | 83.5% | 27.5% |
 
-**Paired and clustered by participant, every interval excludes zero:** score **+0.587 / +0.647 /
-+0.588**, win rate **+53.5 / +57.4 / +51.7 points**. Design effect 1.02, so clustering barely widens
-the interval here — but it is the correct interval. All nine checkpoints across the three reward
-conditions clear zero; on human boards the reward conditions are indistinguishable (1.279 / 1.260 /
-1.248), so use the training-map numbers for the reward question and these for the human one.
+**All 18 checkpoints beat the humans by +0.52 to +0.65 score and +47 to +57 win points. 36 of 36
+paired intervals (18 score, 18 win rate), clustered by participant, exclude zero. Zero desyncs.**
+Design effect 1.02, so clustering barely widens the interval here — but it is the correct interval.
+
+This gap is ~0.58, an order of magnitude larger than the 0.02–0.15 between-arm differences that the
+seed top-up overturned (§6b), so it was never at risk from seed noise. On human boards the three
+reward conditions are indistinguishable (spread 0.012), consistent with shaping and delta being
+nulls on the training map.
 
 ### The agent does not play like a better human
 

@@ -90,6 +90,22 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
 
+### IN FLIGHT — array `1809122`, submitted 2026-09-21, 6 tasks, ~7h
+
+**Second seed top-up: the two shaping arms from 6 to 9 seeds** (seeds 71–73, flags identical to
+their wave 10 lines).
+
+**Why.** At 6 seeds the curriculum effect clears its 0.083 threshold by 43% (objective only) and 72%
+(+delta), but only **12%** with shaping — the same margin the retracted substitution claim had
+(FINDINGS Appendix A.2). That margin carries the robustness statement "the curriculum helps in every
+reward condition". At 9 seeds the threshold falls to 0.068 and +0.093 clears by 37%.
+
+**The headline does not depend on this.** Pooled across all three reward conditions the curriculum
+effect is **+0.119, bootstrap 95% CI [+0.087, +0.150]** (18 runs vs 18) — clearing by 146%. This
+wave protects a secondary robustness claim, not the main result.
+
+Export prefix `reward_topup2`; pool all nine seeds per arm when reading.
+
 ### What waves `1807588` + `1808812` settled — workstream 10, at 6 seeds per arm
 
 Trained on the stealth objective, reported on the participant score (humans 0.672). Full write-up in

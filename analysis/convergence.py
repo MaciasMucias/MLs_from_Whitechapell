@@ -61,12 +61,20 @@ ARMS = {
     # (61-63, array 1808812), pooled to 6 per arm. obj-cur's second triple is
     # w11-ent003 (51-53, array 1808727), which is that configuration
     # flag-for-flag; ARM_ALIASES folds it in.
-    "w10s-obj-cur": (("reward", "reward_topup", "entropy"), False, "objective, curriculum"),
+    "w10s-obj-cur": (
+        ("reward", "reward_topup", "entropy"),
+        False,
+        "objective, curriculum",
+    ),
     "w10s-dlt-cur": (("reward", "reward_topup"), False, "+delta, curriculum"),
     "w10s-shp-cur": (("reward", "reward_topup"), False, "+delta+shaping, curriculum"),
     "w10s-obj-off": (("reward", "reward_topup"), False, "objective, no curriculum"),
     "w10s-dlt-off": (("reward", "reward_topup"), False, "+delta, no curriculum"),
-    "w10s-shp-off": (("reward", "reward_topup"), False, "+delta+shaping, no curriculum"),
+    "w10s-shp-off": (
+        ("reward", "reward_topup"),
+        False,
+        "+delta+shaping, no curriculum",
+    ),
 }
 
 # Runs that are another arm's configuration under a different name.

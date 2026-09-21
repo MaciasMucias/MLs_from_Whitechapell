@@ -1,116 +1,151 @@
-"""Check the numbers FINDINGS quotes against the CSVs and re-scoring outputs."""
+"""Recompute every headline number in FINDINGS.md from the raw results and diff it.
+
+The failure mode this guards against is not a wrong calculation but a stale
+number surviving an edit - FINDINGS has been revised through two seed top-ups
+and a retraction, and a figure quoted in one section can outlive its source.
+
+Run before submitting, and after any re-pull of the study snapshot:
+
+    uv run python tools/verify_findings.py
+
+Exit status is 1 if any check fails.
+"""
+
+from __future__ import annotations
 
 import collections
 import csv
+import random
 import re
 import statistics as st
+import sys
+from pathlib import Path
 
+RESULTS = Path("docs/completion/results")
 LAST_K = 5
+# w11-ent003 is w10s-obj-cur flag-for-flag (same config, seeds 51-53).
 ALIAS = {"w11-ent003": "w10s-obj-cur"}
+WAVE10 = ("reward", "reward_topup", "reward_topup2", "entropy")
 
-runs = collections.defaultdict(list)
-for wave in ("reward", "reward_topup", "entropy"):
-    for r in csv.DictReader(
-        open(f"docs/completion/results/{wave}_eval.csv", encoding="utf-8")
-    ):
+# ---- what FINDINGS claims ---------------------------------------------------
+ARM_MEANS = {  # (last-5 participant score, seeds)
+    "w10s-obj-cur": (1.295, 6),
+    "w10s-dlt-cur": (1.306, 6),
+    "w10s-shp-cur": (1.272, 9),
+    "w10s-obj-off": (1.175, 6),
+    "w10s-dlt-off": (1.163, 6),
+    "w10s-shp-off": (1.183, 9),
+}
+CURRICULUM_EFFECTS = [
+    ("w10s-obj-cur", "w10s-obj-off", 0.120),
+    ("w10s-dlt-cur", "w10s-dlt-off", 0.143),
+    ("w10s-shp-cur", "w10s-shp-off", 0.090),
+]
+POOLED_EFFECT = 0.114
+POOLED_CI = (0.085, 0.142)
+POOLED_SD = 0.0488
+THRESHOLDS = {3: 0.111, 6: 0.079, 9: 0.064}
+INTERACTION = 0.030
+HUMAN_ARMS = {"obj-cur": 1.260, "dlt-cur": 1.257, "shp-cur": 1.248}
+HUMAN_SCORE = 0.672
+REEVAL = {
+    "final_reeval.txt": {"director-on": 1.328, "director-off": 1.300, "sparse": 1.299},
+    "reward_reeval.txt": {"w10s-obj-cur": 1.326, "w10s-obj-off": 1.159, "w10s-shp-off": 1.243},
+}
+
+failures = 0
+
+
+def check(label: str, ok: bool, detail: str) -> None:
+    global failures
+    failures += not ok
+    print(f"  {'OK ' if ok else '!! '}{label:<46} {detail}")
+
+
+def close(a: float, b: float, tol: float = 0.0006) -> bool:
+    return abs(a - b) < tol
+
+
+# ---- load wave 10 -----------------------------------------------------------
+runs: dict = collections.defaultdict(list)
+for wave in WAVE10:
+    for r in csv.DictReader((RESULTS / f"{wave}_eval.csv").open(encoding="utf-8")):
         if r.get("score") in (None, ""):
             continue
         arm = ALIAS.get(r["arm"], r["arm"])
         if arm.startswith("w11-"):
             continue
         runs[(arm, r["seed"])].append((int(r["step"]), float(r["score"])))
-
-arms = collections.defaultdict(dict)
+arms: dict = collections.defaultdict(dict)
 for (arm, seed), pts in runs.items():
     v = [x for _, x in sorted(pts)]
     arms[arm][seed] = sum(v[-LAST_K:]) / len(v[-LAST_K:])
+mean = {a: st.mean(v.values()) for a, v in arms.items()}
+n = {a: len(v) for a, v in arms.items()}
 
-claims = {
-    "w10s-obj-cur": 1.295,
-    "w10s-dlt-cur": 1.306,
-    "w10s-shp-cur": 1.278,
-    "w10s-obj-off": 1.175,
-    "w10s-dlt-off": 1.163,
-    "w10s-shp-off": 1.185,
-}
-print("§0 table — 6-seed arm means")
-ok = True
-for arm, claimed in claims.items():
-    actual = st.mean(arms[arm].values())
-    n = len(arms[arm])
-    flag = "OK " if abs(actual - claimed) < 0.0006 and n == 6 else "!! "
-    ok &= flag == "OK "
-    print(f"  {flag}{arm:<16} doc {claimed:.3f}  data {actual:.3f}  n={n}")
+print("§0 — arm means and seed counts")
+for arm, (claimed, seeds) in ARM_MEANS.items():
+    check(arm, close(mean[arm], claimed) and n[arm] == seeds,
+          f"doc {claimed:.3f} (n={seeds})  data {mean[arm]:.3f} (n={n[arm]})")
 
-print("\n§0 curriculum differences")
-for a, b, claimed in [
-    ("w10s-obj-cur", "w10s-obj-off", 0.120),
-    ("w10s-dlt-cur", "w10s-dlt-off", 0.143),
-    ("w10s-shp-cur", "w10s-shp-off", 0.093),
-]:
-    actual = st.mean(arms[a].values()) - st.mean(arms[b].values())
-    flag = "OK " if abs(actual - claimed) < 0.0011 else "!! "
-    ok &= flag == "OK "
-    print(f"  {flag}{a} - {b}: doc {claimed:+.3f}  data {actual:+.3f}")
+print("\n§0 — curriculum effect per reward condition")
+for a, b, claimed in CURRICULUM_EFFECTS:
+    d = mean[a] - mean[b]
+    check(f"{a} - {b}", close(d, claimed, 0.0011), f"doc {claimed:+.3f}  data {d:+.3f}")
 
-print("\n§6b pooled SD and thresholds")
+print("\n§6b — pooled SD, thresholds, pooled effect")
 sds = [(st.stdev(v.values()), len(v)) for v in arms.values()]
-pooled = (sum(sd**2 * (n - 1) for sd, n in sds) / sum(n - 1 for _, n in sds)) ** 0.5
-print(
-    f"  pooled SD data {pooled:.4f}  doc 0.0516 -> {'OK' if abs(pooled - 0.0516) < 0.0006 else '!!'}"
-)
-for n, claimed in ((3, 0.118), (6, 0.083), (10, 0.065)):
-    mdd = 2.8 * pooled * (2 / n) ** 0.5
-    flag = "OK" if abs(mdd - claimed) < 0.002 else "!!"
-    print(f"  n={n}: data {mdd:.3f}  doc {claimed:.3f} -> {flag}")
+sd = (sum(s**2 * (k - 1) for s, k in sds) / sum(k - 1 for _, k in sds)) ** 0.5
+check("pooled per-seed SD", close(sd, POOLED_SD), f"doc {POOLED_SD:.4f}  data {sd:.4f}")
+for k, claimed in THRESHOLDS.items():
+    t = 2.8 * sd * (2 / k) ** 0.5
+    check(f"detection threshold at n={k}", close(t, claimed, 0.0015), f"doc {claimed:.3f}  data {t:.3f}")
 
-print("\n§6 human comparison (from comparison_20260921.txt)")
+cur = [v for a in ("w10s-obj-cur", "w10s-dlt-cur", "w10s-shp-cur") for v in arms[a].values()]
+off = [v for a in ("w10s-obj-off", "w10s-dlt-off", "w10s-shp-off") for v in arms[a].values()]
+d = st.mean(cur) - st.mean(off)
+check(f"pooled curriculum effect ({len(cur)} v {len(off)})", close(d, POOLED_EFFECT, 0.0011),
+      f"doc {POOLED_EFFECT:+.3f}  data {d:+.3f}")
+rng = random.Random(0)
+boot = sorted(
+    st.mean([rng.choice(cur) for _ in cur]) - st.mean([rng.choice(off) for _ in off])
+    for _ in range(20000)
+)
+lo, hi = boot[500], boot[19500]
+check("pooled bootstrap 95% CI", close(lo, POOLED_CI[0], 0.0021) and close(hi, POOLED_CI[1], 0.0021),
+      f"doc [{POOLED_CI[0]:+.3f}, {POOLED_CI[1]:+.3f}]  data [{lo:+.3f}, {hi:+.3f}]")
+
+inter = (mean["w10s-shp-off"] - mean["w10s-obj-off"]) - (mean["w10s-shp-cur"] - mean["w10s-obj-cur"])
+check("shaping x curriculum interaction", close(inter, INTERACTION, 0.0011),
+      f"doc {INTERACTION:+.3f}  data {inter:+.3f}")
+
+print("\n§6 — human comparison (comparison_20260921.txt)")
 rows = [
-    l.split()
-    for l in open("docs/completion/results/comparison_20260921.txt", encoding="utf-8")
-    if re.match(r"^w1\S+\s+15\.00M", l)
+    line.split()
+    for line in (RESULTS / "comparison_20260921.txt").open(encoding="utf-8")
+    if re.match(r"^w1\S+\s+15\.00M", line)
 ]
-groups = collections.defaultdict(list)
+groups: dict = collections.defaultdict(list)
 for r in rows:
-    key = (
-        "obj-cur"
-        if ("obj-cur" in r[0] or "ent003" in r[0])
-        else "dlt-cur"
-        if "dlt" in r[0]
-        else "shp-cur"
-    )
-    groups[key].append((float(r[2]), float(r[4].rstrip("%")), float(r[8].rstrip("%"))))
-for k, claimed in (("obj-cur", 1.260), ("dlt-cur", 1.257), ("shp-cur", 1.248)):
-    actual = st.mean(x[0] for x in groups[k])
-    flag = "OK " if abs(actual - claimed) < 0.0006 else "!! "
-    print(f"  {flag}{k}: doc {claimed:.3f}  data {actual:.3f}  n={len(groups[k])}")
-print(
-    f"  checkpoints beating humans: {sum(1 for v in groups.values() for x in v if x[0] > 0.672)}/18"
-)
-print(
-    f"  score range: {min(x[0] for v in groups.values() for x in v):.3f}"
-    f" - {max(x[0] for v in groups.values() for x in v):.3f}"
-)
+    key = ("obj-cur" if ("obj-cur" in r[0] or "ent003" in r[0])
+           else "dlt-cur" if "dlt" in r[0] else "shp-cur")
+    groups[key].append(float(r[2]))
+for arm, claimed in HUMAN_ARMS.items():
+    got = st.mean(groups[arm])
+    check(f"{arm} on human boards", close(got, claimed), f"doc {claimed:.3f}  data {got:.3f} (n={len(groups[arm])})")
+beating = sum(1 for v in groups.values() for x in v if x > HUMAN_SCORE)
+total = sum(len(v) for v in groups.values())
+check("checkpoints beating humans", beating == total == 18, f"{beating}/{total}")
 
-print("\n§0 2,000-game re-scoring (final_reeval.txt / reward_reeval.txt)")
-for path, wanted in (
-    (
-        "final_reeval.txt",
-        {"director-on": 1.328, "director-off": 1.300, "sparse": 1.299},
-    ),
-    (
-        "reward_reeval.txt",
-        {"w10s-obj-cur": 1.326, "w10s-obj-off": 1.159, "w10s-shp-off": 1.243},
-    ),
-):
-    txt = open(f"docs/completion/results/{path}", encoding="utf-8").read()
-    block = txt.split("Cops:")[1]  # COPS_STUDY_V2 table only
-    got = collections.defaultdict(list)
-    for m in re.finditer(
-        r"checkpoints/([\w-]+)-s\d+/agent_\S+\s+15\.00M\s+([\d.]+)", block
-    ):
+print("\n§0 — 2,000-game re-scorings (study cops)")
+for fname, wanted in REEVAL.items():
+    block = (RESULTS / fname).read_text(encoding="utf-8").split("Cops:")[1]
+    got: dict = collections.defaultdict(list)
+    for m in re.finditer(r"checkpoints/([\w-]+)-s\d+/agent_\S+\s+15\.00M\s+([\d.]+)", block):
         got[m.group(1)].append(float(m.group(2)))
     for arm, claimed in wanted.items():
-        actual = st.mean(got[arm])
-        flag = "OK " if abs(actual - claimed) < 0.0006 else "!! "
-        print(f"  {flag}{arm:<16} doc {claimed:.3f}  data {actual:.3f}")
+        g = st.mean(got[arm])
+        check(f"{arm} ({fname})", close(g, claimed), f"doc {claimed:.3f}  data {g:.3f}")
+
+print(f"\n{'ALL CHECKS PASS' if not failures else f'{failures} CHECK(S) FAILED'}")
+sys.exit(1 if failures else 0)

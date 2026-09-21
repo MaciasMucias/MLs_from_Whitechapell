@@ -67,11 +67,16 @@ ARMS = {
         "objective, curriculum",
     ),
     "w10s-dlt-cur": (("reward", "reward_topup"), False, "+delta, curriculum"),
-    "w10s-shp-cur": (("reward", "reward_topup"), False, "+delta+shaping, curriculum"),
+    # The two shaping arms add a third triple (71-73, array 1809122) for 9 seeds.
+    "w10s-shp-cur": (
+        ("reward", "reward_topup", "reward_topup2"),
+        False,
+        "+delta+shaping, curriculum",
+    ),
     "w10s-obj-off": (("reward", "reward_topup"), False, "objective, no curriculum"),
     "w10s-dlt-off": (("reward", "reward_topup"), False, "+delta, no curriculum"),
     "w10s-shp-off": (
-        ("reward", "reward_topup"),
+        ("reward", "reward_topup", "reward_topup2"),
         False,
         "+delta+shaping, no curriculum",
     ),

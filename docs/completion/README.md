@@ -22,7 +22,7 @@ evidence and caveats. Read that before writing any chapter.
 | [03](03-ppo-sweep.md) | PPO hyperparameter sweep | **done** — lr 3e-4, ent 0.03 | 04, 09 |
 | [09](09-director-tuning.md) | Director tuning | **done, closed** — `--curriculum-max-difficulty 0`, default band; floor + band both settled by `1807390` | 04 |
 | [04](04-final-runs.md) | Final runs — Director on/off | **done** — Director +0.028 score on every seed; `sparse` trades stealth for win rate; no overfitting to training cops | — |
-| [10](10-reward-design.md) | Reward design | **done (6 seeds)** — the curriculum is the effect (+0.09 to +0.14); shaping and delta are nulls | 06 |
+| [10](10-reward-design.md) | Reward design | **done** — the curriculum is the effect (+0.114 pooled, CI [+0.085, +0.142]); shaping and delta are nulls | 06 |
 | [05](05-study-data.md) | Close out study data | **open** — recruitment continues; 20 participants / 60 games at the 09-19 pull | 06 |
 | [06](06-comparison.md) | Human-vs-RL comparison | **result in (interim, 6 seeds)** — agent +0.58 score over humans, 36/36 intervals clear of zero; re-run when recruitment ends | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | **done** | — |
@@ -70,6 +70,7 @@ exceed the Director effect being claimed, so single-seed arms would not support 
 | `1807588` | 10 reward design | 18 | **the curriculum dominates; shaping substitutes for it; delta null** — see below |
 | `1808727` | 11 entropy re-check | 9 | `ent-coef 0.03` stands; 0.01 indistinguishable, 0.003 worse |
 | `1808812` | 10 seed top-up (3→6 seeds) | 15 | **retracted the substitution claim**; the curriculum effect survives and strengthens |
+| `1809122` | 10 shaping arms 6→9 seeds | 6 | the marginal curriculum-with-shaping effect **held** (+0.093 → +0.090, margin 12% → 39%) |
 
 **Chosen config: `--lr 3e-4 --ent-coef 0.03 --curriculum-max-difficulty 0.0`** (default band).
 
@@ -90,23 +91,7 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
 
-### IN FLIGHT — array `1809122`, submitted 2026-09-21, 6 tasks, ~7h
-
-**Second seed top-up: the two shaping arms from 6 to 9 seeds** (seeds 71–73, flags identical to
-their wave 10 lines).
-
-**Why.** At 6 seeds the curriculum effect clears its 0.083 threshold by 43% (objective only) and 72%
-(+delta), but only **12%** with shaping — the same margin the retracted substitution claim had
-(FINDINGS Appendix A.2). That margin carries the robustness statement "the curriculum helps in every
-reward condition". At 9 seeds the threshold falls to 0.068 and +0.093 clears by 37%.
-
-**The headline does not depend on this.** Pooled across all three reward conditions the curriculum
-effect is **+0.119, bootstrap 95% CI [+0.087, +0.150]** (18 runs vs 18) — clearing by 146%. This
-wave protects a secondary robustness claim, not the main result.
-
-Export prefix `reward_topup2`; pool all nine seeds per arm when reading.
-
-### What waves `1807588` + `1808812` settled — workstream 10, at 6 seeds per arm
+### What waves `1807588` + `1808812` + `1809122` settled — workstream 10, 6–9 seeds per arm
 
 Trained on the stealth objective, reported on the participant score (humans 0.672). Full write-up in
 [10](10-reward-design.md); power arithmetic in [FINDINGS §6b](FINDINGS.md).
@@ -115,14 +100,17 @@ Trained on the stealth objective, reported on the participant score (humans 0.67
 |---|---|---|---|
 | **objective only** | **1.295** | 1.175 | **+0.120** |
 | + delta | 1.306 | 1.163 | **+0.143** |
-| + delta + shaping | 1.278 | 1.185 | **+0.093** |
+| + delta + shaping | 1.272 | 1.183 | **+0.090** |
 
-- **The curriculum is the result**, in every reward condition — all three clear the 6-seed threshold
-  of 0.083 — plus **~36% fewer steps** to a score of 1.10 and a **2–3× cut in seed variance**.
-- **Shaping does nothing** either way (+0.010, −0.017). **Delta does nothing** (±0.012).
+- **The curriculum is the result: +0.114 pooled, 95% CI [+0.085, +0.142]** (21 v 21 runs), and it
+  holds in every reward condition separately (margins 52% / 82% / 39%) — plus **~36% fewer steps** to
+  a score of 1.10 and a **1.5–3× cut in seed variance**.
+- **Shaping does nothing** either way (+0.008, −0.022). **Delta does nothing** (±0.012).
 - **The 3-seed "shaping substitutes for the curriculum" claim is RETRACTED.** The interaction fell
-  from +0.148 (threshold 0.130) to +0.026 (threshold 0.118) when the arms went to 6 seeds. It was
-  one lucky triple and one unlucky one. Caught only because the top-up was run.
+  from +0.148 (threshold 0.130) to +0.026 (threshold 0.118) when the arms went to 6 seeds, and
+  stayed dead at 9 (+0.030 vs 0.102). It was one lucky triple and one unlucky one. Caught only
+  because the top-up was run. The next-weakest claim (curriculum with shaping, 12% margin) was
+  tested the same way and **held** (39% at 9 seeds).
 
 **Recommended configuration and 06's checkpoints: `w10s-obj-cur`.**
 

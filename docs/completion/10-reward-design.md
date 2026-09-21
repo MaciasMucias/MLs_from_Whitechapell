@@ -1,6 +1,6 @@
 # 10 — Reward design
 
-**Status:** **DONE (2026-09-21, arrays `1807588` + `1808812`, 6 seeds per arm).** The curriculum is
+**Status:** **DONE (2026-09-21, arrays `1807588` + `1808812` + `1809122`; 6 seeds per arm, 9 for the shaping arms).** The curriculum is
 the effect; reward shaping does nothing either way; delta is a null. **Recommended configuration:
 objective only + curriculum** (`--reward-objective stealth --reward-alpha 0 --reward-beta 0
 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0`).
@@ -14,7 +14,7 @@ objective only + curriculum** (`--reward-objective stealth --reward-alpha 0 --re
 
 ---
 
-## RESULT (2026-09-21, arrays `1807588` + `1808812`, 6 seeds per arm)
+## RESULT (2026-09-21, 6 seeds per arm, 9 for the shaping arms)
 
 Trained on the stealth objective, reported on the participant score. Humans average 0.672. Mean of
 the last five evaluations per seed; `obj-cur` pools `w10s-obj-cur` (41–43) with `w11-ent003`
@@ -24,30 +24,32 @@ the last five evaluations per seed; `obj-cur` pools `w10s-obj-cur` (41–43) wit
 |---|---|---|---|
 | **objective only** | **1.295** | 1.175 | **+0.120** |
 | + delta | 1.306 | 1.163 | **+0.143** |
-| + delta + shaping | 1.278 | 1.185 | **+0.093** |
+| + delta + shaping | 1.272 | 1.183 | **+0.090** |
 
-Detection threshold at 6 seeds: **0.083** for a difference, 0.118 for an interaction (pooled
-per-seed SD 0.0516). See FINDINGS §6b.
+Pooled per-seed SD 0.0488. Detection thresholds: 0.079 for 6 v 6, 0.064 for 9 v 9, 0.042 for the
+pooled 21 v 21 comparison. See FINDINGS §6b.
 
 ### 1. The curriculum is the effect, in every reward condition
 
-+0.120 / +0.143 / +0.093 — **all three clear the threshold.** Steps to reach a fixed score:
+**Pooled across reward conditions: +0.114, bootstrap 95% CI [+0.085, +0.142]** (21 v 21 runs).
+Per condition +0.120 / +0.143 / +0.090, clearing their thresholds by 52% / 82% / 39%. Steps to reach
+a fixed score:
 
 | | → 1.00 | → 1.10 | → 1.20 |
 |---|---|---|---|
-| with curriculum (all three rewards) | 6.5–6.6M | **8.0–8.3M** | 9.9–11.4M |
+| with curriculum (all three rewards) | 6.5–6.6M | **8.1–8.3M** | 9.9–11.4M |
 | without curriculum | 10.5–10.9M | 12.7–13.0M (delta arm never) | **never** |
 
 **~36% fewer steps to 1.10, and 1.20 is reached only with the curriculum.** It also cuts seed
-variance 2–3× (per-seed SD 0.019–0.044 with, 0.057–0.072 without).
+variance 1.5–3× (per-seed SD 0.019–0.040 with, 0.057–0.067 without).
 
 ### 2. Reward shaping does nothing — and the 3-seed "substitution" was an artefact
 
-| | 3 seeds | 6 seeds |
-|---|---|---|
-| shaping, no curriculum | +0.104 | **+0.010** |
-| shaping, with curriculum | −0.044 | **−0.017** |
-| interaction | +0.148 (threshold 0.130) | **+0.026** (threshold 0.118) |
+| | 3 seeds | 6 seeds | final (shaping arms at 9) |
+|---|---|---|---|
+| shaping, no curriculum | +0.104 | +0.010 | **+0.008** |
+| shaping, with curriculum | −0.044 | −0.017 | **−0.022** |
+| interaction | +0.148 (threshold 0.130) | +0.026 (threshold 0.118) | **+0.030** (threshold 0.102) |
 
 At 3 seeds this read as "shaping substitutes for the curriculum", and it was written up as the most
 interesting result in the project. It did not survive. Adding three seeds moved `shp-off` by
@@ -366,3 +368,9 @@ separate ssh calls).
   effect was entirely that gap. What survives is simpler and stronger: the curriculum is worth
   +0.093 to +0.143 in every reward condition, all three clearing the threshold, plus ~36% fewer
   steps to a score of 1.10 and a 2–3× reduction in seed variance. Shaping and delta are nulls.
+- 2026-09-21 — **second top-up (array `1809122`, 6 runs) took the shaping arms to 9 seeds, and the
+  claim held.** The curriculum effect with shaping on had cleared its threshold by only 12% — the
+  margin of the claim that collapsed at the first top-up. At 9 seeds it moved +0.093 → +0.090 and its
+  margin grew to 39%. The interaction stayed dead (+0.030 vs 0.102). Pooled across all three reward
+  conditions the curriculum effect is **+0.114, 95% CI [+0.085, +0.142]**, 21 v 21 runs. Pooled
+  per-seed SD settled at 0.0488.

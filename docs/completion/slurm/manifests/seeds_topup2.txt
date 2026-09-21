@@ -1,0 +1,40 @@
+# Workstream 10 — second seed top-up: the shaping arms, 6 -> 9 seeds. 6 tasks.
+#
+#   sbatch --array=0-5%6 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/seeds_topup2.txt
+#
+# WHY. At 6 seeds the curriculum effect is +0.120 (objective only), +0.143
+# (+delta) and +0.093 (+delta+shaping), against a 0.083 threshold. The first two
+# clear by 43% and 72%; the shaping condition clears by **12%**.
+#
+# That is the same margin the retracted substitution claim had (14%, Appendix
+# A.2), and it carries the robustness statement "the curriculum helps in every
+# reward condition". If this arm drifted the way shp-off did when it went 3 -> 6
+# seeds, the claim would collapse into "helps when shaping is absent" - which is
+# the retracted interaction story returning, and a second reversal of the same
+# result.
+#
+# 3 more seeds on each shaping arm takes them to 9 and the threshold to 0.068,
+# so +0.093 would clear by 37%.
+#
+# NOT included, deliberately:
+#   the other four arms - obj and dlt clear comfortably at 6 seeds. Taking every
+#     arm to 9 would tighten the NULLS (0.083 -> 0.068) but the thesis does not
+#     need to exclude a +0.07 shaping effect it already reports as absent.
+#   04's Director arms - still 3 seeds and unresolvable there, but under the
+#     superseded legacy reward; the Director claim rests on this wave.
+#
+# Seeds 71/72/73: fresh, independent of 41-43, 51-53, 61-63 (this wave's
+# earlier triples), 31-33 (04) and 27-29 (the tuning waves). Flags are identical
+# to the corresponding wave 10 lines - only the seed differs.
+#
+# Pool all nine seeds per arm when reading; the export prefix is reward_topup2.
+
+# --- shp-cur: + delta + shaping, curriculum ----------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 71 --wandb-run w10s-shp-cur-s71
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 72 --wandb-run w10s-shp-cur-s72
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 73 --wandb-run w10s-shp-cur-s73
+# --- shp-off: + delta + shaping, no curriculum -------------------------------
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 71 --wandb-run w10s-shp-off-s71
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 72 --wandb-run w10s-shp-off-s72
+uv run python -m training.train --total-steps 15000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0.1 --reward-beta 0.05 --reward-zeta 0.1 --reward-delta 0.01 --no-curriculum --seed 73 --wandb-run w10s-shp-off-s73

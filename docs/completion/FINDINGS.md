@@ -54,13 +54,10 @@ seeds:
 **2. Reward shaping does nothing, with or without the curriculum.** +0.010 without, −0.017 with;
 both far inside the 0.083 threshold. Delta likewise (+0.012 and −0.012).
 
-**3. ~~Shaping substitutes for the curriculum.~~ RETRACTED 2026-09-21 — this was a 3-seed
-artefact.** At 3 seeds shaping appeared worth +0.104 without the curriculum and nothing with it,
-an interaction of +0.148 against a 0.130 threshold. Three more seeds per arm moved `shp-off` by
-**−0.060** and `obj-off` by **+0.034** — two arms drifting toward each other — and the interaction
-collapsed to **+0.026 against a 0.118 threshold.** The claim was the product of one lucky triple and
-one unlucky one. See §6b; this is the clearest illustration in the project of why the seed count
-matters, and it was caught only because the arms were topped up to 6.
+**3. The curriculum's benefit does not interact with the reward.** The shaping × curriculum
+interaction is **+0.026 against a 0.118 threshold** — no evidence that shaping and the curriculum
+substitute for one another, or that either changes what the other is worth. (An earlier 3-seed
+reading claimed they did; see Appendix A.2.)
 
 **4. The curriculum also stabilises training.** Per-seed SD is 0.019–0.044 in the curriculum arms
 against 0.057–0.072 without — roughly a **2–3× reduction in seed variance**, on top of the level
@@ -95,10 +92,8 @@ confirming the *ordering and the absolute level* on unseen boards, not as the 6-
 none. So the objective change cost nothing in absolute performance, and shaping adds nothing on top
 of the curriculum. Both sit ~0.13 above `director-off` and ~0.17 above `w10s-obj-off`.
 
-> A version of this section (2026-09-19) drew a "the Director's value depends on whether shaping is
-> present" table from these rows, with +0.028 / +0.036 / +0.167. **That reading is retracted** — see
-> §0.3. Those three differences came from 3-seed arms and two of them are inside the 3-seed
-> detection threshold of 0.118; the one that looked large did not survive the top-up.
+These rows were once read as evidence that the Director's value depends on the presence of shaping;
+that reading is withdrawn (Appendix A.2).
 
 ### Win rate and the objective can disagree — 04's `sparse` arm
 
@@ -172,9 +167,9 @@ headline survives without the branch design.
 > as the best of ~6 ceiling arms, so 92.0% is a maximum over arms at a ~9.5-point
 > noise floor and is biased upward — the usual winner's curse. The OFF arm was
 > never selected on, so the *sign* of the effect is safe; the magnitude is not.
-> **Superseded: quote §0's 6-seed figure (+0.093 to +0.143 participant score), not this one and not
-> 04's.** 04 re-measured the configuration on fresh seeds but has only 3 of them, so its +0.028 is
-> inside its own 0.118 detection threshold (§6b).
+> **Quote §0's 6-seed figure (+0.093 to +0.143 participant score), not this one and not 04's.** 04
+> re-measured the configuration on fresh seeds but has only 3 of them, so its +0.028 sits inside its
+> own 0.118 detection threshold (§6b).
 
 ### The dose-response peaks exactly at zero
 
@@ -272,23 +267,8 @@ suppression. Its signature is copdist ~1.12 and arrest ~43%.
 
 ## 5. Generalisation: every arm loses the same on held-out cops
 
-Measured on the project's only historic Director run and its matched control,
-300 games, paired:
-
-| scored against | Director ON | no Director |
-|---|---|---|
-| the cops both trained on (`COPS_PRERETUNE_V1`) | **74.7%** | 63.7% |
-| the retuned cops neither saw (`COPS_STUDY_V2`) | 58.7% | **62.7%** |
-
-The curriculum bought 11 points on home cops and cost 16 when the cops changed.
-**Report a held-out cop configuration alongside the frozen one** —
-`uv run python -m training.eval <ckpts> --held-out-cops` does this. A policy
-scored only against its training opponent cannot be distinguished from one that
-memorised that opponent's decision rule.
-
-**Corrected 2026-09-19 — the "the curriculum overfits" reading does not survive a fair test.** The
-table above compares two *historic single runs* that differed in more than the Director. Re-measured
-on 04's nine final checkpoints, 2,000 games each, the held-out gap is **identical across arms**:
+Scored against `COPS_PRERETUNE_V1`, which no current policy trained on — 04's nine final
+checkpoints, 2,000 games each:
 
 | arm | study cops | held-out `COPS_PRERETUNE_V1` | gap |
 |---|---|---|---|
@@ -296,11 +276,15 @@ on 04's nine final checkpoints, 2,000 games each, the held-out gap is **identica
 | `director-off` | 1.300 | 1.183 | −0.117 |
 | `sparse` | 1.299 | 1.180 | −0.119 |
 
-Three decimals apart, ordering unchanged. **The gap is a property of the cop retune, not of the
-curriculum** — every policy loses about 0.12 of score when the opponent changes. Keep the practice
-(always report held-out cops) and drop the claim that the Director overfits; the original observation
-was the train/test mismatch of a single 2026-05 run, which is what workstream 09 was created to
-chase.
+**The gaps are identical to three decimals and the ordering is unchanged.** Every policy loses about
+0.12 of score when the opponent changes, so **the gap is a property of the cop retune, not of any
+training condition**. (A 2026-09-09 reading of two historic single runs had it that the curriculum
+overfits to its own cops — the reason workstream 09 exists. See Appendix A.1.)
+
+**Report a held-out cop configuration alongside the frozen one** —
+`uv run python -m training.eval <ckpts> --held-out-cops` does this. A policy scored only against its
+training opponent cannot be distinguished from one that memorised that opponent's decision rule,
+and that remains true whether or not any particular arm turns out to overfit.
 
 This is also a limitation to state plainly: `COPS_STUDY_V2` was itself tuned with
 a trained Jack as adversary (provenance unrecorded), so historic policies may be
@@ -385,8 +369,8 @@ arms are the noisy ones). That fixes what these experiments can resolve:
 | Shaping × curriculum interaction | +0.148 | +0.026 | **not detectable** |
 | delta, either way | ±0.007 | ±0.012 | not detectable |
 
-**Three seeds produced one confident claim that was wrong.** The substitution finding (§0.3) cleared
-its 3-seed threshold and collapsed at 6. The mechanism is visible per arm: `shp-off` moved −0.060 and
+**Three seeds produced one confident claim that was wrong.** The substitution finding cleared its
+3-seed threshold and collapsed at 6 (Appendix A.2). The mechanism is visible per arm: `shp-off` moved −0.060 and
 `obj-off` +0.034 when three seeds each were added, and the effect lived entirely in that gap.
 
 **The same configuration, two seed triples: 1.309 and 1.280** (`w10s-obj-cur` seeds 41–43 vs
@@ -398,9 +382,9 @@ Practical rules for the write-up:
 2. **State the threshold** — "we could not detect a difference smaller than ~0.08 at six seeds"
    is the honest form of every null here, and it sits alongside the ~9.5-point win-rate noise floor
    from 03.
-3. **Be most suspicious of a small effect that is significant**, not of a null. Both reversals in
-   this project (the Director "overfitting", the shaping substitution) were positive claims from
-   thin samples.
+3. **Be most suspicious of a small effect that is significant**, not of a null. Three of the four
+   withdrawn claims in Appendix A were positive results from thin evidence; none was a null that
+   later became an effect.
 
 ---
 
@@ -492,16 +476,10 @@ say whether it matters.
 - **Reward shaping has no measurable effect**, with or without the curriculum: +0.010 and −0.017 at
   6 seeds against a 0.083 threshold. This is now a clean null on the *right* objective, and it
   supersedes both the 2026-09-14 retraction below and the 2026-09-19 "substitution" reading.
-- ~~**Reward shaping cannot be shown to help.**~~ **Retracted 2026-09-14 — do not report.** Both the
-  3M sweep and 04's 15M `sparse` arm zeroed `gamma` too, and `gamma` is part of the objective (the
-  participant score's stealth term), not shaping. Those arms removed part of the goal; that is why
-  their hideout uncertainty fell (0.65–0.69 vs 0.75–0.78). Rescored roughly on the objective, 04's
-  `sparse` ≈ 1.26 against `director-on` ≈ 1.27, so the apparent advantage disappears. Shaping is
-  re-tested properly in [10](10-reward-design.md), with the objective held fixed. Original text:
-  **Reward shaping cannot be shown to help.** At 3M steps the fully sparse
-  configuration (all five coefficients zero) scored *above* the shaped control
-  (33.0% vs 30.0%) — inside noise, but there is no evidence the shaping earns its
-  complexity. Keep the defaults; do not claim they help.
+- **Reward shaping has no measurable effect on this task.** With the curriculum +0.010, without it
+  −0.017, both far inside the 0.083 six-seed threshold; the interaction is +0.026 against 0.118.
+  Two earlier readings of the shaping question were withdrawn on the way to this one (Appendix A.2,
+  A.3).
 - **PPO hyperparameters:** `lr=3e-4` wins decisively in both Director arms (~30-point spreads) and
   is the one hyperparameter this project can claim to have tuned. `ent-coef=0.03` was chosen on a
   rationale that **did not survive** (its ON arm's curriculum never engaged) and was re-checked in
@@ -534,6 +512,94 @@ say whether it matters.
   engaged); the value survives anyway. See [11](11-hyperparameters.md).
 - **Board-size ablation** was never implemented (`course_1/2/3` are same-size
   scenario variants). Report as a limitation.
+
+---
+
+## Appendix A — retractions and corrections
+
+Four claims in this project were stated, then withdrawn on better evidence. They are collected here
+so the body reads as what is currently believed, and so the reasoning survives if anyone asks why
+the write-up changed. **Nothing here is a current finding.**
+
+Each entry: what was claimed, what it rested on, what overturned it, what replaced it.
+
+### A.1 — "The curriculum overfits to the cops it trained against" (2026-09-09 → 2026-09-19)
+
+**Claimed:** the Director bought 11 points against the cops it trained on and lost 16 when the cops
+changed, i.e. the curriculum buys a policy that memorises one opponent.
+
+| scored against | Director ON | no Director |
+|---|---|---|
+| the cops both trained on (`COPS_PRERETUNE_V1`) | 74.7% | 63.7% |
+| the retuned cops neither saw (`COPS_STUDY_V2`) | 58.7% | 62.7% |
+
+**Rested on:** two *historic single runs* (the project's only 2026-05 Director run and one control)
+that differed in more than the Director, 300 games, no seed replication.
+
+**Overturned by:** 04's nine final checkpoints at 2,000 games each — held-out gaps of −0.119 /
+−0.117 / −0.119 across all three arms (§5).
+
+**Replaced by:** the gap belongs to the cop retune, not to any training condition. **This claim is
+why workstream 09 exists**, so it shaped months of work before it was tested properly — the single
+most consequential wrong belief in the project.
+
+### A.2 — "Reward shaping substitutes for the curriculum" (2026-09-19 → 2026-09-21)
+
+**Claimed:** shaping is worth +0.104 without the curriculum and nothing with it (−0.044), an
+interaction of **+0.148** against a 0.130 threshold — so the two buy the same thing, and that is why
+04's Director effect (+0.028, both arms shaped) looked so much smaller than wave 10's (+0.167).
+
+**Rested on:** 3 seeds per arm. The interaction cleared its threshold by 14%.
+
+**Overturned by:** the seed top-up (array `1808812`) taking the arms to 6 seeds. `shp-off` fell
+**−0.060** and `obj-off` rose **+0.034**; the interaction collapsed to **+0.026** against a 0.118
+threshold. One lucky triple and one unlucky one, drifting in opposite directions.
+
+**Replaced by:** shaping has no measurable effect either way, and the curriculum's benefit
+(+0.093 to +0.143) holds in every reward condition (§0). 04's small Director effect has the duller
+explanation that 04 has 3 seeds and cannot resolve it.
+
+**Why it matters methodologically:** this was written up as the project's most interesting result
+before it was checked. It was caught only because the 14% margin prompted a top-up. See §6b.
+
+### A.3 — "Reward shaping cannot be shown to help" (2026-09-11 → 2026-09-14)
+
+**Claimed:** from 03's wave 2 (3M steps) and 04's `sparse` arm, the fully sparse configuration
+scored at or above the shaped control, so shaping does not earn its complexity.
+
+**Rested on:** arms that set all five reward coefficients to zero — **including `gamma`**, the
+stealth term, which is part of the *objective* rather than the shaping. Those arms removed part of
+the goal, which is why their hideout uncertainty fell (0.68 vs 0.78–0.79).
+
+**Overturned by:** recognising that the participant score defines the objective (§0, workstream 10),
+and re-running the shaping question with the objective held fixed.
+
+**Replaced by:** A.2's conclusion — shaping is a null, measured properly. The *conclusion* was right
+by accident; the evidence for it was not.
+
+### A.4 — "`ent-coef` 0.03 because entropy matters with the Director on" (2026-09-09 → 2026-09-20)
+
+**Claimed:** 0.03 beat 0.01 and 0.003 in the Director-ON arm (39.5 / 36.0 / 18.0) while the OFF arm
+was flat, so entropy matters under the curriculum and 0.03 is the shared choice.
+
+**Rested on:** 03 wave 1, 1 seed per cell, 3M steps — and an "ON" arm whose
+`curriculum/difficulty` stayed pinned at −1.000 for the whole run. **The curriculum never engaged**,
+so the gradient describes training against fully-suppressed cops.
+
+**Overturned by:** workstream 11's re-check under the final configuration: 0.01 scores 1.303 and
+0.03 scores 1.280 — indistinguishable, since the same configuration varies by 0.029 across seed
+triples.
+
+**Replaced by:** 0.03 stands, but as a value that cannot be distinguished from 0.01 rather than one
+shown to be best; 0.003 *is* clearly worse (1.251), so an interior optimum exists in [0.01, 0.03].
+A right answer for a wrong reason.
+
+### What the four have in common
+
+Three of the four were **positive claims from thin evidence** (1 seed, 3 seeds, or two single runs),
+and the fourth (A.3) drew a right conclusion from a confounded arm. None was a null that later turned
+out to be an effect. That asymmetry is the practical lesson, and it is why §6b says to be more
+suspicious of a small significant result than of a null.
 
 ---
 

@@ -1,0 +1,46 @@
+# Workstream 12 — does the curriculum effect survive convergence? 12 tasks.
+#
+#   sbatch --time=23:55:00 --array=0-11%9 docs/completion/slurm/array.sbatch \
+#          docs/completion/slurm/manifests/convergence.txt
+#
+# --time overrides array.sbatch's 23:00:00. 40M steps at the slowest SPS seen on
+# this cluster (~575) is ~19.3h; the extra hour is margin, and 24h is the cap.
+#
+# WHY. Every result in the thesis is "at 15M steps", and the score was still
+# rising in every wave-10 arm when the budget ran out (tail slopes +0.022 to
+# +0.041 per 1M). train.py anneals the learning rate LINEARLY TO ZERO over
+# --total-steps, so 15M is where the schedule stopped the runs, not where they
+# plateaued. That leaves the headline ambiguous between two readings:
+#
+#   the gap persists  -> the curriculum produces a better FINAL policy
+#   the gap closes    -> the curriculum is a SAMPLE-EFFICIENCY method: the same
+#                        destination, reached ~36% faster
+#
+# Both are findings. At 15M the thesis cannot say which.
+#
+# DESIGN. obj-cur vs obj-off - the recommended arm and its matched control -
+# from scratch at 40M (2.7x the budget), flags otherwise identical to wave 10.
+# From scratch, not resumed: resuming a 15M run would restart a learning-rate
+# schedule that had already reached zero, which is not what a 40M run is.
+#
+# 6 fresh seeds per arm (81-86). If the gap SHRINKS, 3 seeds (threshold ~0.111)
+# could not tell "closed" from "smaller"; 6 (threshold ~0.079) can bound it.
+# Seeds 81-86 are independent of every earlier wave (27-29, 31-33, 41-43, 51-53,
+# 61-63, 71-73).
+#
+# HOW TO READ IT (decided before the data): docs/completion/12-convergence.md.
+
+# --- curriculum ----------------------------------------------------------------
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 81 --wandb-run w12-conv-cur-s81
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 82 --wandb-run w12-conv-cur-s82
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 83 --wandb-run w12-conv-cur-s83
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 84 --wandb-run w12-conv-cur-s84
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 85 --wandb-run w12-conv-cur-s85
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --initial-difficulty -1.0 --curriculum-max-difficulty 0.0 --seed 86 --wandb-run w12-conv-cur-s86
+# --- no curriculum -------------------------------------------------------------
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 81 --wandb-run w12-conv-off-s81
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 82 --wandb-run w12-conv-off-s82
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 83 --wandb-run w12-conv-off-s83
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 84 --wandb-run w12-conv-off-s84
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 85 --wandb-run w12-conv-off-s85
+uv run python -m training.train --total-steps 40000000 --n-envs 12 --n-workers 12 --lr 3e-4 --ent-coef 0.03 --reward-objective stealth --reward-alpha 0 --reward-beta 0 --reward-zeta 0 --reward-delta 0 --no-curriculum --seed 86 --wandb-run w12-conv-off-s86

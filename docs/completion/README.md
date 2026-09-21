@@ -27,7 +27,8 @@ evidence and caveats. Read that before writing any chapter.
 | [06](06-comparison.md) | Human-vs-RL comparison | **result in (interim, 6 seeds)** — agent +0.58 score over humans, 36/36 intervals clear of zero; re-run when recruitment ends | — |
 | [07](07-docs-cleanup.md) | Docs cleanup | **done** | — |
 | [11](11-hyperparameters.md) | Hyperparameter validity | **done** — `ent-coef 0.03` stands (0.01 indistinguishable, 0.003 worse); lr safe; rest are CleanRL defaults | — |
-| [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** | — |
+| [08](08-cluster-access.md) | Cluster SSH access for automated work | **done** — access may end ~2026-10-01 | — |
+| [12](12-convergence.md) | Convergence: does the curriculum effect survive 40M? | **IN FLIGHT** (`1809213`), ~37h | — |
 
 Critical path: **01 + 02 -> 03 -> 09 -> 04 -> 10 -> 06**. (10 was added 2026-09-14: 06's checkpoints now come from its wave, trained to win stealthily and scored on the participant score.) Workstreams 05 and 07, and the code parts of 06,
 are laptop work that runs in parallel with cluster time.
@@ -90,6 +91,23 @@ Two questions, one of which could have invalidated everything upstream of it. Fu
   at ceiling 0.0 the ceiling is the optimum, so it does not. Use the default band, do not tune it.
 
 **09 is closed.** Every Director knob is either chosen or measured as a null.
+
+### IN FLIGHT — array `1809213`, submitted 2026-09-21, 12 tasks, ~37h (9 then 3)
+
+**Workstream 12: does the curriculum effect survive a longer budget?** `obj-cur` vs `obj-off` from
+scratch at **40M steps**, 6 fresh seeds each (81–86). Every current result is "at 15M", the score was
+still rising everywhere, and the learning rate anneals linearly to zero over the run — so 15M is
+where the schedule stopped, not where the policies plateaued. Reading rules in
+[12](12-convergence.md), written before the data.
+
+Read and export exactly as wave 10, with prefix `convergence`:
+
+```bash
+ssh cluster 'cd ~/MLs_from_Whitechapel && export PATH=$HOME/.local/bin:$PATH &&   UV_NO_SYNC=1 uv run python -m analysis.sweep_report "logs/wc-train_1809213_*.out"'
+```
+
+**Cluster access may end around 2026-10-01.** When this lands, pull its checkpoints and W&B runs the
+same day — do not leave anything only on the cluster.
 
 ### What waves `1807588` + `1808812` + `1809122` settled — workstream 10, 6–9 seeds per arm
 

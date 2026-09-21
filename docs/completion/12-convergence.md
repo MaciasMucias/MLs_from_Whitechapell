@@ -1,6 +1,7 @@
 # 12 — Convergence: does the curriculum effect survive a longer budget?
 
-**Status:** **IN FLIGHT** (array id below), submitted 2026-09-21. 12 tasks, two windows, ~37h.
+**Status:** **IN FLIGHT — array `1809213`**, submitted 2026-09-21 ~22:45. 12 tasks, 9 then 3, ~37h —
+expected down around **2026-09-23 12:00**. Walltime 23:55:00 confirmed on the tasks.
 **Blocks:** nothing. Either outcome is a finding; neither invalidates a result.
 **Blocked by:** nothing.
 
